@@ -1,6 +1,6 @@
 # Hadoku Trader Worker
 
-Cloudflare Worker API for the hadoku-trader system.
+Cloudflare Worker API for the hadoku-trader system. Designed as an importable package for hadoku-site.
 
 ## Overview
 
@@ -9,21 +9,54 @@ This worker provides:
 - **REST API**: Endpoints for the dashboard to fetch data
 - **Trade Execution Proxy**: Forwards trade requests to local trader-worker via cloudflared tunnel
 
-## Integration with hadoku-site
+## Installation in hadoku-site
 
-This worker is designed to be exported to hadoku-site. To integrate:
-
-### 1. Copy files to hadoku-site
+### 1. Add as a dependency
 
 ```bash
-# Copy worker source
-cp -r worker/src/* ../hadoku-site/src/workers/trader/
+# Using file protocol (recommended for local development)
+cd /path/to/hadoku-site
+pnpm add ../hadoku-trader/worker
 
-# Copy schema
-cp worker/schema.sql ../hadoku-site/d1/trader-schema.sql
+# Or using git URL
+pnpm add git+https://github.com/hadoku/hadoku-trader.git#main:worker
 ```
 
-### 2. Add to hadoku-site's wrangler.toml
+### 2. Import and mount in your worker
+
+```typescript
+// hadoku-site/src/worker.ts
+import { createTraderHandler, type TraderEnv, isTraderRoute } from 'hadoku-trader-worker';
+
+// Extend your env to include TraderEnv
+interface Env extends TraderEnv {
+  // Your other bindings...
+  KV: KVNamespace;
+}
+
+export default {
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    // Mount trader routes at /api/trader/*
+    if (isTraderRoute(url.pathname)) {
+      const traderHandler = createTraderHandler(env);
+      return traderHandler(request);
+    }
+
+    // ... your other routes
+  },
+
+  async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
+    // Import scheduled handler if you need cron jobs
+    const { createScheduledHandler } = await import('hadoku-trader-worker');
+    const handler = createScheduledHandler(env);
+    await handler(event.cron);
+  }
+}
+```
+
+### 3. Configure wrangler.toml
 
 ```toml
 # D1 Database
@@ -32,12 +65,15 @@ binding = "TRADER_DB"
 database_name = "trader-db"
 database_id = "YOUR_DATABASE_ID"
 
-# Add routes
-[[routes]]
-pattern = "hadoku.me/api/trader/*"
+# Scheduled triggers (optional)
+[triggers]
+crons = [
+  "0 0 * * *",    # Daily: update performance history
+  "0 */8 * * *"  # Every 8 hours: sync portfolio
+]
 ```
 
-### 3. Set secrets
+### 4. Set secrets
 
 ```bash
 wrangler secret put SCRAPER_API_KEY
@@ -45,11 +81,11 @@ wrangler secret put TRADER_API_KEY
 wrangler secret put TUNNEL_URL
 ```
 
-### 4. Create and migrate D1
+### 5. Create and migrate D1
 
 ```bash
 wrangler d1 create trader-db
-wrangler d1 execute trader-db --file=./d1/trader-schema.sql
+wrangler d1 execute trader-db --file=./node_modules/hadoku-trader-worker/schema.sql
 ```
 
 ## API Endpoints
@@ -67,22 +103,55 @@ wrangler d1 execute trader-db --file=./d1/trader-schema.sql
 
 ## Local Development
 
+For standalone local development:
+
 ```bash
-# Install dependencies
+cd worker
 pnpm install
-
-# Create local D1
 pnpm db:migrate:local
-
-# Start dev server
 pnpm dev
 ```
 
-## Types
+## Exports
 
-The `src/types.ts` file contains all TypeScript types shared between:
-- This worker
-- The dashboard frontend
-- hadoku-scraper
+```typescript
+// Main handler factory
+import { createTraderHandler, isTraderRoute } from 'hadoku-trader-worker';
 
-Export these types to other projects as needed.
+// Scheduled tasks
+import { createScheduledHandler } from 'hadoku-trader-worker';
+
+// Individual route handlers (for custom routing)
+import {
+  handleGetSignals,
+  handlePostSignal,
+  handleGetPerformance,
+  handleGetPortfolio,
+  handleGetTrades,
+  handleGetSources,
+  handleExecuteTrade,
+  handleHealth,
+} from 'hadoku-trader-worker';
+
+// Types
+import type {
+  TraderEnv,
+  Signal,
+  ExecuteTradeRequest,
+  ExecuteTradeResponse,
+  PerformanceResponse,
+  PortfolioResponse,
+  // ... all types
+} from 'hadoku-trader-worker';
+
+// Or import types separately
+import type { Signal } from 'hadoku-trader-worker/types';
+```
+
+## Building
+
+```bash
+pnpm build  # Outputs to dist/
+```
+
+This generates TypeScript declaration files so hadoku-site gets full type support.

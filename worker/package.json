@@ -1,11 +1,32 @@
 {
-  "name": "hadoku-trader-worker",
+  "name": "@wolffm/trader-worker",
   "version": "1.0.0",
-  "description": "Cloudflare Worker API for hadoku-trader",
+  "description": "Cloudflare Worker API for hadoku-trader - importable package",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./types": {
+      "types": "./dist/types.d.ts",
+      "import": "./dist/types.js"
+    }
+  },
+  "files": [
+    "dist",
+    "schema.sql"
+  ],
   "scripts": {
+    "build": "tsc",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
     "db:create": "wrangler d1 create trader-db",
     "db:migrate": "wrangler d1 execute trader-db --file=./schema.sql",
     "db:migrate:local": "wrangler d1 execute trader-db --local --file=./schema.sql"
@@ -14,5 +35,21 @@
     "@cloudflare/workers-types": "^4.20240117.0",
     "typescript": "^5.3.3",
     "wrangler": "^3.25.0"
-  }
+  },
+  "peerDependencies": {
+    "@cloudflare/workers-types": "^4.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/hadoku/hadoku-trader.git",
+    "directory": "worker"
+  },
+  "keywords": [
+    "cloudflare",
+    "workers",
+    "trader",
+    "hadoku"
+  ],
+  "author": "Hadoku",
+  "license": "MIT"
 }

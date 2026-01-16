@@ -2,7 +2,7 @@
 # This is a reference config - copy relevant parts to hadoku-site's wrangler.toml
 
 name = "hadoku-trader"
-main = "src/index.ts"
+main = "src/worker.ts"  # Standalone entry for local dev
 compatibility_date = "2024-01-01"
 
 # Routes - add to hadoku-site's routes

@@ -11,15 +11,22 @@
 // Environment Bindings
 // =============================================================================
 
-export interface Env {
-  // D1 Database
-  DB: D1Database;
+/**
+ * Required environment bindings for the trader worker.
+ * Extend this in hadoku-site with your additional bindings.
+ */
+export interface TraderEnv {
+  // D1 Database for trader data
+  TRADER_DB: D1Database;
 
   // Secrets
   SCRAPER_API_KEY: string;
   TRADER_API_KEY: string;
   TUNNEL_URL: string; // cloudflared tunnel to local trader-worker
 }
+
+// Legacy alias for backwards compatibility
+export type Env = TraderEnv;
 
 // =============================================================================
 // Signal Types (from hadoku-scraper)
@@ -50,14 +57,16 @@ export interface SignalMeta {
   scraped_at: string; // ISO8601
 }
 
+export type SignalSource =
+  | "unusual_whales"
+  | "capitol_trades"
+  | "quiver_quant"
+  | "house_stock_watcher"
+  | "senate_stock_watcher";
+
 export interface Signal {
   id?: string;
-  source:
-    | "unusual_whales"
-    | "capitol_trades"
-    | "quiver_quant"
-    | "house_stock_watcher"
-    | "senate_stock_watcher";
+  source: SignalSource;
   politician: Politician;
   trade: Trade;
   meta: SignalMeta;
@@ -174,6 +183,17 @@ export interface ExecuteTradeResponse {
 }
 
 // =============================================================================
+// Health Types
+// =============================================================================
+
+export interface HealthResponse {
+  status: "healthy" | "degraded";
+  database: "connected" | "disconnected";
+  trader_worker: "connected" | "disconnected";
+  timestamp: string;
+}
+
+// =============================================================================
 // API Response Wrapper
 // =============================================================================
 
@@ -181,4 +201,16 @@ export interface ApiResponse<T> {
   success: boolean;
   data?: T;
   error?: string;
+}
+
+export interface SignalPostResponse {
+  success: boolean;
+  message: string;
+  id?: string;
+  duplicate?: boolean;
+}
+
+export interface SignalsResponse {
+  signals: Signal[];
+  last_updated: string;
 }
