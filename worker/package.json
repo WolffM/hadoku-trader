@@ -1,0 +1,18 @@
+{
+  "name": "hadoku-trader-worker",
+  "version": "1.0.0",
+  "description": "Cloudflare Worker API for hadoku-trader",
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "db:create": "wrangler d1 create trader-db",
+    "db:migrate": "wrangler d1 execute trader-db --file=./schema.sql",
+    "db:migrate:local": "wrangler d1 execute trader-db --local --file=./schema.sql"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20240117.0",
+    "typescript": "^5.3.3",
+    "wrangler": "^3.25.0"
+  }
+}

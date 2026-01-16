@@ -119,3 +119,30 @@ export interface SourcesResponse {
   sources: SourcePerformance[]
   last_updated: string
 }
+
+// Trade Execution types
+export interface ExecuteTradeRequest {
+  ticker: string
+  action: 'buy' | 'sell'
+  quantity: number
+  account?: string
+  dry_run?: boolean
+}
+
+export interface ExecuteTradeResponse {
+  success: boolean
+  message: string
+  order_id?: string
+  details?: Record<string, unknown>
+}
+
+// Health check
+export interface HealthResponse {
+  status: 'healthy' | 'degraded'
+  database: 'connected' | 'disconnected'
+  trader_worker: 'connected' | 'disconnected'
+  timestamp: string
+}
+
+// API base URL (configure based on environment)
+export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/trader'

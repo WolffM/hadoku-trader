@@ -1,0 +1,10 @@
+# Trader Worker dependencies
+fastapi>=0.109.0
+uvicorn>=0.27.0
+pydantic>=2.0.0
+python-dotenv>=1.0.0
+
+# Fidelity API dependencies (also in ../fidelity-api)
+playwright>=1.40.0
+playwright-stealth>=1.0.0
+pyotp>=2.8.0
