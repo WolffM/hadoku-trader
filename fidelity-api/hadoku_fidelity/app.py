@@ -112,7 +112,7 @@ def create_app(
     app = FastAPI(
         title="Hadoku Trader Service",
         description="Fidelity trade execution service for hadoku",
-        version="1.0.3",
+        version="1.0.4",
         lifespan=lifespan,
     )
 

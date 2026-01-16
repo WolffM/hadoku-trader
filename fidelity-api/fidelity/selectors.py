@@ -21,6 +21,7 @@ class URLs:
     DOCUMENTS = "https://digital.fidelity.com/ftgw/digital/portfolio/documents/dochub"
 
     # Trading
+    TRADE = "https://digital.fidelity.com/ftgw/digital/trade-equity/index/orderEntry"
     TRADE_EQUITY = "https://digital.fidelity.com/ftgw/digital/trade-equity/index/orderEntry"
 
     # Transfers
@@ -54,17 +55,37 @@ class Selectors:
 
     # Trading page
     ACCOUNT_DROPDOWN = "#dest-acct-dropdown"
-    SYMBOL_INPUT = "Symbol"
+    SYMBOL_INPUT = "#eq-ticket-dest-symbol"
     QUOTE_PANEL = "#quote-panel"
     LAST_PRICE = "#eq-ticket__last-price > span.last-price"
     EXTENDED_HOURS_WRAPPER = ".eq-ticket__extendedhour-toggle"
     EXTENDED_HOURS_BUTTON = "#eq-ticket_extendedhour"
     ACTION_DROPDOWN = ".eq-ticket-action-label"
-    QUANTITY_INPUT = "#eqt-mts-stock-quatity div"
-    ORDER_TYPE_DROPDOWN = "#dest-dropdownlist-button-ordertype > span:nth-child(1)"
+    QUANTITY_INPUT = "#eqt-shared-quantity"
+    ORDER_TYPE_DROPDOWN = "#dest-dropdownlist-button-ordertype"
     ORDER_TYPE_CONTAINER = "#order-type-container-id"
+    LIMIT_PRICE_INPUT = "#eqt-ordsel-limit-price-field"
+    ORDER_ERROR = ".pvd-inline-alert--error"
+    ORDER_CONFIRMATION = ".order-confirmation"
 
-    # Positions page
+    # Positions page (AG Grid based)
+    ACCOUNT_CONTAINER = ".posweb-row-account"
+    ACCOUNT_NUMBER = ".posweb-cell-account_secondary"
+    POSITION_ROW = ".posweb-row-position"
+    POSITION_TICKER = ".posweb-cell-symbol-name"
+    POSITION_QUANTITY = ".posweb-cell-quantity_value"
+    POSITION_PRICE = ".posweb-cell-stack-item-last_price"
+    POSITION_VALUE = ".posweb-cell-current_value"
+    POSITION_COST_BASIS = ".posweb-cell-cost_basis_value"
+
+    # Account selector (nav)
+    ACCOUNT_SELECTOR_CONTAINER = 'nav[data-testid="ap143528-accounts-selector-container"]'
+    ACCOUNT_SELECTOR_LINK = 'apex-kit-web-link[data-testid^="ap143528-accounts-selector-account-link-"]'
+    ACCOUNT_SELECTOR_NAME = 'span[data-testid="ap143528-accounts-selector-account-name"]'
+    ACCOUNT_SELECTOR_BALANCE = 'div[data-testid="ap143528-accounts-selector-account-balance"]'
+    TOTAL_BALANCE = ".total-balance-value"
+
+    # Positions actions
     AVAILABLE_ACTIONS_BUTTON = "Available Actions"
     DOWNLOAD_POSITIONS = "Download Positions"
 
