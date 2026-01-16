@@ -10,6 +10,14 @@ import {
   ExecuteTradeResponse,
 } from "./types";
 import { jsonResponse, verifyApiKey, generateId } from "./utils";
+import {
+  getActiveAgents,
+  getAgent,
+  getAgentBudget,
+  getAgentPositions,
+  processAllPendingSignals,
+  getCurrentMonth,
+} from "./agents";
 
 // =============================================================================
 // Signal Handlers
@@ -127,125 +135,65 @@ export async function handlePostSignal(
 // =============================================================================
 
 export async function handleGetPerformance(env: TraderEnv): Promise<Response> {
+  // Fetch performance history (stores % returns directly)
   const history = await env.TRADER_DB.prepare(`
-    SELECT date, signals_value, portfolio_value, sp500_value
+    SELECT date, signals_return_pct, hadoku_return_pct, sp500_return_pct
     FROM performance_history
     ORDER BY date ASC
   `).all();
 
   const data = history.results as any[];
 
-  // Calculate metrics
-  const calcMetrics = (values: number[], key: string) => {
-    if (values.length < 2) {
+  // Calculate cumulative metrics from daily % returns
+  const calcMetrics = (key: string) => {
+    if (data.length === 0) {
       return { total_return_pct: 0, mtd_return_pct: 0, ytd_return_pct: 0 };
     }
-    const first = values[0];
-    const last = values[values.length - 1];
-    const total_return_pct = ((last - first) / first) * 100;
+
+    // Total return is the latest value (already cumulative)
+    const total_return_pct = data.length > 0 ? data[data.length - 1][key] : 0;
 
     // MTD: from start of month
     const now = new Date();
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
     const mtdData = data.filter((d) => new Date(d.date) >= monthStart);
-    const mtdValues = mtdData.map((d) => d[key]);
-    const mtd_return_pct =
-      mtdValues.length > 1
-        ? ((mtdValues[mtdValues.length - 1] - mtdValues[0]) / mtdValues[0]) * 100
-        : 0;
+    const mtd_return_pct = mtdData.length > 0 ? mtdData[mtdData.length - 1][key] - (mtdData[0][key] || 0) : 0;
 
     // YTD: from start of year
     const yearStart = new Date(now.getFullYear(), 0, 1);
     const ytdData = data.filter((d) => new Date(d.date) >= yearStart);
-    const ytdValues = ytdData.map((d) => d[key]);
-    const ytd_return_pct =
-      ytdValues.length > 1
-        ? ((ytdValues[ytdValues.length - 1] - ytdValues[0]) / ytdValues[0]) * 100
-        : 0;
+    const ytd_return_pct = ytdData.length > 0 ? ytdData[ytdData.length - 1][key] - (ytdData[0][key] || 0) : 0;
 
     return { total_return_pct, mtd_return_pct, ytd_return_pct };
   };
 
+  // Build history arrays for charting (value = % return for that day)
   const signalsHistory = data.map((d) => ({
     date: d.date,
-    value: d.signals_value,
+    value: d.signals_return_pct,
   }));
-  const portfolioHistory = data.map((d) => ({
+  const hadokuHistory = data.map((d) => ({
     date: d.date,
-    value: d.portfolio_value,
+    value: d.hadoku_return_pct,
   }));
   const sp500History = data.map((d) => ({
     date: d.date,
-    value: d.sp500_value,
+    value: d.sp500_return_pct,
   }));
 
   return jsonResponse({
     signals_performance: {
-      ...calcMetrics(
-        data.map((d) => d.signals_value),
-        "signals_value"
-      ),
+      ...calcMetrics("signals_return_pct"),
       history: signalsHistory,
     },
-    portfolio_performance: {
-      ...calcMetrics(
-        data.map((d) => d.portfolio_value),
-        "portfolio_value"
-      ),
-      history: portfolioHistory,
+    hadoku_performance: {
+      ...calcMetrics("hadoku_return_pct"),
+      history: hadokuHistory,
     },
     sp500_performance: {
-      ...calcMetrics(
-        data.map((d) => d.sp500_value),
-        "sp500_value"
-      ),
+      ...calcMetrics("sp500_return_pct"),
       history: sp500History,
     },
-    last_updated: new Date().toISOString(),
-  });
-}
-
-// =============================================================================
-// Portfolio Handler
-// =============================================================================
-
-export async function handleGetPortfolio(env: TraderEnv): Promise<Response> {
-  const positions = await env.TRADER_DB.prepare(`
-    SELECT * FROM positions WHERE quantity > 0
-  `).all();
-
-  // Get current prices (in production, fetch from market data API)
-  const positionsWithPrices = positions.results.map((p: any) => {
-    const current_price = p.current_price || p.avg_cost;
-    const market_value = p.quantity * current_price;
-    const cost_basis = p.quantity * p.avg_cost;
-    const unrealized_pnl = market_value - cost_basis;
-    const unrealized_pnl_pct =
-      cost_basis > 0 ? (unrealized_pnl / cost_basis) * 100 : 0;
-
-    return {
-      ticker: p.ticker,
-      quantity: p.quantity,
-      avg_cost: p.avg_cost,
-      current_price,
-      market_value,
-      unrealized_pnl,
-      unrealized_pnl_pct,
-    };
-  });
-
-  const cash = await env.TRADER_DB.prepare(
-    "SELECT value FROM config WHERE key = 'cash_balance'"
-  ).first();
-  const cashBalance = cash?.value ? parseFloat(cash.value as string) : 0;
-  const totalValue =
-    positionsWithPrices.reduce((sum, p) => sum + p.market_value, 0) +
-    cashBalance;
-
-  return jsonResponse({
-    positions: positionsWithPrices,
-    cash: cashBalance,
-    total_value: totalValue,
     last_updated: new Date().toISOString(),
   });
 }
@@ -401,4 +349,187 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
     trader_worker: tunnelOk ? "connected" : "disconnected",
     timestamp: new Date().toISOString(),
   });
+}
+
+// =============================================================================
+// Agent Handlers
+// =============================================================================
+
+/**
+ * GET /agents - List all agents with budget status
+ */
+export async function handleGetAgents(env: TraderEnv): Promise<Response> {
+  try {
+    const agents = await getActiveAgents(env);
+    const month = getCurrentMonth();
+
+    const agentSummaries = await Promise.all(
+      agents.map(async (agent) => {
+        const budget = await getAgentBudget(env, agent.id);
+        const positions = await getAgentPositions(env, agent.id);
+
+        // Calculate total return
+        let totalCostBasis = 0;
+        let totalCurrentValue = 0;
+        for (const pos of positions) {
+          totalCostBasis += (pos.cost_basis as number) || 0;
+          totalCurrentValue +=
+            ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
+        }
+        const totalReturnPct =
+          totalCostBasis > 0
+            ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
+            : 0;
+
+        return {
+          id: agent.id,
+          name: agent.name,
+          is_active: true,
+          monthly_budget: budget.total,
+          budget_spent: budget.spent,
+          budget_remaining: budget.remaining,
+          positions_count: positions.length,
+          total_return_pct: Math.round(totalReturnPct * 100) / 100,
+        };
+      })
+    );
+
+    return jsonResponse({
+      agents: agentSummaries,
+      last_updated: new Date().toISOString(),
+    });
+  } catch (error) {
+    console.error("Error fetching agents:", error);
+    return jsonResponse(
+      { success: false, error: "Failed to fetch agents" },
+      500
+    );
+  }
+}
+
+/**
+ * GET /agents/:id - Get agent detail with config and positions
+ */
+export async function handleGetAgentById(
+  env: TraderEnv,
+  agentId: string
+): Promise<Response> {
+  try {
+    const agent = await getAgent(env, agentId);
+    if (!agent) {
+      return jsonResponse({ success: false, error: "Agent not found" }, 404);
+    }
+
+    const budget = await getAgentBudget(env, agentId);
+    const positions = await getAgentPositions(env, agentId);
+
+    // Get recent trades for this agent
+    const tradesResult = await env.TRADER_DB.prepare(`
+      SELECT * FROM trades
+      WHERE agent_id = ?
+      ORDER BY created_at DESC
+      LIMIT 20
+    `)
+      .bind(agentId)
+      .all();
+
+    // Calculate total return
+    let totalCostBasis = 0;
+    let totalCurrentValue = 0;
+    for (const pos of positions) {
+      totalCostBasis += (pos.cost_basis as number) || 0;
+      totalCurrentValue +=
+        ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
+    }
+    const totalReturnPct =
+      totalCostBasis > 0
+        ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
+        : 0;
+
+    // Format positions for response
+    const formattedPositions = positions.map((pos: any) => {
+      const entryPrice = pos.avg_cost || pos.entry_price || 0;
+      const currentPrice = pos.current_price || entryPrice;
+      const returnPct =
+        entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
+      const daysHeld = pos.entry_date
+        ? Math.floor(
+            (Date.now() - new Date(pos.entry_date).getTime()) /
+              (1000 * 60 * 60 * 24)
+          )
+        : 0;
+
+      return {
+        ticker: pos.ticker,
+        shares: pos.quantity,
+        entry_price: entryPrice,
+        current_price: currentPrice,
+        cost_basis: pos.cost_basis || entryPrice * pos.quantity,
+        return_pct: Math.round(returnPct * 100) / 100,
+        days_held: daysHeld,
+      };
+    });
+
+    // Format trades for response
+    const formattedTrades = tradesResult.results.map((t: any) => ({
+      id: t.id,
+      signal_id: t.signal_id,
+      ticker: t.ticker,
+      action: t.action,
+      decision: t.decision,
+      score: t.score,
+      position_size: t.total,
+      executed_at: t.executed_at,
+    }));
+
+    return jsonResponse({
+      agent: {
+        id: agent.id,
+        name: agent.name,
+        is_active: true,
+        monthly_budget: budget.total,
+        budget_spent: budget.spent,
+        budget_remaining: budget.remaining,
+        positions_count: positions.length,
+        total_return_pct: Math.round(totalReturnPct * 100) / 100,
+      },
+      config: agent,
+      positions: formattedPositions,
+      recent_trades: formattedTrades,
+    });
+  } catch (error) {
+    console.error("Error fetching agent:", error);
+    return jsonResponse(
+      { success: false, error: "Failed to fetch agent" },
+      500
+    );
+  }
+}
+
+/**
+ * POST /signals/process - Manually trigger signal processing
+ */
+export async function handleProcessSignals(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key
+  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  try {
+    const result = await processAllPendingSignals(env);
+
+    return jsonResponse({
+      success: true,
+      ...result,
+    });
+  } catch (error) {
+    console.error("Error processing signals:", error);
+    return jsonResponse(
+      { success: false, error: "Failed to process signals" },
+      500
+    );
+  }
 }

@@ -33,20 +33,20 @@ function KPICard({ title, value, change, changeType = 'neutral', subtitle }: KPI
 }
 
 export function OverviewCards({ performance }: OverviewCardsProps) {
-  const portfolioReturn = performance.portfolio_performance.total_return_pct
+  const hadokuReturn = performance.hadoku_performance.total_return_pct
   const signalsReturn = performance.signals_performance.total_return_pct
   const sp500Return = performance.sp500_performance.total_return_pct
 
-  const vsSignals = portfolioReturn - signalsReturn
-  const vsSP500 = portfolioReturn - sp500Return
+  const vsSignals = hadokuReturn - signalsReturn
+  const vsSP500 = hadokuReturn - sp500Return
 
   return (
     <div className="overview-cards">
       <KPICard
-        title="My Return"
-        value={formatPercent(portfolioReturn)}
-        changeType={portfolioReturn >= 0 ? 'positive' : 'negative'}
-        subtitle="Total return"
+        title="Hadoku"
+        value={formatPercent(hadokuReturn)}
+        changeType={hadokuReturn >= 0 ? 'positive' : 'negative'}
+        subtitle="Our trades"
       />
 
       <KPICard

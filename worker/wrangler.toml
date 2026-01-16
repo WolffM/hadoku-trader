@@ -19,13 +19,14 @@ database_id = "YOUR_DATABASE_ID"  # Replace after creating with: wrangler d1 cre
 # Secrets (set with wrangler secret put)
 # - SCRAPER_API_KEY: API key for hadoku-scraper to post signals
 # - TRADER_API_KEY: API key for trade execution
-# - TUNNEL_URL: URL to local trader-worker via cloudflared
+# - TUNNEL_URL: URL to local fidelity service via cloudflared
+# - SCRAPER_URL: URL to hadoku-scraper API for market data
 
 # Scheduled triggers
 [triggers]
 crons = [
-  "0 0 * * *",    # Daily: update performance history
-  "0 */8 * * *"  # Every 8 hours: sync portfolio
+  "0 */8 * * *",  # Every 8 hours: fetch signals + market data from scraper
+  "0 0 * * *"     # Daily: update performance history
 ]
 
 # Development settings

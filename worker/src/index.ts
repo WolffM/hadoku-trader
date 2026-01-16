@@ -39,9 +39,14 @@ export {
   handleGetSignals,
   handlePostSignal,
   handleGetPerformance,
-  handleGetPortfolio,
   handleGetTrades,
   handleGetSources,
   handleExecuteTrade,
   handleHealth,
+  handleGetAgents,
+  handleGetAgentById,
+  handleProcessSignals,
 } from "./routes";
+
+// Export the agents module for direct access
+export * as agents from "./agents";

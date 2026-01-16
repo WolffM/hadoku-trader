@@ -9,11 +9,13 @@ import {
   handleGetSignals,
   handlePostSignal,
   handleGetPerformance,
-  handleGetPortfolio,
   handleGetTrades,
   handleGetSources,
   handleExecuteTrade,
   handleHealth,
+  handleGetAgents,
+  handleGetAgentById,
+  handleProcessSignals,
 } from "./routes";
 import { jsonResponse, corsHeaders, withCors } from "./utils";
 
@@ -73,10 +75,6 @@ export function createTraderHandler(
           response = await handleGetPerformance(env);
           break;
 
-        case route === "/portfolio" && request.method === "GET":
-          response = await handleGetPortfolio(env);
-          break;
-
         case route === "/trades" && request.method === "GET":
           response = await handleGetTrades(env);
           break;
@@ -91,6 +89,21 @@ export function createTraderHandler(
 
         case route === "/health" && request.method === "GET":
           response = await handleHealth(env);
+          break;
+
+        // Agent routes
+        case route === "/agents" && request.method === "GET":
+          response = await handleGetAgents(env);
+          break;
+
+        case /^\/agents\/[^/]+$/.test(route) && request.method === "GET": {
+          const agentId = route.split("/")[2];
+          response = await handleGetAgentById(env, agentId);
+          break;
+        }
+
+        case route === "/signals/process" && request.method === "POST":
+          response = await handleProcessSignals(request, env);
           break;
 
         default:

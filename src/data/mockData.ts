@@ -4,7 +4,6 @@
 import type {
   Signal,
   PerformanceData,
-  PortfolioData,
   ExecutedTrade,
   SourcePerformance
 } from '../types/api'
@@ -21,18 +20,19 @@ function generateDates(days: number): string[] {
   return dates
 }
 
-// Generate performance history with some variance
-function generateHistory(
-  startValue: number,
-  dailyReturn: number,
+// Generate performance history with cumulative % returns
+function generateReturnHistory(
+  totalReturn: number,
   variance: number,
   dates: string[]
 ) {
-  let value = startValue
+  // Distribute the total return across all dates with some randomness
+  const dailyAvgReturn = totalReturn / dates.length
+  let cumulative = 0
   return dates.map(date => {
-    const dailyChange = dailyReturn + (Math.random() - 0.5) * variance
-    value = value * (1 + dailyChange)
-    return { date, value: Math.round(value * 100) / 100 }
+    const dailyChange = dailyAvgReturn + (Math.random() - 0.5) * variance
+    cumulative += dailyChange
+    return { date, value: Math.round(cumulative * 100) / 100 }
   })
 }
 
@@ -43,73 +43,20 @@ export const mockPerformanceData: PerformanceData = {
     total_return_pct: 18.5,
     mtd_return_pct: 3.2,
     ytd_return_pct: 18.5,
-    history: generateHistory(10000, 0.002, 0.01, dates)
+    history: generateReturnHistory(18.5, 0.8, dates)
   },
-  portfolio_performance: {
+  hadoku_performance: {
     total_return_pct: 22.3,
     mtd_return_pct: 4.1,
     ytd_return_pct: 22.3,
-    history: generateHistory(10000, 0.0025, 0.012, dates)
+    history: generateReturnHistory(22.3, 1.0, dates)
   },
   sp500_performance: {
     total_return_pct: 12.1,
     mtd_return_pct: 1.8,
     ytd_return_pct: 12.1,
-    history: generateHistory(10000, 0.0013, 0.008, dates)
+    history: generateReturnHistory(12.1, 0.5, dates)
   },
-  last_updated: new Date().toISOString()
-}
-
-export const mockPortfolioData: PortfolioData = {
-  positions: [
-    {
-      ticker: 'NVDA',
-      quantity: 15,
-      avg_cost: 138.5,
-      current_price: 152.3,
-      market_value: 2284.5,
-      unrealized_pnl: 207.0,
-      unrealized_pnl_pct: 9.96
-    },
-    {
-      ticker: 'PLTR',
-      quantity: 50,
-      avg_cost: 72.4,
-      current_price: 78.9,
-      market_value: 3945.0,
-      unrealized_pnl: 325.0,
-      unrealized_pnl_pct: 8.98
-    },
-    {
-      ticker: 'MSFT',
-      quantity: 8,
-      avg_cost: 425.0,
-      current_price: 418.5,
-      market_value: 3348.0,
-      unrealized_pnl: -52.0,
-      unrealized_pnl_pct: -1.53
-    },
-    {
-      ticker: 'GOOGL',
-      quantity: 12,
-      avg_cost: 175.2,
-      current_price: 182.4,
-      market_value: 2188.8,
-      unrealized_pnl: 86.4,
-      unrealized_pnl_pct: 4.11
-    },
-    {
-      ticker: 'AAPL',
-      quantity: 20,
-      avg_cost: 198.5,
-      current_price: 205.8,
-      market_value: 4116.0,
-      unrealized_pnl: 146.0,
-      unrealized_pnl_pct: 3.68
-    }
-  ],
-  cash: 2500.0,
-  total_value: 18382.3,
   last_updated: new Date().toISOString()
 }
 

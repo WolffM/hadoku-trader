@@ -22,7 +22,8 @@ export interface TraderEnv {
   // Secrets
   SCRAPER_API_KEY: string;
   TRADER_API_KEY: string;
-  TUNNEL_URL: string; // cloudflared tunnel to local trader-worker
+  TUNNEL_URL: string; // cloudflared tunnel to local fidelity service
+  SCRAPER_URL: string; // hadoku-scraper API URL for market data
 }
 
 // Legacy alias for backwards compatibility
@@ -90,29 +91,8 @@ export interface PerformanceMetrics {
 
 export interface PerformanceResponse {
   signals_performance: PerformanceMetrics;
-  portfolio_performance: PerformanceMetrics;
+  hadoku_performance: PerformanceMetrics; // Our executed trades performance
   sp500_performance: PerformanceMetrics;
-  last_updated: string;
-}
-
-// =============================================================================
-// Portfolio Types
-// =============================================================================
-
-export interface Position {
-  ticker: string;
-  quantity: number;
-  avg_cost: number;
-  current_price: number;
-  market_value: number;
-  unrealized_pnl: number;
-  unrealized_pnl_pct: number;
-}
-
-export interface PortfolioResponse {
-  positions: Position[];
-  cash: number;
-  total_value: number;
   last_updated: string;
 }
 
@@ -212,5 +192,25 @@ export interface SignalPostResponse {
 
 export interface SignalsResponse {
   signals: Signal[];
+  last_updated: string;
+}
+
+// =============================================================================
+// Market Data Types (from hadoku-scraper)
+// =============================================================================
+
+export interface MarketQuote {
+  ticker: string;
+  price: number;
+  change_pct: number;
+  timestamp: string;
+}
+
+export interface ScraperDataPackage {
+  signals: Signal[];
+  market_data: {
+    sp500: MarketQuote;
+    quotes: MarketQuote[]; // Current prices for tickers in signals
+  };
   last_updated: string;
 }

@@ -76,14 +76,15 @@ CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions(ticker);
 
 -- =============================================================================
 -- Performance History Table
+-- Stores daily % returns (not absolute values) for each benchmark
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS performance_history (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   date TEXT NOT NULL UNIQUE,
-  signals_value REAL NOT NULL,
-  portfolio_value REAL NOT NULL,
-  sp500_value REAL NOT NULL,
+  signals_return_pct REAL NOT NULL,    -- % return of following all signals
+  hadoku_return_pct REAL NOT NULL,     -- % return of our executed trades
+  sp500_return_pct REAL NOT NULL,      -- % return of S&P 500
   created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
@@ -120,3 +121,84 @@ SELECT
 FROM signals s
 LEFT JOIN trades t ON s.id = t.signal_id
 GROUP BY s.source;
+
+-- =============================================================================
+-- MULTI-AGENT TRADING ENGINE TABLES
+-- =============================================================================
+
+-- =============================================================================
+-- Agents Table
+-- Stores agent configuration as JSON for flexibility
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS agents (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  config_json TEXT NOT NULL,
+  is_active INTEGER DEFAULT 1,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+
+-- =============================================================================
+-- Agent Budgets Table
+-- Monthly budget tracking per agent
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS agent_budgets (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  month TEXT NOT NULL,  -- 'YYYY-MM' format
+  total_budget REAL NOT NULL DEFAULT 1000,
+  spent REAL DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (agent_id) REFERENCES agents(id),
+  UNIQUE(agent_id, month)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_budgets_agent_month ON agent_budgets(agent_id, month);
+
+-- =============================================================================
+-- Politician Stats Table
+-- Shared across all agents for politician skill scoring
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS politician_stats (
+  name TEXT PRIMARY KEY,
+  total_trades INTEGER DEFAULT 0,
+  winning_trades INTEGER DEFAULT 0,
+  win_rate REAL,
+  avg_return_pct REAL,
+  last_updated TEXT
+);
+
+-- =============================================================================
+-- Agent Performance Table
+-- Daily snapshots per agent
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS agent_performance (
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  date TEXT NOT NULL,
+  total_value REAL NOT NULL DEFAULT 0,
+  total_cost_basis REAL NOT NULL DEFAULT 0,
+  total_return_pct REAL NOT NULL DEFAULT 0,
+  spy_return_pct REAL,
+  positions_count INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (agent_id) REFERENCES agents(id),
+  UNIQUE(agent_id, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_agent_perf_agent_date ON agent_performance(agent_id, date);
+
+-- =============================================================================
+-- Schema Migrations Table
+-- Track applied migrations
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS schema_migrations (
+  version TEXT PRIMARY KEY,
+  applied_at TEXT DEFAULT CURRENT_TIMESTAMP
+);

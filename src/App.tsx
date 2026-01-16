@@ -6,7 +6,6 @@ import type { TraderProps } from './entry'
 import type {
   Signal,
   PerformanceData,
-  PortfolioData,
   ExecutedTrade,
   SourcePerformance
 } from './types/api'
@@ -26,7 +25,6 @@ import { fetchDashboardData } from './services/api'
 // Mock Data (fallback for development)
 import {
   mockPerformanceData,
-  mockPortfolioData,
   mockSignals,
   mockTrades,
   mockSources
@@ -35,7 +33,6 @@ import {
 interface DashboardState {
   signals: Signal[]
   performance: PerformanceData
-  portfolio: PortfolioData
   trades: ExecutedTrade[]
   sources: SourcePerformance[]
   isLoading: boolean
@@ -84,7 +81,6 @@ export default function App(props: TraderProps = {}) {
     return {
       signals: cached?.signals ?? mockSignals,
       performance: cached?.performance ?? mockPerformanceData,
-      portfolio: cached?.portfolio ?? mockPortfolioData,
       trades: cached?.trades ?? mockTrades,
       sources: cached?.sources ?? mockSources,
       isLoading: !cached, // Don't show loading if we have cached data
@@ -106,7 +102,6 @@ export default function App(props: TraderProps = {}) {
             const newData = {
               signals: result.signals ?? prev.signals,
               performance: result.performance ?? prev.performance,
-              portfolio: result.portfolio ?? prev.portfolio,
               trades: result.trades ?? prev.trades,
               sources: result.sources ?? prev.sources,
               isLoading: false,
@@ -116,7 +111,6 @@ export default function App(props: TraderProps = {}) {
             setCachedData({
               signals: newData.signals,
               performance: newData.performance,
-              portfolio: newData.portfolio,
               trades: newData.trades,
               sources: newData.sources,
             })

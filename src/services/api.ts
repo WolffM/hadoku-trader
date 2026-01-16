@@ -6,7 +6,6 @@ import {
   API_BASE_URL,
   type Signal,
   type PerformanceData,
-  type PortfolioData,
   type ExecutedTrade,
   type SourcePerformance,
   type ExecuteTradeRequest,
@@ -47,17 +46,10 @@ export async function fetchSignals(): Promise<Signal[]> {
 }
 
 /**
- * Fetch performance data (portfolio, signals, S&P 500).
+ * Fetch performance data (signals, hadoku, S&P 500).
  */
 export async function fetchPerformance(): Promise<PerformanceData> {
   return fetchApi<PerformanceData>('/performance')
-}
-
-/**
- * Fetch current portfolio positions.
- */
-export async function fetchPortfolio(): Promise<PortfolioData> {
-  return fetchApi<PortfolioData>('/portfolio')
 }
 
 /**
@@ -109,12 +101,11 @@ export async function fetchDashboardData() {
   const results = await Promise.allSettled([
     fetchSignals(),
     fetchPerformance(),
-    fetchPortfolio(),
     fetchTrades(),
     fetchSources(),
   ])
 
-  const [signalsResult, performanceResult, portfolioResult, tradesResult, sourcesResult] = results
+  const [signalsResult, performanceResult, tradesResult, sourcesResult] = results
 
   // Log any failures
   results.forEach((r, i) => {
@@ -126,22 +117,20 @@ export async function fetchDashboardData() {
   // Extract successful results, throw if critical data missing
   const signals = signalsResult.status === 'fulfilled' ? signalsResult.value : null
   const performance = performanceResult.status === 'fulfilled' ? performanceResult.value : null
-  const portfolio = portfolioResult.status === 'fulfilled' ? portfolioResult.value : null
   const trades = tradesResult.status === 'fulfilled' ? tradesResult.value : null
   const sources = sourcesResult.status === 'fulfilled' ? sourcesResult.value : null
 
   // If we got nothing, throw error
-  if (!signals && !performance && !portfolio && !trades && !sources) {
+  if (!signals && !performance && !trades && !sources) {
     throw new Error('All API endpoints failed')
   }
 
   console.log('[trader-api] Fetch complete:', {
     signals: signals?.length ?? 'failed',
     performance: performance ? 'ok' : 'failed',
-    portfolio: portfolio ? 'ok' : 'failed',
     trades: trades?.length ?? 'failed',
     sources: sources?.length ?? 'failed',
   })
 
-  return { signals, performance, portfolio, trades, sources }
+  return { signals, performance, trades, sources }
 }

@@ -39,20 +39,20 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
 
   // Merge all three performance histories into one dataset
   const signalsHistory = filterByTimeRange(data.signals_performance.history, timeRange)
-  const portfolioHistory = filterByTimeRange(data.portfolio_performance.history, timeRange)
+  const hadokuHistory = filterByTimeRange(data.hadoku_performance.history, timeRange)
   const sp500History = filterByTimeRange(data.sp500_performance.history, timeRange)
 
   const chartData = signalsHistory.map((item, index) => ({
     date: item.date,
     signals: item.value,
-    portfolio: portfolioHistory[index]?.value ?? 0,
+    hadoku: hadokuHistory[index]?.value ?? 0,
     sp500: sp500History[index]?.value ?? 0
   }))
 
   // Theme-aware colors
   const colors = {
     signals: isDarkTheme ? '#60a5fa' : '#3b82f6', // blue
-    portfolio: isDarkTheme ? '#4ade80' : '#22c55e', // green
+    hadoku: isDarkTheme ? '#4ade80' : '#22c55e', // green
     sp500: isDarkTheme ? '#a78bfa' : '#8b5cf6', // purple
     grid: isDarkTheme ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)',
     text: isDarkTheme ? '#94a3b8' : '#64748b'
@@ -92,9 +92,9 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
                 <stop offset="5%" stopColor={colors.signals} stopOpacity={0.3} />
                 <stop offset="95%" stopColor={colors.signals} stopOpacity={0} />
               </linearGradient>
-              <linearGradient id="colorPortfolio" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor={colors.portfolio} stopOpacity={0.3} />
-                <stop offset="95%" stopColor={colors.portfolio} stopOpacity={0} />
+              <linearGradient id="colorHadoku" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={colors.hadoku} stopOpacity={0.3} />
+                <stop offset="95%" stopColor={colors.hadoku} stopOpacity={0} />
               </linearGradient>
               <linearGradient id="colorSP500" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor={colors.sp500} stopOpacity={0.3} />
@@ -112,8 +112,8 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
             />
             <YAxis
               tick={{ fill: colors.text, fontSize: 12 }}
-              tickFormatter={value => `$${(value / 1000).toFixed(1)}k`}
-              domain={['dataMin - 500', 'dataMax + 500']}
+              tickFormatter={value => `${value.toFixed(1)}%`}
+              domain={['dataMin - 1', 'dataMax + 1']}
             />
             <Tooltip
               contentStyle={{
@@ -123,7 +123,7 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
                 color: isDarkTheme ? '#f1f5f9' : '#1e293b'
               }}
               formatter={(value: number | undefined) => [
-                value !== undefined ? `$${value.toLocaleString()}` : 'N/A',
+                value !== undefined ? `${value.toFixed(2)}%` : 'N/A',
                 ''
               ]}
               labelFormatter={label => new Date(label).toLocaleDateString()}
@@ -132,7 +132,7 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
               wrapperStyle={{ paddingTop: '20px' }}
               formatter={value => {
                 const labels: Record<string, string> = {
-                  portfolio: 'Portfolio',
+                  hadoku: 'Hadoku',
                   signals: 'Signals',
                   sp500: 'S&P 500'
                 }
@@ -141,11 +141,11 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
             />
             <Area
               type="monotone"
-              dataKey="portfolio"
-              stroke={colors.portfolio}
+              dataKey="hadoku"
+              stroke={colors.hadoku}
               strokeWidth={2}
               fillOpacity={1}
-              fill="url(#colorPortfolio)"
+              fill="url(#colorHadoku)"
             />
             <Area
               type="monotone"

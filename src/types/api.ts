@@ -53,25 +53,8 @@ export interface PerformanceMetrics {
 
 export interface PerformanceData {
   signals_performance: PerformanceMetrics
-  portfolio_performance: PerformanceMetrics
+  hadoku_performance: PerformanceMetrics // Our executed trades performance
   sp500_performance: PerformanceMetrics
-  last_updated: string
-}
-
-export interface Position {
-  ticker: string
-  quantity: number
-  avg_cost: number
-  current_price: number
-  market_value: number
-  unrealized_pnl: number
-  unrealized_pnl_pct: number
-}
-
-export interface PortfolioData {
-  positions: Position[]
-  cash: number
-  total_value: number
   last_updated: string
 }
 
