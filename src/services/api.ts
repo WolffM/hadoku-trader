@@ -101,15 +101,47 @@ export async function fetchHealth(): Promise<HealthResponse> {
 
 /**
  * Fetch all dashboard data in parallel.
+ * Uses Promise.allSettled to not fail if individual endpoints fail.
  */
 export async function fetchDashboardData() {
-  const [signals, performance, portfolio, trades, sources] = await Promise.all([
+  console.log('[trader-api] Fetching dashboard data from:', API_BASE_URL)
+
+  const results = await Promise.allSettled([
     fetchSignals(),
     fetchPerformance(),
     fetchPortfolio(),
     fetchTrades(),
     fetchSources(),
   ])
+
+  const [signalsResult, performanceResult, portfolioResult, tradesResult, sourcesResult] = results
+
+  // Log any failures
+  results.forEach((r, i) => {
+    if (r.status === 'rejected') {
+      console.error(`[trader-api] Endpoint ${i} failed:`, r.reason)
+    }
+  })
+
+  // Extract successful results, throw if critical data missing
+  const signals = signalsResult.status === 'fulfilled' ? signalsResult.value : null
+  const performance = performanceResult.status === 'fulfilled' ? performanceResult.value : null
+  const portfolio = portfolioResult.status === 'fulfilled' ? portfolioResult.value : null
+  const trades = tradesResult.status === 'fulfilled' ? tradesResult.value : null
+  const sources = sourcesResult.status === 'fulfilled' ? sourcesResult.value : null
+
+  // If we got nothing, throw error
+  if (!signals && !performance && !portfolio && !trades && !sources) {
+    throw new Error('All API endpoints failed')
+  }
+
+  console.log('[trader-api] Fetch complete:', {
+    signals: signals?.length ?? 'failed',
+    performance: performance ? 'ok' : 'failed',
+    portfolio: portfolio ? 'ok' : 'failed',
+    trades: trades?.length ?? 'failed',
+    sources: sources?.length ?? 'failed',
+  })
 
   return { signals, performance, portfolio, trades, sources }
 }

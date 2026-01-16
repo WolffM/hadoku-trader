@@ -43,6 +43,31 @@ interface DashboardState {
   error: string | null
 }
 
+// Session cache to persist data across component remounts
+const SESSION_CACHE_KEY = 'trader-dashboard-cache'
+
+function getCachedData(): Partial<DashboardState> | null {
+  try {
+    const cached = sessionStorage.getItem(SESSION_CACHE_KEY)
+    if (cached) {
+      const data = JSON.parse(cached)
+      console.log('[trader] Using cached data from sessionStorage')
+      return data
+    }
+  } catch {
+    // Ignore cache errors
+  }
+  return null
+}
+
+function setCachedData(data: Omit<DashboardState, 'isLoading' | 'error'>) {
+  try {
+    sessionStorage.setItem(SESSION_CACHE_KEY, JSON.stringify(data))
+  } catch {
+    // Ignore cache errors
+  }
+}
+
 export default function App(props: TraderProps = {}) {
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -54,35 +79,56 @@ export default function App(props: TraderProps = {}) {
     return false
   })
 
-  // Dashboard data state
-  const [data, setData] = useState<DashboardState>({
-    signals: mockSignals,
-    performance: mockPerformanceData,
-    portfolio: mockPortfolioData,
-    trades: mockTrades,
-    sources: mockSources,
-    isLoading: true,
-    error: null,
+  // Dashboard data state - initialize from cache if available
+  const [data, setData] = useState<DashboardState>(() => {
+    const cached = getCachedData()
+    return {
+      signals: cached?.signals ?? mockSignals,
+      performance: cached?.performance ?? mockPerformanceData,
+      portfolio: cached?.portfolio ?? mockPortfolioData,
+      trades: cached?.trades ?? mockTrades,
+      sources: cached?.sources ?? mockSources,
+      isLoading: !cached, // Don't show loading if we have cached data
+      error: null,
+    }
   })
 
   // Fetch dashboard data on mount
   useEffect(() => {
     let mounted = true
+    console.log('[trader] Component mounted, fetching data...')
 
     async function loadData() {
       try {
         const result = await fetchDashboardData()
         if (mounted) {
-          setData({
-            ...result,
-            isLoading: false,
-            error: null,
+          // Merge with existing data (keep current data for any failed endpoints)
+          setData((prev) => {
+            const newData = {
+              signals: result.signals ?? prev.signals,
+              performance: result.performance ?? prev.performance,
+              portfolio: result.portfolio ?? prev.portfolio,
+              trades: result.trades ?? prev.trades,
+              sources: result.sources ?? prev.sources,
+              isLoading: false,
+              error: null,
+            }
+            // Cache successful data
+            setCachedData({
+              signals: newData.signals,
+              performance: newData.performance,
+              portfolio: newData.portfolio,
+              trades: newData.trades,
+              sources: newData.sources,
+            })
+            console.log('[trader] Data loaded and cached')
+            return newData
           })
         }
       } catch (err) {
-        console.error('Failed to fetch dashboard data:', err)
+        console.error('[trader] Failed to fetch dashboard data:', err)
         if (mounted) {
-          // Keep mock data on error, just clear loading state
+          // Keep existing data on error, just clear loading state
           setData((prev) => ({
             ...prev,
             isLoading: false,
@@ -95,6 +141,7 @@ export default function App(props: TraderProps = {}) {
     loadData()
 
     return () => {
+      console.log('[trader] Component unmounting')
       mounted = false
     }
   }, [])
