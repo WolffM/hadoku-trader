@@ -6,7 +6,6 @@ Usage in hadoku-site:
     app = create_app()
 """
 
-import asyncio
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -93,11 +92,12 @@ def create_app(
         """Manage app lifecycle."""
         print("Starting hadoku-fidelity trader service...")
 
+        # Initialize the async service
+        await service.initialize()
+
         if auto_authenticate and service_config.has_credentials:
             print("Credentials found, attempting authentication...")
-            # Run sync auth in thread pool
-            authenticated = await asyncio.to_thread(service.authenticate)
-            if authenticated:
+            if await service.authenticate():
                 print("Successfully authenticated with Fidelity")
             else:
                 print("Warning: Authentication failed")
@@ -107,12 +107,12 @@ def create_app(
         yield
 
         print("Shutting down trader service...")
-        await asyncio.to_thread(service.close)
+        await service.close()
 
     app = FastAPI(
         title="Hadoku Trader Service",
         description="Fidelity trade execution service for hadoku",
-        version="1.0.2",
+        version="1.0.3",
         lifespan=lifespan,
     )
 
@@ -140,8 +140,7 @@ def create_app(
         accounts = None
         if service.authenticated:
             try:
-                # Run sync call in thread pool
-                account_list = await asyncio.to_thread(service.get_accounts)
+                account_list = await service.get_accounts()
                 accounts = [a["account_number"] for a in account_list]
             except Exception:
                 pass
@@ -159,9 +158,7 @@ def create_app(
     )
     async def execute_trade(request: TradeRequest):
         """Execute a trade on Fidelity."""
-        # Run sync trade execution in thread pool
-        success, message, details = await asyncio.to_thread(
-            service.execute_trade,
+        success, message, details = await service.execute_trade(
             ticker=request.ticker,
             action=request.action,
             quantity=request.quantity,
@@ -183,21 +180,16 @@ def create_app(
     async def get_accounts():
         """Get all Fidelity accounts and their balances."""
         if not service.authenticated:
-            # Run sync auth in thread pool
-            authenticated = await asyncio.to_thread(service.authenticate)
-            if not authenticated:
+            if not await service.authenticate():
                 raise HTTPException(status_code=503, detail="Not authenticated")
 
-        # Run sync call in thread pool
-        accounts = await asyncio.to_thread(service.get_accounts)
+        accounts = await service.get_accounts()
         return {"accounts": [AccountInfo(**a) for a in accounts]}
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
         """Force re-authentication with Fidelity."""
-        # Run sync refresh in thread pool
-        refreshed = await asyncio.to_thread(service.refresh)
-        if refreshed:
+        if await service.refresh():
             return {"success": True, "message": "Session refreshed"}
         else:
             raise HTTPException(status_code=503, detail="Failed to authenticate")

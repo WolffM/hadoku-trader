@@ -1,12 +1,12 @@
 """
-Trader service that wraps FidelityClient for API use.
+Async trader service that wraps FidelityClientAsync for API use.
 """
 
 import os
 from typing import Optional
 from dataclasses import dataclass, field
 
-from fidelity import FidelityClient
+from fidelity.async_client import FidelityClientAsync
 
 
 @dataclass
@@ -30,44 +30,59 @@ class TraderConfig:
 
 class TraderService:
     """
-    Service layer for Fidelity trading operations.
+    Async service layer for Fidelity trading operations.
 
     Usage:
         service = TraderService()
-        service.authenticate()
-        result = service.execute_trade("AAPL", "buy", 10)
+        await service.initialize()
+        await service.authenticate()
+        result = await service.execute_trade("AAPL", "buy", 10)
+        await service.close()
     """
 
     def __init__(self, config: Optional[TraderConfig] = None):
         self.config = config or TraderConfig()
-        self._client: Optional[FidelityClient] = None
+        self._client: Optional[FidelityClientAsync] = None
         self._authenticated: bool = False
+        self._initialized: bool = False
+
+    async def initialize(self) -> None:
+        """Initialize the async client. Must be called before other methods."""
+        if self._initialized:
+            return
+
+        self._client = FidelityClientAsync(
+            headless=self.config.headless,
+            save_state=True,
+            profile_path=self.config.profile_path,
+            debug=False,
+        )
+        await self._client.initialize()
+        self._initialized = True
 
     @property
-    def client(self) -> FidelityClient:
-        """Get or create the Fidelity client."""
+    def client(self) -> FidelityClientAsync:
+        """Get the Fidelity client."""
         if self._client is None:
-            self._client = FidelityClient(
-                headless=self.config.headless,
-                save_state=True,
-                profile_path=self.config.profile_path,
-                debug=False,
-            )
+            raise RuntimeError("Service not initialized. Call await service.initialize() first.")
         return self._client
 
     @property
     def authenticated(self) -> bool:
         return self._authenticated
 
-    def authenticate(self) -> bool:
+    async def authenticate(self) -> bool:
         """Authenticate with Fidelity. Returns True on success."""
         if self._authenticated:
             return True
 
+        if not self._initialized:
+            await self.initialize()
+
         if not self.config.has_credentials:
             return False
 
-        step1, step2 = self.client.login(
+        step1, step2 = await self.client.login(
             username=self.config.username,
             password=self.config.password,
             totp_secret=self.config.totp_secret,
@@ -77,7 +92,7 @@ class TraderService:
         self._authenticated = step1 and step2
         return self._authenticated
 
-    def execute_trade(
+    async def execute_trade(
         self,
         ticker: str,
         action: str,
@@ -93,7 +108,7 @@ class TraderService:
             Tuple of (success, message, details)
         """
         if not self._authenticated:
-            if not self.authenticate():
+            if not await self.authenticate():
                 return False, "Not authenticated with Fidelity", None
 
         target_account = account or self.config.default_account
@@ -101,7 +116,7 @@ class TraderService:
             return False, "No account specified", None
 
         try:
-            success, error_message = self.client.transaction(
+            success, error_message = await self.client.transaction(
                 stock=ticker.upper(),
                 quantity=quantity,
                 action=action.lower(),
@@ -125,38 +140,48 @@ class TraderService:
         except Exception as e:
             return False, f"Trade execution error: {str(e)}", None
 
-    def get_accounts(self) -> list[dict]:
+    async def get_accounts(self) -> list[dict]:
         """Get all accounts and their positions."""
         if not self._authenticated:
-            if not self.authenticate():
+            if not await self.authenticate():
                 return []
 
         try:
-            account_info = self.client.getAccountInfo()
+            account_info = await self.client.get_account_info()
             if not account_info:
                 return []
 
             accounts = []
-            for acc_num, data in account_info.items():
+            for acc_num, account in account_info.items():
                 accounts.append({
                     "account_number": acc_num,
-                    "nickname": data.get("nickname"),
-                    "balance": data.get("balance", 0),
-                    "positions": data.get("stocks", []),
+                    "nickname": getattr(account, 'nickname', None),
+                    "balance": account.balance,
+                    "positions": [
+                        {
+                            "ticker": s.ticker,
+                            "quantity": s.quantity,
+                            "last_price": s.last_price,
+                            "value": s.value,
+                        }
+                        for s in account.stocks
+                    ],
                 })
             return accounts
 
         except Exception:
             return []
 
-    def refresh(self) -> bool:
+    async def refresh(self) -> bool:
         """Force re-authentication."""
-        self.close()
-        return self.authenticate()
+        await self.close()
+        await self.initialize()
+        return await self.authenticate()
 
-    def close(self):
+    async def close(self) -> None:
         """Close the browser and clean up."""
         if self._client:
-            self._client.close_browser()
+            await self._client.close()
             self._client = None
         self._authenticated = False
+        self._initialized = False
