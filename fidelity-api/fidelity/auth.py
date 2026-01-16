@@ -113,18 +113,16 @@ class FidelityAuth:
         widget = page.locator(Selectors.LOGIN_WIDGET).first
         widget.wait_for(timeout=Timeouts.SHORT, state="visible")
 
-        # Check for TOTP prompt
-        totp_heading = page.get_by_role("heading", name="Enter the code from your")
-        if totp_secret and totp_heading.is_visible():
-            return self._complete_totp_login(totp_secret, save_device)
-
-        # TOTP required but not provided
-        if page.get_by_text(
-            "Enter the code from your authenticator app This security code will confirm the"
-        ).is_visible():
-            raise TOTPRequiredError(
-                "Fidelity requires authenticator app code but TOTP secret not provided"
-            )
+        # Check for TOTP input field (more reliable than heading text)
+        totp_input = page.locator('input[maxlength="6"]')
+        if totp_input.count() > 0 and totp_input.first.is_visible():
+            if totp_secret:
+                return self._complete_totp_login(totp_secret, save_device)
+            else:
+                # TOTP input visible but no secret provided
+                raise TOTPRequiredError(
+                    "Fidelity requires authenticator app code but TOTP secret not provided"
+                )
 
         # Handle app push notification page
         if page.get_by_role("link", name="Try another way").is_visible():

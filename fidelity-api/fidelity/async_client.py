@@ -148,12 +148,15 @@ class FidelityClientAsync:
         widget = page.locator(Selectors.LOGIN_WIDGET).first
         await widget.wait_for(timeout=Timeouts.SHORT, state="visible")
 
-        # Check for TOTP prompt
-        totp_heading = page.get_by_role("heading", name="Enter the code from your")
-        if totp_secret and await totp_heading.is_visible():
-            return await self._complete_totp_login(totp_secret, save_device)
+        # Check for TOTP input field (more reliable than heading text)
+        totp_input = page.locator('input[maxlength="6"]')
+        if await totp_input.count() > 0 and await totp_input.first.is_visible():
+            if totp_secret:
+                return await self._complete_totp_login(totp_secret, save_device)
+            # TOTP input visible but no secret - can't proceed automatically
+            return (True, False)
 
-        # Fall back to SMS if no TOTP
+        # Fall back to SMS if no TOTP input visible
         try_another = page.get_by_role("link", name="Try another way")
         if await try_another.is_visible():
             if save_device:
