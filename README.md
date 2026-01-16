@@ -1,10 +1,59 @@
-# @wolffm/trader
+# @wolffm/trader (Congress Trade Copier)
 
-Stock and crypto trading dashboard for hadoku.
+A trading dashboard and automation system that copies congressional stock trades. Integrates with hadoku-scraper for signals and uses fidelity-api for trade execution.
 
 ## Overview
 
-A trading dashboard child app that integrates with the hadoku parent site for monitoring stocks and crypto.
+This project has two main components:
+
+1. **Frontend Dashboard** - React app displaying signal performance, portfolio tracking, and comparisons with benchmarks (S&P500, NANC, KRUZ)
+2. **Trade Execution Backend** (planned) - FastAPI service that receives signals from hadoku-scraper and executes trades via Fidelity
+
+## Architecture
+
+```
+┌─────────────────┐     every 8hrs      ┌──────────────────┐
+│ hadoku-scraper  │ ◄────────────────── │  hadoku-site     │
+│                 │    fetch signals    │  (CF Worker)     │
+│ • Congress data │ ──────────────────► │  • D1 database   │
+│ • S&P500 data   │    return package   │  • API endpoints │
+│ • Market prices │                     └────────┬─────────┘
+└─────────────────┘                              │
+                                                 │ REST API
+                                                 ▼
+                                    ┌────────────────────────┐
+                                    │  hadoku-trader         │
+                                    │  (Dashboard on gh-pages)│
+                                    │  • Signal performance  │
+                                    │  • Portfolio tracking  │
+                                    │  • S&P500 comparison   │
+                                    └────────────┬───────────┘
+                                                 │
+                                                 │ trade requests
+                                                 ▼
+┌─────────────────┐  cloudflared tunnel ┌────────────────────┐
+│  Local PM2      │ ◄────────────────── │  hadoku-site       │
+│  Trade Service  │                     │  (forwards request)│
+│  • fidelity-api │                     └────────────────────┘
+│  • Playwright   │
+└─────────────────┘
+```
+
+### Components
+
+1. **hadoku-scraper** - External service providing all market data
+2. **hadoku-site (CF Worker)** - API layer with D1 storage, fetches data every 8hrs
+3. **hadoku-trader (this repo)** - Dashboard UI + fidelity-api package
+4. **Local PM2 Service** - Runs fidelity-api via cloudflared tunnel for trade execution
+
+## Dashboard Features (Planned)
+
+1. **Overview** - Total value, MTD/YTD return, vs SPY
+2. **Live Portfolio** - Current positions with cost basis and P&L
+3. **Trade Log** - Every trade with reasoning chain visible
+4. **Source Leaderboard** - Which trackers are generating alpha
+5. **Signals Feed** - Incoming signals, executed vs skipped
+6. **Monthly Budget** - Visual of cap utilization
 
 ## Development
 
@@ -25,7 +74,7 @@ pnpm format
 
 ### Logging
 
-**Important**: Use the logger from `@wolffm/task-ui-components` instead of `console.log`:
+Use the logger from `@wolffm/task-ui-components` instead of `console.log`:
 
 ```typescript
 import { logger } from '@wolffm/task-ui-components'
@@ -34,9 +83,17 @@ logger.info('Message', { key: 'value' })
 logger.error('Error occurred', error)
 ```
 
-Available methods: `logger.info()`, `logger.error()`, `logger.warn()`, `logger.debug()`
+## Fidelity API
 
-Logs are only visible in dev mode or when authenticated as admin.
+The `fidelity-api/` directory contains a forked Playwright-based automation library for Fidelity. Key capabilities:
+
+- **Authentication** - Login with 2FA support (TOTP or SMS)
+- **Account Info** - Get accounts, balances, positions
+- **Trading** - Buy/sell stocks with market or limit orders, extended hours support
+- **Transfers** - Move funds between accounts
+- **Features** - Enable penny stock trading, download statements
+
+See [fidelity-api/README.md](fidelity-api/README.md) for usage details.
 
 ## Integration
 
@@ -55,12 +112,7 @@ interface TraderProps {
 ```typescript
 import { mount, unmount } from '@wolffm/trader'
 
-// Mount the app
-mount(document.getElementById('app-root'), {
-  theme: 'ocean-dark'
-})
-
-// Unmount when done
+mount(document.getElementById('app-root'), { theme: 'ocean-dark' })
 unmount(document.getElementById('app-root'))
 ```
 
@@ -74,7 +126,7 @@ Pushes to `main` automatically:
 
 ## Theme Integration
 
-Use CSS variables from `@wolffm/themes` for all colors:
+Use CSS variables from `@wolffm/themes`:
 
 ```css
 background-color: var(--color-bg);
@@ -82,9 +134,7 @@ color: var(--color-text);
 border-color: var(--color-border);
 ```
 
-Set theme attributes in your root component:
+## Related Repositories
 
-```typescript
-containerRef.current?.setAttribute('data-theme', theme)
-containerRef.current?.setAttribute('data-dark-theme', isDarkTheme ? 'true' : 'false')
-```
+- [hadoku_site](https://github.com/WolffM/hadoku_site) - Parent application
+- hadoku-scraper - Signal source (congressional trade tracking)
