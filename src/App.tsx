@@ -17,7 +17,6 @@ import {
   PerformanceChart,
   SignalsFeed,
   TradeLog,
-  PortfolioPositions,
   SourceLeaderboard
 } from './components/Dashboard'
 
@@ -194,27 +193,24 @@ export default function App(props: TraderProps = {}) {
           )}
 
           {/* Overview KPI Cards */}
-          <OverviewCards performance={data.performance} portfolio={data.portfolio} />
+          <OverviewCards performance={data.performance} />
 
           {/* Performance Chart - Full Width */}
           <PerformanceChart data={data.performance} isDarkTheme={isDarkTheme} />
 
           {/* Two Column Grid */}
           <div className="dashboard-grid">
-            {/* Left Column - Portfolio & Trades */}
-            <div>
-              <PortfolioPositions data={data.portfolio} />
-              <div style={{ marginTop: '1.5rem' }}>
-                <TradeLog trades={data.trades} />
-              </div>
-            </div>
-
-            {/* Right Column - Signals & Sources */}
+            {/* Left Column - Signals & Sources */}
             <div>
               <SignalsFeed signals={data.signals} />
               <div style={{ marginTop: '1.5rem' }}>
                 <SourceLeaderboard sources={data.sources} />
               </div>
+            </div>
+
+            {/* Right Column - Trade History */}
+            <div>
+              <TradeLog trades={data.trades} />
             </div>
           </div>
         </main>

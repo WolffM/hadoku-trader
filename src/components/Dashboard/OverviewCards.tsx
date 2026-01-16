@@ -1,17 +1,7 @@
-import type { PerformanceData, PortfolioData } from '../../types/api'
+import type { PerformanceData } from '../../types/api'
 
 interface OverviewCardsProps {
   performance: PerformanceData
-  portfolio: PortfolioData
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0
-  }).format(value)
 }
 
 function formatPercent(value: number): string {
@@ -42,7 +32,7 @@ function KPICard({ title, value, change, changeType = 'neutral', subtitle }: KPI
   )
 }
 
-export function OverviewCards({ performance, portfolio }: OverviewCardsProps) {
+export function OverviewCards({ performance }: OverviewCardsProps) {
   const portfolioReturn = performance.portfolio_performance.total_return_pct
   const signalsReturn = performance.signals_performance.total_return_pct
   const sp500Return = performance.sp500_performance.total_return_pct
@@ -53,9 +43,8 @@ export function OverviewCards({ performance, portfolio }: OverviewCardsProps) {
   return (
     <div className="overview-cards">
       <KPICard
-        title="Portfolio Value"
-        value={formatCurrency(portfolio.total_value)}
-        change={formatPercent(portfolioReturn)}
+        title="My Return"
+        value={formatPercent(portfolioReturn)}
         changeType={portfolioReturn >= 0 ? 'positive' : 'negative'}
         subtitle="Total return"
       />
@@ -72,12 +61,6 @@ export function OverviewCards({ performance, portfolio }: OverviewCardsProps) {
         value={formatPercent(vsSP500)}
         changeType={vsSP500 >= 0 ? 'positive' : 'negative'}
         subtitle={`S&P 500: ${formatPercent(sp500Return)}`}
-      />
-
-      <KPICard
-        title="Cash Available"
-        value={formatCurrency(portfolio.cash)}
-        subtitle={`${portfolio.positions.length} positions`}
       />
     </div>
   )
