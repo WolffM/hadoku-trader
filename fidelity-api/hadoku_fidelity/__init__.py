@@ -13,7 +13,13 @@ Usage:
 
 from fidelity import FidelityClient, FidelityAutomation
 from fidelity.models import Account, Stock, OrderResult, LoginResult
-from fidelity.exceptions import FidelityError, AuthenticationError, OrderError
+from fidelity.exceptions import (
+    FidelityError,
+    AuthenticationError,
+    TransactionError,
+    OrderPreviewError,
+    OrderSubmitError,
+)
 
 from .app import create_app
 from .service import TraderService
@@ -30,10 +36,12 @@ __all__ = [
     # Exceptions
     "FidelityError",
     "AuthenticationError",
-    "OrderError",
+    "TransactionError",
+    "OrderPreviewError",
+    "OrderSubmitError",
     # Service
     "create_app",
     "TraderService",
 ]
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
