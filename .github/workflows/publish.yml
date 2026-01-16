@@ -57,7 +57,8 @@ jobs:
 
           echo "Current version: $current_version"
 
-          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
+          # Check if version exists on GitHub Packages (use npm with explicit registry)
+          if npm view "${package_name}@${current_version}" version --registry=https://npm.pkg.github.com 2>/dev/null; then
             echo "⚠️  Version $current_version already published, bumping..."
 
             major=$(echo $current_version | cut -d. -f1)
@@ -73,6 +74,8 @@ jobs:
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "✅ Version bumped: $current_version → $new_version"
             pnpm install --lockfile-only
+          else
+            echo "✓ Version $current_version not yet published, proceeding"
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
@@ -136,7 +139,8 @@ jobs:
 
           echo "Current version: $current_version"
 
-          if pnpm view "${package_name}@${current_version}" version 2>/dev/null; then
+          # Check if version exists on GitHub Packages (use npm with explicit registry)
+          if npm view "${package_name}@${current_version}" version --registry=https://npm.pkg.github.com 2>/dev/null; then
             echo "⚠️  Version $current_version already published, bumping..."
 
             major=$(echo $current_version | cut -d. -f1)
@@ -152,6 +156,8 @@ jobs:
             node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
             echo "✅ Version bumped: $current_version → $new_version"
             pnpm install --lockfile-only
+          else
+            echo "✓ Version $current_version not yet published, proceeding"
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
