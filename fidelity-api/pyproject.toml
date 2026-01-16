@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "hadoku-fidelity"
-version = "1.0.1"
+version = "1.0.2"
 description = "Fidelity trading automation with FastAPI service for hadoku"
 readme = "README.md"
 license = {text = "MIT"}
