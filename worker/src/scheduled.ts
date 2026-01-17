@@ -4,7 +4,7 @@
 
 import { TraderEnv, ScraperDataPackage, Signal } from "./types";
 import { generateId } from "./utils";
-import { processAllPendingSignals, resetMonthlyBudgets } from "./agents";
+import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from "./agents";
 
 /**
  * Creates a scheduled handler for cron jobs.
@@ -45,6 +45,12 @@ export function createScheduledHandler(
     // Reset monthly budgets on 1st of month
     if (cron === "0 0 1 * *") {
       await resetBudgets(env);
+    }
+
+    // Monitor positions every 15 minutes during market hours (9am-4pm ET, Mon-Fri)
+    // Note: Cloudflare cron uses UTC, adjust times accordingly
+    if (cron === "*/15 14-21 * * 1-5") {
+      await monitorAllPositions(env);
     }
   };
 }
@@ -125,10 +131,11 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
   await env.TRADER_DB.prepare(`
     INSERT INTO signals (
       id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, disclosed_price, disclosed_date, filing_date,
+      ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
       position_size, position_size_min, position_size_max,
+      option_type, strike_price, expiration_date,
       source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
     .bind(
       id,
@@ -141,11 +148,15 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
       signal.trade.action,
       signal.trade.asset_type,
       signal.trade.disclosed_price,
+      signal.trade.price_at_filing,
       signal.trade.disclosed_date,
       signal.trade.filing_date,
       signal.trade.position_size,
       signal.trade.position_size_min,
       signal.trade.position_size_max,
+      signal.trade.option_type,
+      signal.trade.strike_price,
+      signal.trade.expiration_date,
       signal.meta.source_url,
       signal.meta.source_id,
       signal.meta.scraped_at
@@ -357,5 +368,35 @@ async function resetBudgets(env: TraderEnv): Promise<void> {
     console.log("Monthly budgets reset successfully");
   } catch (error) {
     console.error("Error resetting budgets:", error);
+  }
+}
+
+/**
+ * Monitor all open positions and execute exits as needed.
+ * Called every 15 minutes during market hours.
+ */
+async function monitorAllPositions(env: TraderEnv): Promise<void> {
+  try {
+    console.log("Monitoring positions for exit conditions...");
+
+    const result = await monitorPositions(env);
+
+    console.log(
+      `Position monitoring complete: ${result.positions_checked} checked, ${result.exits_triggered} exits`
+    );
+
+    if (result.exits.length > 0) {
+      console.log("Exits executed:", result.exits);
+    }
+
+    if (result.highest_price_updates > 0) {
+      console.log(`Updated ${result.highest_price_updates} highest prices`);
+    }
+
+    if (result.errors.length > 0) {
+      console.warn("Monitoring errors:", result.errors);
+    }
+  } catch (error) {
+    console.error("Error monitoring positions:", error);
   }
 }

@@ -16,7 +16,8 @@ import {
   PerformanceChart,
   SignalsFeed,
   TradeLog,
-  SourceLeaderboard
+  SourceLeaderboard,
+  AgentPositions
 } from './components/Dashboard'
 
 // API Service
@@ -191,6 +192,9 @@ export default function App(props: TraderProps = {}) {
 
           {/* Performance Chart - Full Width */}
           <PerformanceChart data={data.performance} isDarkTheme={isDarkTheme} />
+
+          {/* Strategy Positions */}
+          <AgentPositions />
 
           {/* Two Column Grid */}
           <div className="dashboard-grid">

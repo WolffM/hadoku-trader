@@ -45,11 +45,16 @@ export interface Trade {
   action: "buy" | "sell";
   asset_type: "stock" | "option" | "etf" | "bond" | "crypto";
   disclosed_price: number | null;
-  disclosed_date: string; // YYYY-MM-DD
+  price_at_filing: number | null; // Price on filing/disclosure date
+  disclosed_date: string; // YYYY-MM-DD (trade date)
   filing_date: string; // YYYY-MM-DD
   position_size: string;
   position_size_min: number;
   position_size_max: number;
+  // Option-specific fields
+  option_type: "call" | "put" | null;
+  strike_price: number | null;
+  expiration_date: string | null; // YYYY-MM-DD
 }
 
 export interface SignalMeta {

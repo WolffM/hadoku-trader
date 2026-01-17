@@ -16,11 +16,17 @@ CREATE TABLE IF NOT EXISTS signals (
   action TEXT NOT NULL,
   asset_type TEXT NOT NULL,
   disclosed_price REAL,
+  price_at_filing REAL,  -- Price on filing/disclosure date
   disclosed_date TEXT NOT NULL,
   filing_date TEXT NOT NULL,
   position_size TEXT NOT NULL,
   position_size_min INTEGER NOT NULL,
   position_size_max INTEGER NOT NULL,
+  -- Option-specific fields
+  option_type TEXT,       -- 'call' or 'put'
+  strike_price REAL,
+  expiration_date TEXT,   -- YYYY-MM-DD
+  -- Meta fields
   source_url TEXT NOT NULL,
   source_id TEXT NOT NULL,
   scraped_at TEXT NOT NULL,
@@ -60,19 +66,34 @@ CREATE INDEX IF NOT EXISTS idx_trades_status ON trades(status);
 CREATE INDEX IF NOT EXISTS idx_trades_executed_at ON trades(executed_at);
 
 -- =============================================================================
--- Positions Table
+-- Positions Table (Multi-Agent Trading Engine)
+-- Stores open and closed positions for each agent
 -- =============================================================================
 
 CREATE TABLE IF NOT EXISTS positions (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  ticker TEXT NOT NULL UNIQUE,
-  quantity REAL NOT NULL,
-  avg_cost REAL NOT NULL,
+  id TEXT PRIMARY KEY,
+  agent_id TEXT NOT NULL,
+  ticker TEXT NOT NULL,
+  shares REAL NOT NULL,
+  entry_price REAL NOT NULL,
+  entry_date TEXT NOT NULL,
+  cost_basis REAL NOT NULL,
   current_price REAL,
-  updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+  highest_price REAL NOT NULL,         -- For trailing stops
+  asset_type TEXT DEFAULT 'stock',     -- 'stock', 'etf', 'option'
+  status TEXT DEFAULT 'open',          -- 'open', 'closed'
+  signal_id TEXT,                      -- Link back to triggering signal
+  partial_sold INTEGER DEFAULT 0,      -- Boolean for take-profit tracking
+  closed_at TEXT,
+  close_price REAL,
+  close_reason TEXT,                   -- 'stop_loss', 'take_profit', 'time_exit', 'soft_stop', 'sell_signal', 'manual'
+  updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE INDEX IF NOT EXISTS idx_positions_ticker ON positions(ticker);
+CREATE INDEX IF NOT EXISTS idx_positions_agent_id ON positions(agent_id);
+CREATE INDEX IF NOT EXISTS idx_positions_status ON positions(status);
 
 -- =============================================================================
 -- Performance History Table

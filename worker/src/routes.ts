@@ -96,10 +96,11 @@ export async function handlePostSignal(
   await env.TRADER_DB.prepare(`
     INSERT INTO signals (
       id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, disclosed_price, disclosed_date, filing_date,
+      ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
       position_size, position_size_min, position_size_max,
+      option_type, strike_price, expiration_date,
       source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
     .bind(
       id,
@@ -112,11 +113,15 @@ export async function handlePostSignal(
       signal.trade.action,
       signal.trade.asset_type,
       signal.trade.disclosed_price,
+      signal.trade.price_at_filing,
       signal.trade.disclosed_date,
       signal.trade.filing_date,
       signal.trade.position_size,
       signal.trade.position_size_min,
       signal.trade.position_size_max,
+      signal.trade.option_type,
+      signal.trade.strike_price,
+      signal.trade.expiration_date,
       signal.meta.source_url,
       signal.meta.source_id,
       signal.meta.scraped_at

@@ -22,6 +22,9 @@ import {
   generateId,
   type RawSignalRow,
 } from "./filters";
+import { calculateScore } from "./scoring";
+import { calculatePositionSize } from "./sizing";
+import { executeTrade, getPendingTradeId } from "./execution";
 
 // =============================================================================
 // Main Routing Functions
@@ -34,7 +37,8 @@ import {
 export async function routeSignalToAgents(
   env: TraderEnv,
   signalRow: RawSignalRow,
-  currentPrice: number
+  currentPrice: number,
+  executeImmediately: boolean = true
 ): Promise<AgentDecision[]> {
   const signal = enrichSignal(signalRow, currentPrice);
   const agents = await getActiveAgents(env);
@@ -42,18 +46,83 @@ export async function routeSignalToAgents(
 
   for (const agent of agents) {
     const decision = await processSignalForAgent(env, agent, signal);
-    decisions.push(decision);
 
-    // Log the decision to database
-    await logAgentDecision(env, decision, signal);
+    // Log the decision to database first
+    const tradeId = await logAgentDecision(env, decision, signal);
+
+    // If decision is to execute, calculate size and execute trade
+    if (
+      executeImmediately &&
+      (decision.action === "execute" || decision.action === "execute_half")
+    ) {
+      const executionResult = await executeDecision(
+        env,
+        agent,
+        signal,
+        decision,
+        tradeId
+      );
+
+      // Update decision with position size from execution
+      decision.position_size = executionResult.positionSize;
+    }
+
+    decisions.push(decision);
   }
 
   return decisions;
 }
 
 /**
+ * Execute a decision by calculating position size and calling trade execution.
+ */
+async function executeDecision(
+  env: TraderEnv,
+  agent: AgentConfig,
+  signal: EnrichedSignal,
+  decision: AgentDecision,
+  tradeId: string
+): Promise<{ positionSize: number; success: boolean }> {
+  // Get current budget
+  const budget = await getAgentBudget(env, agent.id);
+
+  // Calculate position size
+  const positionSize = calculatePositionSize(
+    agent,
+    decision.score,
+    budget,
+    1, // acceptedSignalsCount - for equal_split mode
+    decision.action === "execute_half"
+  );
+
+  // Check if position size is valid
+  if (positionSize === 0) {
+    // Update trade record to reflect skip due to budget
+    await env.TRADER_DB.prepare(
+      `UPDATE trades SET decision = 'skip_budget', status = 'skipped' WHERE id = ?`
+    )
+      .bind(tradeId)
+      .run();
+
+    return { positionSize: 0, success: false };
+  }
+
+  // Execute the trade
+  const result = await executeTrade(
+    env,
+    agent,
+    signal,
+    decision,
+    positionSize,
+    tradeId
+  );
+
+  return { positionSize, success: result.success };
+}
+
+/**
  * Process a signal for a single agent.
- * Applies filters, scoring (placeholder in Phase 1), and threshold checks.
+ * Applies filters, scoring, and threshold checks.
  */
 async function processSignalForAgent(
   env: TraderEnv,
@@ -89,16 +158,14 @@ async function processSignalForAgent(
     };
   }
 
-  // Step 3: Scoring (placeholder for Phase 1 - full scoring in Phase 2)
+  // Step 3: Scoring
   let score: number | null = null;
   let breakdown: Record<string, number> | null = null;
 
   if (agent.scoring) {
-    // Phase 1 placeholder: return a reasonable score based on basic metrics
-    // Full scoring engine will be implemented in Phase 2
-    const placeholderResult = calculatePlaceholderScore(agent, signal);
-    score = placeholderResult.score;
-    breakdown = placeholderResult.breakdown;
+    const scoreResult = await calculateScore(env, agent.scoring, signal);
+    score = scoreResult.score;
+    breakdown = scoreResult.breakdown;
   }
 
   // Step 4: Decision based on threshold
@@ -196,85 +263,20 @@ async function checkPositionLimits(
 }
 
 // =============================================================================
-// Placeholder Scoring (Phase 1)
-// =============================================================================
-
-/**
- * Calculate placeholder score for Phase 1.
- * This will be replaced by full scoring engine in Phase 2.
- */
-function calculatePlaceholderScore(
-  agent: AgentConfig,
-  signal: EnrichedSignal
-): { score: number; breakdown: Record<string, number> } {
-  const breakdown: Record<string, number> = {};
-
-  // Simple time decay: 1.0 at day 0, 0.5 at half-life
-  const halfLife = agent.scoring?.components.time_decay?.half_life_days ?? 10;
-  const timeDecay = Math.pow(0.5, signal.days_since_trade / halfLife);
-  breakdown.time_decay = timeDecay;
-
-  // Simple price score: 1.0 at 0% change, 0 at max change
-  const maxMove = agent.max_price_move_pct;
-  const priceScore = Math.max(
-    0,
-    1 - Math.abs(signal.price_change_pct) / maxMove
-  );
-  breakdown.price_movement = priceScore;
-
-  // Position size score: normalized 0.5 default
-  breakdown.position_size = 0.5;
-
-  // Source score: default 0.8
-  breakdown.source_quality = 0.8;
-
-  // Calculate weighted average
-  const components = agent.scoring?.components ?? {};
-  let totalWeight = 0;
-  let weightedSum = 0;
-
-  if (components.time_decay) {
-    weightedSum += timeDecay * components.time_decay.weight;
-    totalWeight += components.time_decay.weight;
-  }
-  if (components.price_movement) {
-    weightedSum += priceScore * components.price_movement.weight;
-    totalWeight += components.price_movement.weight;
-  }
-  if (components.position_size) {
-    weightedSum += 0.5 * components.position_size.weight;
-    totalWeight += components.position_size.weight;
-  }
-  if (components.source_quality) {
-    weightedSum += 0.8 * components.source_quality.weight;
-    totalWeight += components.source_quality.weight;
-  }
-  if (components.politician_skill) {
-    weightedSum += 0.5 * components.politician_skill.weight;
-    totalWeight += components.politician_skill.weight;
-  }
-
-  const score = totalWeight > 0 ? weightedSum / totalWeight : 0.5;
-
-  return {
-    score: Math.max(0, Math.min(1, score)),
-    breakdown,
-  };
-}
-
-// =============================================================================
 // Decision Logging
 // =============================================================================
 
 /**
  * Log an agent decision to the trades table.
+ * Returns the generated trade ID for use in execution.
  */
 async function logAgentDecision(
   env: TraderEnv,
   decision: AgentDecision,
   signal: EnrichedSignal
-): Promise<void> {
+): Promise<string> {
   const now = new Date().toISOString();
+  const tradeId = generateId("trade");
 
   // Determine status based on decision
   const status =
@@ -295,7 +297,7 @@ async function logAgentDecision(
   `
   )
     .bind(
-      generateId("trade"),
+      tradeId,
       decision.agent_id,
       decision.signal_id,
       signal.ticker,
@@ -307,6 +309,8 @@ async function logAgentDecision(
       now
     )
     .run();
+
+  return tradeId;
 }
 
 // =============================================================================

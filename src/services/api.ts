@@ -11,6 +11,8 @@ import {
   type ExecuteTradeRequest,
   type ExecuteTradeResponse,
   type HealthResponse,
+  type AgentSummary,
+  type AgentDetail,
 } from '../types/api'
 
 // Re-export for convenience
@@ -89,6 +91,21 @@ export async function executeTrade(
  */
 export async function fetchHealth(): Promise<HealthResponse> {
   return fetchApi<HealthResponse>('/health')
+}
+
+/**
+ * Fetch all agent summaries with budget and position counts.
+ */
+export async function fetchAgents(): Promise<AgentSummary[]> {
+  const data = await fetchApi<{ agents: AgentSummary[] }>('/agents')
+  return data.agents
+}
+
+/**
+ * Fetch agent details including positions.
+ */
+export async function fetchAgent(agentId: string): Promise<AgentDetail> {
+  return fetchApi<AgentDetail>(`/agents/${agentId}`)
 }
 
 /**

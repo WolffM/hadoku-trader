@@ -54,6 +54,17 @@ export type {
   AgentTrade,
   AgentsListResponse,
   ProcessSignalsResponse,
+  // Position types (Phase 3)
+  PositionRow,
+  CloseReason,
+  // Execution types (Phase 3)
+  ExecutionResult,
+  ExecutionDetails,
+  FidelityTradeRequest,
+  FidelityTradeResponse,
+  // Monitoring types (Phase 3)
+  ExitDecision,
+  MonitorResult,
 } from "./types";
 
 // =============================================================================
@@ -122,6 +133,17 @@ export {
 } from "./loader";
 
 // =============================================================================
+// Scoring Exports
+// =============================================================================
+
+export {
+  // Main scoring function
+  calculateScore,
+  // Helper for confirmation counting
+  getSignalConfirmationCount,
+} from "./scoring";
+
+// =============================================================================
 // Router Exports (Signal Processing)
 // =============================================================================
 
@@ -134,3 +156,41 @@ export {
   getCurrentPrice,
   processAllPendingSignals,
 } from "./router";
+
+// =============================================================================
+// Sizing Exports (Phase 3)
+// =============================================================================
+
+export {
+  // Position sizing calculation
+  calculatePositionSize,
+  calculateShares,
+  validatePositionSize,
+} from "./sizing";
+
+// =============================================================================
+// Execution Exports (Phase 3)
+// =============================================================================
+
+export {
+  // Trade execution
+  executeTrade,
+  createPosition,
+  updateTradeExecution,
+  getPendingTradeId,
+  // Fidelity API
+  callFidelityApi,
+  executeSellOrder,
+} from "./execution";
+
+// =============================================================================
+// Monitor Exports (Phase 3)
+// =============================================================================
+
+export {
+  // Position monitoring
+  monitorPositions,
+  checkExitConditions,
+  closePosition,
+  updateHighestPrice,
+} from "./monitor";

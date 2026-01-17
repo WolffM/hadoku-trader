@@ -310,3 +310,121 @@ export interface ProcessSignalsResponse {
     }>;
   }>;
 }
+
+// =============================================================================
+// Position Types (Phase 3)
+// =============================================================================
+
+/**
+ * Position row from database with all tracking fields.
+ */
+export interface PositionRow {
+  id: string;
+  agent_id: string;
+  ticker: string;
+  shares: number;
+  entry_price: number;
+  entry_date: string;
+  cost_basis: number;
+  highest_price: number; // For trailing stops
+  asset_type: AssetType;
+  status: "open" | "closed";
+  signal_id: string | null;
+  partial_sold: number; // SQLite boolean (0 or 1) for take-profit tracking
+  closed_at: string | null;
+  close_price: number | null;
+  close_reason: CloseReason | null;
+  created_at: string;
+}
+
+/**
+ * Reasons for closing a position.
+ */
+export type CloseReason =
+  | "stop_loss"
+  | "take_profit"
+  | "time_exit"
+  | "soft_stop"
+  | "sell_signal"
+  | "manual";
+
+// =============================================================================
+// Execution Types (Phase 3)
+// =============================================================================
+
+/**
+ * Result of executing a trade through Fidelity API.
+ */
+export interface ExecutionResult {
+  success: boolean;
+  trade_id: string;
+  position_id: string | null;
+  shares: number;
+  executed_price: number;
+  total: number;
+  order_id: string | null;
+  error: string | null;
+}
+
+/**
+ * Details for updating a trade record after execution.
+ */
+export interface ExecutionDetails {
+  quantity: number;
+  price: number;
+  total: number;
+  status: "executed" | "failed";
+  executed_at: string;
+  error_message?: string;
+}
+
+/**
+ * Request to Fidelity API for trade execution.
+ */
+export interface FidelityTradeRequest {
+  ticker: string;
+  quantity: number;
+  action: "buy" | "sell";
+  account?: string;
+  dry_run?: boolean;
+}
+
+/**
+ * Response from Fidelity API after trade execution.
+ */
+export interface FidelityTradeResponse {
+  success: boolean;
+  order_id?: string;
+  error?: string;
+  details?: Record<string, unknown>;
+}
+
+// =============================================================================
+// Monitoring Types (Phase 3)
+// =============================================================================
+
+/**
+ * Exit decision returned by checkExitConditions.
+ */
+export interface ExitDecision {
+  action: "close" | "partial";
+  reason: CloseReason;
+  sell_pct: number; // 100 for full close, less for partial
+}
+
+/**
+ * Result of monitoring all positions.
+ */
+export interface MonitorResult {
+  positions_checked: number;
+  exits_triggered: number;
+  exits: Array<{
+    position_id: string;
+    ticker: string;
+    agent_id: string;
+    reason: CloseReason;
+    sell_pct: number;
+  }>;
+  highest_price_updates: number;
+  errors: string[];
+}

@@ -127,5 +127,37 @@ export interface HealthResponse {
   timestamp: string
 }
 
+// Agent types
+export interface AgentSummary {
+  id: string
+  name: string
+  is_active: boolean
+  monthly_budget: number
+  budget_spent: number
+  budget_remaining: number
+  positions_count: number
+  total_return_pct: number
+}
+
+export interface AgentPosition {
+  ticker: string
+  shares: number
+  entry_price: number
+  current_price: number
+  cost_basis: number
+  return_pct: number
+  days_held: number
+}
+
+export interface AgentDetail {
+  agent: AgentSummary
+  positions: AgentPosition[]
+}
+
+export interface AgentsResponse {
+  agents: AgentSummary[]
+  last_updated: string
+}
+
 // API base URL (configure based on environment)
 export const API_BASE_URL = import.meta.env.VITE_API_URL || '/api/trader'
