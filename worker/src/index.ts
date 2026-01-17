@@ -38,6 +38,7 @@ export { createScheduledHandler } from "./scheduled";
 export {
   handleGetSignals,
   handlePostSignal,
+  handleBackfillBatch,
   handleGetPerformance,
   handleGetTrades,
   handleGetSources,
