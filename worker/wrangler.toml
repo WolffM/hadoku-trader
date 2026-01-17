@@ -14,7 +14,7 @@ compatibility_date = "2024-01-01"
 [[d1_databases]]
 binding = "DB"
 database_name = "trader-db"
-database_id = "YOUR_DATABASE_ID"  # Replace after creating with: wrangler d1 create trader-db
+database_id = "5272f5b5-31f1-47cc-8490-be3e15ea4426"
 
 # Secrets (set with wrangler secret put)
 # - SCRAPER_API_KEY: API key for hadoku-scraper to post signals
