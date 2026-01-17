@@ -917,3 +917,383 @@ export async function handleProcessSignals(
     );
   }
 }
+
+// =============================================================================
+// Simulation Handler (Real Data)
+// =============================================================================
+
+/**
+ * POST /simulation/run - Run backtesting simulation with real D1 data
+ *
+ * Request body:
+ * {
+ *   "start_date": "2025-10-01",
+ *   "end_date": "2026-01-16"
+ * }
+ */
+export async function handleRunSimulation(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key
+  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  const body = await request.json() as {
+    start_date?: string;
+    end_date?: string;
+  };
+
+  const startDate = body.start_date || "2025-10-01";
+  const endDate = body.end_date || new Date().toISOString().split("T")[0];
+
+  try {
+    // Import simulation components
+    const {
+      SimulationClock,
+      SignalReplayer,
+      PortfolioState,
+      EventLogger,
+      D1PriceProvider,
+      generateSimId,
+      daysBetween,
+    } = await import("./agents");
+
+    const { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG } = await import("./agents/configs");
+    const { shouldAgentProcessSignal, lerp, clamp } = await import("./agents/filters");
+    const { calculatePositionSize, calculateShares } = await import("./agents/sizing");
+
+    // Fetch real signals from D1
+    const signalsResult = await env.TRADER_DB.prepare(`
+      SELECT
+        id, source, ticker, action, asset_type,
+        disclosed_price, disclosed_date, filing_date,
+        position_size_min, politician_name
+      FROM signals
+      WHERE disclosed_date >= ? AND disclosed_date <= ?
+        AND action IN ('buy', 'sell')
+        AND asset_type = 'stock'
+      ORDER BY disclosed_date
+    `).bind(startDate, endDate).all();
+
+    const signals = signalsResult.results.map((r: any) => ({
+      id: r.id,
+      ticker: r.ticker,
+      action: r.action as "buy" | "sell",
+      asset_type: r.asset_type,
+      disclosed_price: r.disclosed_price || 100,
+      disclosed_date: r.disclosed_date,
+      filing_date: r.filing_date || r.disclosed_date,
+      position_size_min: r.position_size_min || 15000,
+      politician_name: r.politician_name,
+      source: r.source,
+    }));
+
+    // Check market prices availability
+    const priceStats = await env.TRADER_DB.prepare(`
+      SELECT
+        COUNT(*) as total_prices,
+        COUNT(DISTINCT ticker) as unique_tickers,
+        MIN(date) as min_date,
+        MAX(date) as max_date
+      FROM market_prices
+      WHERE date >= ? AND date <= ?
+    `).bind(startDate, endDate).first() as any;
+
+    if (!priceStats || priceStats.total_prices === 0) {
+      return jsonResponse({
+        success: false,
+        error: "No market price data available for the specified period",
+        hint: "Run POST /market/backfill/trigger to populate price data",
+        requested_range: { start_date: startDate, end_date: endDate },
+      }, 400);
+    }
+
+    // Initialize components
+    const clock = new SimulationClock(startDate, endDate);
+    const priceProvider = new D1PriceProvider(env.TRADER_DB);
+    const signalReplayer = new SignalReplayer(signals);
+    const portfolioState = new PortfolioState();
+    const eventLogger = new EventLogger(false);
+
+    const agentConfigs = [CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG];
+    const MONTHLY_BUDGET = 1000;
+
+    portfolioState.initialize(
+      agentConfigs.map((a) => a.id),
+      MONTHLY_BUDGET
+    );
+
+    let lastMonth = startDate.substring(0, 7);
+    let signalsProcessed = 0;
+    let marketDays = 0;
+
+    // Helper functions (simplified for route handler)
+    function enrichSignal(signal: any, currentPrice: number, currentDate: string) {
+      const daysSinceTrade = daysBetween(signal.disclosed_date, currentDate);
+      const daysSinceFiling = daysBetween(signal.filing_date, currentDate);
+      const priceChangePct = ((currentPrice - signal.disclosed_price) / signal.disclosed_price) * 100;
+
+      return {
+        id: signal.id,
+        ticker: signal.ticker,
+        action: signal.action,
+        asset_type: signal.asset_type,
+        disclosed_price: signal.disclosed_price,
+        current_price: currentPrice,
+        trade_date: signal.disclosed_date,
+        filing_date: signal.filing_date,
+        position_size_min: signal.position_size_min,
+        politician_name: signal.politician_name,
+        source: signal.source,
+        days_since_trade: daysSinceTrade,
+        days_since_filing: Math.max(daysSinceFiling, 0),
+        price_change_pct: priceChangePct,
+      };
+    }
+
+    function calculateScore(agent: any, signal: any) {
+      if (!agent.scoring) return { score: 1.0, breakdown: { weighted_total: 1.0 } };
+
+      const components = agent.scoring.components;
+      const breakdown: any = { weighted_total: 0 };
+      let totalWeight = 0;
+      let weightedSum = 0;
+
+      if (components.time_decay) {
+        let decay = Math.pow(0.5, signal.days_since_trade / components.time_decay.half_life_days);
+        if (components.time_decay.use_filing_date && components.time_decay.filing_half_life_days) {
+          const filingDecay = Math.pow(0.5, signal.days_since_filing / components.time_decay.filing_half_life_days);
+          decay = Math.min(decay, filingDecay);
+        }
+        breakdown.time_decay = decay;
+        weightedSum += decay * components.time_decay.weight;
+        totalWeight += components.time_decay.weight;
+      }
+
+      if (components.price_movement) {
+        const thresholds = components.price_movement.thresholds;
+        const pct = Math.abs(signal.price_change_pct);
+        let score = pct <= 0 ? thresholds.pct_0 :
+          pct <= 5 ? lerp(thresholds.pct_0, thresholds.pct_5, pct / 5) :
+          pct <= 15 ? lerp(thresholds.pct_5, thresholds.pct_15, (pct - 5) / 10) :
+          pct <= 25 ? lerp(thresholds.pct_15, thresholds.pct_25, (pct - 15) / 10) : 0;
+
+        if (signal.action === "buy" && signal.price_change_pct < 0) {
+          score = Math.min(score * 1.2, 1.2);
+        }
+        breakdown.price_movement = score;
+        weightedSum += score * components.price_movement.weight;
+        totalWeight += components.price_movement.weight;
+      }
+
+      if (components.position_size) {
+        const size = signal.position_size_min;
+        let idx = 0;
+        for (let i = 0; i < components.position_size.thresholds.length; i++) {
+          if (size >= components.position_size.thresholds[i]) idx = i + 1;
+        }
+        const score = components.position_size.scores[idx] ?? 0.5;
+        breakdown.position_size = score;
+        weightedSum += score * components.position_size.weight;
+        totalWeight += components.position_size.weight;
+      }
+
+      if (components.politician_skill) {
+        const score = components.politician_skill.default_score;
+        breakdown.politician_skill = score;
+        weightedSum += score * components.politician_skill.weight;
+        totalWeight += components.politician_skill.weight;
+      }
+
+      if (components.source_quality) {
+        const score = components.source_quality.scores[signal.source] ?? 0.8;
+        breakdown.source_quality = score;
+        weightedSum += score * components.source_quality.weight;
+        totalWeight += components.source_quality.weight;
+      }
+
+      breakdown.weighted_total = totalWeight > 0 ? clamp(weightedSum / totalWeight, 0, 1) : 0;
+      return { score: breakdown.weighted_total, breakdown };
+    }
+
+    function checkExit(position: any, agent: any, currentPrice: number, currentDate: string) {
+      const returnPct = ((currentPrice - position.entryPrice) / position.entryPrice) * 100;
+      const dropFromHigh = ((position.highestPrice - currentPrice) / position.highestPrice) * 100;
+      const daysHeld = daysBetween(position.entryDate, currentDate);
+
+      if (agent.exit.stop_loss.mode === "fixed" && returnPct <= -agent.exit.stop_loss.threshold_pct) {
+        return { reason: "stop_loss", sellPct: 100 };
+      }
+      if (agent.exit.stop_loss.mode === "trailing" && dropFromHigh >= agent.exit.stop_loss.threshold_pct) {
+        return { reason: "stop_loss", sellPct: 100 };
+      }
+      if (agent.exit.take_profit && returnPct >= agent.exit.take_profit.second_threshold_pct) {
+        return { reason: "take_profit", sellPct: 100 };
+      }
+      if (agent.exit.max_hold_days !== null && daysHeld >= agent.exit.max_hold_days) {
+        return { reason: "time_exit", sellPct: 100 };
+      }
+      if (agent.exit.soft_stop && daysHeld >= agent.exit.soft_stop.no_progress_days_stock && returnPct <= 0) {
+        return { reason: "soft_stop", sellPct: 100 };
+      }
+      return null;
+    }
+
+    // Run simulation
+    while (!clock.isComplete()) {
+      const currentDate = clock.getDate();
+
+      if (!clock.isMarketDay()) {
+        clock.advance();
+        continue;
+      }
+
+      marketDays++;
+
+      const currentMonth = currentDate.substring(0, 7);
+      if (portfolioState.isNewMonth(currentDate, `${lastMonth}-01`)) {
+        for (const agent of agentConfigs) {
+          portfolioState.addMonthlyBudget(agent.id, MONTHLY_BUDGET);
+        }
+        lastMonth = currentMonth;
+      }
+
+      const daySignals = signalReplayer.getSignalsForDate(currentDate);
+      const acceptedCounts = new Map<string, number>();
+
+      for (const signal of daySignals) {
+        const currentPrice = await priceProvider.getPrice(signal.ticker, currentDate);
+        if (currentPrice === null) continue;
+
+        const enriched = enrichSignal(signal, currentPrice, currentDate);
+
+        for (const agent of agentConfigs) {
+          const portfolio = portfolioState.getPortfolio(agent.id);
+          const filterResult = shouldAgentProcessSignal(agent, enriched);
+
+          if (!filterResult.passes) continue;
+          if (portfolio.positions.length >= agent.sizing.max_open_positions) continue;
+          if (portfolio.positions.filter(p => p.ticker === signal.ticker).length >= agent.sizing.max_per_ticker) continue;
+
+          const { score } = calculateScore(agent, enriched);
+          let shouldExecute = false;
+          let isHalf = false;
+
+          if (!agent.scoring) {
+            shouldExecute = true;
+          } else if (score >= agent.execute_threshold) {
+            shouldExecute = true;
+          } else if (agent.half_size_threshold !== null && score >= agent.half_size_threshold) {
+            shouldExecute = true;
+            isHalf = true;
+          }
+
+          if (shouldExecute) {
+            const count = acceptedCounts.get(agent.id) || 0;
+            acceptedCounts.set(agent.id, count + 1);
+
+            const positionSize = calculatePositionSize(
+              agent, score,
+              { remaining: portfolioState.getCash(agent.id) },
+              count + 1, isHalf
+            );
+
+            if (positionSize > 0) {
+              const shares = calculateShares(positionSize, currentPrice);
+              if (shares > 0) {
+                portfolioState.addPosition(agent.id, {
+                  id: generateSimId("pos"),
+                  ticker: signal.ticker,
+                  shares,
+                  entryPrice: currentPrice,
+                  entryDate: currentDate,
+                  currentPrice,
+                  highestPrice: currentPrice,
+                  partialSold: false,
+                  signalId: signal.id,
+                });
+              }
+            }
+          }
+        }
+
+        signalReplayer.markProcessed(signal.id);
+        signalsProcessed++;
+      }
+
+      // End of day: update prices and check exits
+      for (const agent of agentConfigs) {
+        const portfolio = portfolioState.getPortfolio(agent.id);
+        const tickers = portfolio.positions.map(p => p.ticker);
+        const prices = await priceProvider.getClosingPrices(tickers, currentDate);
+
+        portfolioState.updatePrices(agent.id, prices);
+
+        for (const position of [...portfolio.positions]) {
+          const price = prices.get(position.ticker);
+          if (price === undefined) continue;
+
+          const exit = checkExit(position, agent, price, currentDate);
+          if (exit) {
+            portfolioState.closePosition(agent.id, position.id, price, currentDate, exit.reason as any, exit.sellPct);
+          }
+        }
+
+        portfolioState.snapshot(agent.id, currentDate);
+      }
+
+      clock.advance();
+    }
+
+    // Generate results
+    const results: Record<string, any> = {};
+    for (const agent of agentConfigs) {
+      const metrics = portfolioState.getMetrics(agent.id);
+      const portfolio = portfolioState.getPortfolio(agent.id);
+      results[agent.id] = {
+        totalReturn: metrics.totalReturnPct,
+        maxDrawdown: metrics.maxDrawdownPct,
+        sharpeRatio: metrics.sharpeRatio,
+        totalTrades: metrics.totalTrades,
+        winRate: metrics.winRate,
+        avgWinPct: metrics.avgWinPct,
+        avgLossPct: metrics.avgLossPct,
+        avgHoldDays: metrics.avgHoldDays,
+        exitReasons: metrics.exitReasons,
+        openPositions: portfolio.positions.length,
+        closedPositions: portfolio.closedPositions.length,
+        finalCash: portfolioState.getCash(agent.id),
+      };
+    }
+
+    return jsonResponse({
+      success: true,
+      simulation: {
+        start_date: startDate,
+        end_date: endDate,
+        total_days: Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)),
+        market_days: marketDays,
+        signals_processed: signalsProcessed,
+        signals_available: signals.length,
+      },
+      market_data: {
+        prices_available: priceStats.total_prices,
+        tickers_covered: priceStats.unique_tickers,
+        data_range: {
+          start: priceStats.min_date,
+          end: priceStats.max_date,
+        },
+      },
+      results,
+    });
+  } catch (error) {
+    console.error("Simulation error:", error);
+    return jsonResponse({
+      success: false,
+      error: "Simulation failed",
+      details: String(error),
+    }, 500);
+  }
+}
