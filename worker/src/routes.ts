@@ -18,6 +18,7 @@ import {
   processAllPendingSignals,
   getCurrentMonth,
 } from "./agents";
+import { backfillMarketPrices } from "./scheduled";
 
 // =============================================================================
 // Signal Handlers
@@ -463,6 +464,54 @@ export async function handleGetMarketTickers(env: TraderEnv): Promise<Response> 
     tickers: results.results,
     count: results.results.length,
   });
+}
+
+/**
+ * POST /market/backfill/trigger - Trigger historical price backfill
+ *
+ * Request body:
+ * {
+ *   "start_date": "2025-10-01",
+ *   "end_date": "2026-01-16",
+ *   "tickers": ["NVDA", "AAPL"]  // optional, defaults to all tickers from signals
+ * }
+ */
+export async function handleMarketBackfillTrigger(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key
+  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  const body = await request.json() as {
+    start_date?: string;
+    end_date?: string;
+    tickers?: string[];
+  };
+
+  const startDate = body.start_date || "2025-10-01";
+  const endDate = body.end_date || new Date().toISOString().split("T")[0];
+  const tickers = body.tickers;
+
+  try {
+    const result = await backfillMarketPrices(env, startDate, endDate, tickers);
+
+    return jsonResponse({
+      success: true,
+      message: `Backfill completed: ${result.inserted} inserted, ${result.errors} errors`,
+      ...result,
+      start_date: startDate,
+      end_date: endDate,
+    });
+  } catch (error) {
+    console.error("Backfill error:", error);
+    return jsonResponse(
+      { success: false, error: "Backfill failed" },
+      500
+    );
+  }
 }
 
 // =============================================================================
