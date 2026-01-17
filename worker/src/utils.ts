@@ -23,6 +23,7 @@ export function jsonResponse(
 
 /**
  * Verify API key from request headers.
+ * Accepts: X-API-Key, Authorization: Bearer, or X-User-Key (for edge-router compatibility)
  */
 export function verifyApiKey(
   request: Request,
@@ -31,6 +32,7 @@ export function verifyApiKey(
 ): boolean {
   const apiKey =
     request.headers.get("X-API-Key") ||
+    request.headers.get("X-User-Key") ||
     request.headers.get("Authorization")?.replace("Bearer ", "");
   return apiKey === env[keyName];
 }
@@ -48,7 +50,7 @@ export function generateId(prefix: string): string {
 export const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization, X-API-Key, X-User-Key",
 };
 
 /**
