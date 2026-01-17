@@ -1,5 +1,17 @@
 # Claude Code Instructions for hadoku-trader
 
+## Working Style
+
+**BE PROACTIVE. DO NOT ASK UNNECESSARY QUESTIONS.**
+
+- When asked to make a change, MAKE IT. Don't ask for confirmation.
+- When asked to commit, COMMIT AND PUSH. Deployment is automatic.
+- When something is obviously needed (like wiring up a route for an exported function), DO IT without being asked.
+- If you need to bump versions, bump them.
+- If tests need to run, run them.
+- If changes need to be committed, commit them with a good message.
+- NEVER say "let me know when you're ready" - just do the work.
+
 ## Project Context
 
 This is a congressional trade copying system. The goal is to:
@@ -56,6 +68,23 @@ hadoku-trader/
 │   ├── entry.tsx          # Mount/unmount exports
 │   ├── hooks/             # Custom hooks
 │   └── styles/            # CSS
+├── worker/                 # Cloudflare Worker package (@wolffm/trader-worker)
+│   ├── src/
+│   │   ├── index.ts       # Package exports
+│   │   ├── handler.ts     # Request router
+│   │   ├── routes.ts      # Route handlers
+│   │   ├── scheduled.ts   # Cron jobs (runFullSync, syncMarketPrices, etc.)
+│   │   ├── types.ts       # TypeScript types
+│   │   └── agents/        # Multi-agent trading engine
+│   │       ├── configs.ts # Agent configurations (ChatGPT, Claude, Gemini)
+│   │       ├── scoring.ts # Signal scoring (7 components)
+│   │       ├── sizing.ts  # Position sizing (3 modes)
+│   │       ├── execution.ts # Trade execution
+│   │       ├── monitor.ts # Position monitoring (4 exit conditions)
+│   │       ├── simulation.ts # Backtesting framework
+│   │       └── priceProvider.ts # Price data providers
+│   ├── schema.sql         # D1 database schema
+│   └── package.json       # Publishes to GitHub Packages
 ├── fidelity-api/          # Forked broker automation
 │   └── fidelity/
 │       └── fidelity.py    # FidelityAutomation class
@@ -64,6 +93,18 @@ hadoku-trader/
 │   └── scrapeRequirements.md  # Signal schema
 └── package.json
 ```
+
+## Worker Package (@wolffm/trader-worker)
+
+The worker is published to GitHub Packages and imported by hadoku-site. Key exports:
+- `createTraderHandler(env)` - Main request handler
+- `createScheduledHandler(env)` - Cron job handler
+- `runFullSync(env)` - Full sync (signals, prices, processing, performance)
+- `backfillMarketPrices(env, start, end)` - Historical price backfill
+
+Cron jobs (configured in hadoku-site's wrangler.toml):
+- `0 */8 * * *` - Full sync every 8 hours
+- `*/15 14-21 * * 1-5` - Position monitoring during market hours
 
 ## Key Classes
 
