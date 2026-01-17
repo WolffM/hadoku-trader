@@ -14,89 +14,97 @@
 
 ## Project Context
 
-This is a congressional trade copying system. The goal is to:
+This is a congressional trade copying system with a multi-agent trading engine. The goal is to:
 1. Receive signals from hadoku-scraper about congressional stock trades
-2. Display a dashboard showing signal/portfolio performance vs benchmarks
-3. Eventually auto-execute trades via Fidelity
-
-## Current State
-
-- **Frontend**: Basic React skeleton with theme integration (working)
-- **Backend**: Handled by hadoku-site Cloudflare Worker (separate repo)
-- **Fidelity API**: Forked Python library, runs locally via PM2 + cloudflared tunnel
+2. Score and process signals through 3 independent trading agents (ChatGPT, Claude, Gemini)
+3. Display a dashboard showing agent/portfolio performance vs benchmarks
+4. Auto-execute trades via Fidelity
 
 ## Architecture
 
 ```
 hadoku-scraper ──► hadoku-site (CF Worker + D1) ──► hadoku-trader (Dashboard)
-                                                          │
-                                                          ▼ trade requests
-                                    hadoku-site ──► Local PM2 (fidelity-api via tunnel)
+                         │                                   │
+                         │ @wolffm/trader-worker             │
+                         │ (multi-agent engine)              │
+                         │                                   ▼ trade requests
+                         └──► Local PM2 (fidelity-api via cloudflared tunnel)
 ```
 
 Data flow:
 1. hadoku-site fetches data from hadoku-scraper every 8 hours
-2. Data stored in D1 (Cloudflare's SQLite)
-3. Dashboard fetches data via REST API from hadoku-site
-4. Trade execution: dashboard → hadoku-site → cloudflared tunnel → local PM2 → fidelity-api
-
-## Tech Stack
-
-### Frontend (this repo)
-- React 19 + TypeScript
-- Vite for bundling
-- @wolffm/themes for theming
-- @wolffm/task-ui-components for shared UI
-- Publishes to GitHub Packages as @wolffm/trader
-
-### Backend (hadoku-site repo)
-- Cloudflare Workers
-- D1 database (SQLite)
-- Scheduled triggers for data fetching
-
-### Trade Execution (local)
-- PM2 process manager
-- cloudflared tunnel
-- Python + fidelity-api
+2. Signals are processed through the multi-agent engine (scoring, sizing, execution decisions)
+3. Data stored in D1 (Cloudflare's SQLite)
+4. Dashboard fetches data via REST API from hadoku-site
+5. Trade execution: dashboard → hadoku-site → cloudflared tunnel → local PM2 → fidelity-api
 
 ## File Structure
 
 ```
 hadoku-trader/
-├── src/                    # React frontend
-│   ├── App.tsx            # Main component
-│   ├── entry.tsx          # Mount/unmount exports
-│   ├── hooks/             # Custom hooks
-│   └── styles/            # CSS
-├── worker/                 # Cloudflare Worker package (@wolffm/trader-worker)
+├── src/                      # React frontend (@wolffm/trader)
+│   ├── App.tsx               # Main component
+│   ├── entry.tsx             # Mount/unmount exports
+│   ├── app/                  # App config (themeConfig)
+│   ├── components/Dashboard/ # Dashboard components
+│   ├── data/                 # Mock data for development
+│   ├── hooks/                # Custom React hooks
+│   ├── services/             # API service layer
+│   ├── styles/               # CSS
+│   └── types/                # TypeScript types
+├── worker/                   # Cloudflare Worker package (@wolffm/trader-worker)
 │   ├── src/
-│   │   ├── index.ts       # Package exports
-│   │   ├── handler.ts     # Request router
-│   │   ├── routes.ts      # Route handlers
-│   │   ├── scheduled.ts   # Cron jobs (runFullSync, syncMarketPrices, etc.)
-│   │   ├── types.ts       # TypeScript types
-│   │   └── agents/        # Multi-agent trading engine
-│   │       ├── configs.ts # Agent configurations (ChatGPT, Claude, Gemini)
-│   │       ├── scoring.ts # Signal scoring (7 components)
-│   │       ├── sizing.ts  # Position sizing (3 modes)
-│   │       ├── execution.ts # Trade execution
-│   │       ├── monitor.ts # Position monitoring (4 exit conditions)
+│   │   ├── index.ts          # Package exports
+│   │   ├── handler.ts        # Request router
+│   │   ├── routes.ts         # Route handlers
+│   │   ├── scheduled.ts      # Cron jobs
+│   │   ├── types.ts          # TypeScript types
+│   │   ├── utils.ts          # Utilities
+│   │   └── agents/           # Multi-agent trading engine
+│   │       ├── configs.ts    # Agent configurations
+│   │       ├── scoring.ts    # Signal scoring (7 components)
+│   │       ├── sizing.ts     # Position sizing (3 modes)
+│   │       ├── execution.ts  # Trade execution
+│   │       ├── monitor.ts    # Position monitoring
 │   │       ├── simulation.ts # Backtesting framework
-│   │       └── priceProvider.ts # Price data providers
-│   ├── schema.sql         # D1 database schema
-│   └── package.json       # Publishes to GitHub Packages
-├── fidelity-api/          # Forked broker automation
-│   └── fidelity/
-│       └── fidelity.py    # FidelityAutomation class
+│   │       ├── filters.ts    # Signal filters
+│   │       ├── router.ts     # Agent routing
+│   │       ├── loader.ts     # Config loader
+│   │       ├── metrics.ts    # Performance metrics
+│   │       ├── priceProvider.ts # Price data
+│   │       └── types.ts      # Agent types
+│   ├── migrations/           # D1 migrations
+│   ├── schema.sql            # D1 database schema
+│   └── package.json          # Publishes to GitHub Packages
+├── trader-worker/            # Local trade execution service
+│   ├── main.py               # FastAPI service
+│   ├── ecosystem.config.js   # PM2 config
+│   └── requirements.txt      # Python dependencies
+├── fidelity-api/             # Forked broker automation library
+│   ├── fidelity/             # Core library
+│   └── hadoku_fidelity/      # CLI/service wrapper
 ├── docs/
-│   ├── requirements.md    # Full system spec
-│   └── scrapeRequirements.md  # Signal schema
+│   ├── ENGINE_SPEC.md        # Full multi-agent engine specification
+│   ├── SCRAPER_INTEGRATION.md # How to integrate scrapers
+│   └── SITE_INTEGRATION.md   # How to integrate with hadoku-site
 └── package.json
 ```
 
+## Multi-Agent Trading Engine
+
+Three agents run independently with $1,000/month budget each:
+
+| Agent | Strategy | Signals | Sizing |
+|-------|----------|---------|--------|
+| ChatGPT ("Decay Edge") | Score-based, soft stops | All politicians | score² × 20% |
+| Claude ("Decay Alpha") | Score-based, take-profits | All politicians | $200 × score |
+| Gemini ("Titan Conviction") | Pass/fail on 5 Titans | Pelosi, Green, McCaul, Khanna, Larsen | Equal split |
+
+See [docs/ENGINE_SPEC.md](docs/ENGINE_SPEC.md) for full specification.
+
 ## Worker Package (@wolffm/trader-worker)
 
-The worker is published to GitHub Packages and imported by hadoku-site. Key exports:
+Published to GitHub Packages, imported by hadoku-site. Key exports:
 - `createTraderHandler(env)` - Main request handler
 - `createScheduledHandler(env)` - Cron job handler
 - `runFullSync(env)` - Full sync (signals, prices, processing, performance)
@@ -106,16 +114,6 @@ Cron jobs (configured in hadoku-site's wrangler.toml):
 - `0 */8 * * *` - Full sync every 8 hours
 - `*/15 14-21 * * 1-5` - Position monitoring during market hours
 
-## Key Classes
-
-### FidelityAutomation (Python)
-Main methods:
-- `login(username, password, totp_secret, save_device)` - Returns (step1_success, step2_success)
-- `getAccountInfo()` - Returns dict of accounts with positions
-- `transaction(stock, quantity, action, account, dry)` - Execute trade, returns (success, error)
-- `transfer_acc_to_acc(source, dest, amount)` - Transfer funds
-- `get_list_of_accounts()` - Get all accounts with balances
-
 ## Development Commands
 
 ```bash
@@ -123,10 +121,18 @@ Main methods:
 pnpm install && pnpm dev    # Start dev server
 pnpm build                  # Production build
 
+# Worker (tests)
+cd worker && pnpm test      # Run agent tests
+
 # Fidelity API
 cd fidelity-api
 pip install -e .
 playwright install
+
+# Local trade service
+cd trader-worker
+pip install -r requirements.txt
+python main.py
 ```
 
 ## Conventions
@@ -136,29 +142,38 @@ playwright install
 3. Frontend mounts as child app - exports mount/unmount functions
 4. All fidelity-api trade functions should use dry=True for testing
 
-## Signal Processing Logic
+## Signal Processing Flow
 
 When a signal arrives:
 1. Check for duplicates (by source_id)
-2. If duplicate from new source → increase conviction multiplier
-3. Calculate "priced in" score based on days since disclosure and price movement
-4. Size position based on: politician's trade size × conviction × priced-in discount
-5. Execute or skip based on budget remaining
-6. Log everything for audit
+2. Route to applicable agents (based on politician whitelist, asset types)
+3. Each agent independently:
+   - Applies hard filters (max age, max price move)
+   - Calculates score (if scoring enabled)
+   - Makes execute/skip decision based on threshold
+   - Sizes position based on score and budget
+4. Execute via Fidelity API (or queue for market hours)
+5. Log full decision reasoning for audit
 
-## Dashboard Sections
+## API Routes
 
-Build these views:
-1. Overview - Total value, returns vs SPY
-2. Portfolio - Current positions with P&L
-3. Trade Log - History with reasoning
-4. Source Leaderboard - Which sources generate alpha
-5. Signals Feed - Incoming signals status
-6. Budget - Monthly cap utilization
+| Route | Method | Description |
+|-------|--------|-------------|
+| `/api/trader/signals` | GET | List signals |
+| `/api/trader/signals` | POST | Ingest signal from scraper |
+| `/api/trader/signals/backfill` | POST | Batch signal backfill |
+| `/api/trader/agents` | GET | List agents + performance |
+| `/api/trader/agents/:id` | GET | Agent details |
+| `/api/trader/performance` | GET | Overall performance |
+| `/api/trader/trades` | GET | Trade history |
+| `/api/trader/execute` | POST | Execute trade via tunnel |
+| `/api/trader/simulation/run` | POST | Run backtest simulation |
+| `/api/trader/market/prices` | GET | Get market prices |
 
 ## Important Constraints
 
 - Never execute real trades without explicit confirmation
 - Signal deduplication is critical to avoid double-buying
-- Monthly budget caps must be enforced
+- Monthly budget caps ($1,000/agent) must be enforced
 - All trades need audit logging with full reasoning chain
+- Stop-loss and exit rules are monitored every 15 minutes during market hours

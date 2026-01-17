@@ -35,3 +35,10 @@ coverage/
 # Temporary
 .tmp/
 .cache/
+
+# Wrangler local state
+.wrangler/
+
+# Python (in case of fidelity-api)
+__pycache__/
+*.egg-info/
