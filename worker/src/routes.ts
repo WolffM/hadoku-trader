@@ -220,7 +220,7 @@ export async function handleBackfillBatch(
         continue;
       }
 
-      // Insert new signal - coerce all undefined to null for D1
+      // Insert new signal - use defaults for NOT NULL columns, null for nullable
       const id = generateId("sig");
 
       await env.TRADER_DB.prepare(`
@@ -237,22 +237,22 @@ export async function handleBackfillBatch(
           signal.source ?? null,
           signal.politician?.name ?? null,
           signal.politician?.chamber ?? null,
-          signal.politician?.party ?? null,
-          signal.politician?.state ?? null,
+          signal.politician?.party ?? "unknown",      // NOT NULL - default
+          signal.politician?.state ?? "unknown",      // NOT NULL - default
           signal.trade?.ticker ?? null,
           signal.trade?.action ?? null,
           signal.trade?.asset_type ?? null,
           signal.trade?.disclosed_price ?? null,
           signal.trade?.price_at_filing ?? null,
           signal.trade?.disclosed_date ?? null,
-          signal.trade?.filing_date ?? null,
-          signal.trade?.position_size ?? null,
-          signal.trade?.position_size_min ?? null,
-          signal.trade?.position_size_max ?? null,
+          signal.trade?.filing_date ?? "",            // NOT NULL - default
+          signal.trade?.position_size ?? "",          // NOT NULL - default
+          signal.trade?.position_size_min ?? 0,       // NOT NULL - default
+          signal.trade?.position_size_max ?? 0,       // NOT NULL - default
           signal.trade?.option_type ?? null,
           signal.trade?.strike_price ?? null,
           signal.trade?.expiration_date ?? null,
-          signal.meta?.source_url ?? null,
+          signal.meta?.source_url ?? "",              // NOT NULL - default
           signal.meta?.source_id ?? null,
           signal.meta?.scraped_at ?? null
         )
