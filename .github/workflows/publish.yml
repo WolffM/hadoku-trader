@@ -57,22 +57,25 @@ jobs:
 
           echo "Current version: $current_version"
 
-          # Check if version exists on GitHub Packages (use npm with explicit registry)
-          if npm view "${package_name}@${current_version}" version --registry=https://npm.pkg.github.com 2>/dev/null; then
-            echo "⚠️  Version $current_version already published, bumping..."
+          # Loop until we find an unpublished version
+          version="$current_version"
+          while npm view "${package_name}@${version}" version --registry=https://npm.pkg.github.com 2>/dev/null; do
+            echo "⚠️  Version $version already published, bumping..."
 
-            major=$(echo $current_version | cut -d. -f1)
-            minor=$(echo $current_version | cut -d. -f2)
-            patch=$(echo $current_version | cut -d. -f3)
+            major=$(echo $version | cut -d. -f1)
+            minor=$(echo $version | cut -d. -f2)
+            patch=$(echo $version | cut -d. -f3)
 
-            if [ $patch -eq 20 ]; then
-              new_version="$major.$((minor + 1)).0"
+            if [ $patch -ge 20 ]; then
+              version="$major.$((minor + 1)).0"
             else
-              new_version="$major.$minor.$((patch + 1))"
+              version="$major.$minor.$((patch + 1))"
             fi
+          done
 
-            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
-            echo "✅ Version bumped: $current_version → $new_version"
+          if [ "$version" != "$current_version" ]; then
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$version"
+            echo "✅ Version bumped: $current_version → $version"
             pnpm install --lockfile-only
           else
             echo "✓ Version $current_version not yet published, proceeding"
@@ -139,22 +142,25 @@ jobs:
 
           echo "Current version: $current_version"
 
-          # Check if version exists on GitHub Packages (use npm with explicit registry)
-          if npm view "${package_name}@${current_version}" version --registry=https://npm.pkg.github.com 2>/dev/null; then
-            echo "⚠️  Version $current_version already published, bumping..."
+          # Loop until we find an unpublished version
+          version="$current_version"
+          while npm view "${package_name}@${version}" version --registry=https://npm.pkg.github.com 2>/dev/null; do
+            echo "⚠️  Version $version already published, bumping..."
 
-            major=$(echo $current_version | cut -d. -f1)
-            minor=$(echo $current_version | cut -d. -f2)
-            patch=$(echo $current_version | cut -d. -f3)
+            major=$(echo $version | cut -d. -f1)
+            minor=$(echo $version | cut -d. -f2)
+            patch=$(echo $version | cut -d. -f3)
 
-            if [ $patch -eq 20 ]; then
-              new_version="$major.$((minor + 1)).0"
+            if [ $patch -ge 20 ]; then
+              version="$major.$((minor + 1)).0"
             else
-              new_version="$major.$minor.$((patch + 1))"
+              version="$major.$minor.$((patch + 1))"
             fi
+          done
 
-            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$new_version"
-            echo "✅ Version bumped: $current_version → $new_version"
+          if [ "$version" != "$current_version" ]; then
+            node -e "const fs = require('fs'); const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8')); pkg.version = process.argv[1]; fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');" "$version"
+            echo "✅ Version bumped: $current_version → $version"
             pnpm install --lockfile-only
           else
             echo "✓ Version $current_version not yet published, proceeding"
