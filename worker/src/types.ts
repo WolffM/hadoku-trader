@@ -35,15 +35,15 @@ export type Env = TraderEnv;
 
 export interface Politician {
   name: string;
-  chamber: "house" | "senate";
-  party: "D" | "R" | "I";
+  chamber: string;  // "house", "senate", or other (extensible)
+  party: string;    // "D", "R", "I", or other (extensible)
   state: string;
 }
 
 export interface Trade {
   ticker: string;
-  action: "buy" | "sell";
-  asset_type: "stock" | "option" | "etf" | "bond" | "crypto";
+  action: string;   // "buy", "sell", "exchange", etc. (extensible)
+  asset_type: string; // "stock", "option", "etf", "bond", "crypto", etc. (extensible)
   disclosed_price: number | null;
   price_at_filing: number | null; // Price on filing/disclosure date
   disclosed_date: string; // YYYY-MM-DD (trade date)
@@ -63,12 +63,24 @@ export interface SignalMeta {
   scraped_at: string; // ISO8601
 }
 
-export type SignalSource =
+/**
+ * Known signal sources (for documentation).
+ * The API accepts ANY string as source - add new sources freely without code changes.
+ */
+export type KnownSignalSource =
   | "unusual_whales"
   | "capitol_trades"
   | "quiver_quant"
   | "house_stock_watcher"
-  | "senate_stock_watcher";
+  | "senate_stock_watcher"
+  | "sec_form4"
+  | "finviz_insider";
+
+/**
+ * Signal source - accepts any string for extensibility.
+ * Use KnownSignalSource values for consistency, but any identifier works.
+ */
+export type SignalSource = string;
 
 export interface Signal {
   id?: string;
@@ -117,7 +129,7 @@ export interface ExecutedTrade {
   id: string;
   date: string;
   ticker: string;
-  action: "buy" | "sell";
+  action: string;
   quantity: number;
   price: number;
   total: number;
@@ -154,7 +166,7 @@ export interface SourcesResponse {
 
 export interface ExecuteTradeRequest {
   ticker: string;
-  action: "buy" | "sell";
+  action: string;
   quantity: number;
   account?: string;
   dry_run?: boolean;
