@@ -163,13 +163,23 @@ export async function handleBackfillBatch(
 
   const payload = await request.json() as {
     event: string;
-    job_id: string;
-    batch_number: number;
-    source: string;
+    job_id?: string;
+    batch_number?: number;
+    source?: string;
     signals?: Signal[];
-    data?: { signals: Signal[] };
+    data?: {
+      signals?: Signal[];
+      job_id?: string;
+      batch_number?: number;
+      source?: string;
+    };
     is_last_batch?: boolean;
   };
+
+  // Extract fields from either payload.data or top-level (scraper uses payload.data)
+  const jobId = payload.data?.job_id ?? payload.job_id;
+  const batchNumber = payload.data?.batch_number ?? payload.batch_number;
+  const source = payload.data?.source ?? payload.source;
 
   // Validate event type
   if (payload.event !== "backfill.batch" && payload.event !== "backfill.completed") {
@@ -181,11 +191,11 @@ export async function handleBackfillBatch(
 
   // Handle completion event
   if (payload.event === "backfill.completed") {
-    console.log(`Backfill job ${payload.job_id} completed`);
+    console.log(`Backfill job ${jobId} completed`);
     return jsonResponse({
       success: true,
       message: "Backfill completed acknowledged",
-      job_id: payload.job_id,
+      job_id: jobId,
     });
   }
 
@@ -197,11 +207,12 @@ export async function handleBackfillBatch(
 
   for (const signal of signals) {
     try {
-      // Check for duplicate
+      // Check for duplicate (D1 requires null, not undefined)
+      const sourceId = signal.meta?.source_id ?? null;
       const existing = await env.TRADER_DB.prepare(
         "SELECT id FROM signals WHERE source = ? AND source_id = ?"
       )
-        .bind(signal.source, signal.meta?.source_id)
+        .bind(signal.source ?? null, sourceId)
         .first();
 
       if (existing) {
@@ -209,7 +220,7 @@ export async function handleBackfillBatch(
         continue;
       }
 
-      // Insert new signal
+      // Insert new signal - coerce all undefined to null for D1
       const id = generateId("sig");
 
       await env.TRADER_DB.prepare(`
@@ -223,27 +234,27 @@ export async function handleBackfillBatch(
       `)
         .bind(
           id,
-          signal.source,
-          signal.politician?.name,
-          signal.politician?.chamber,
-          signal.politician?.party,
-          signal.politician?.state,
-          signal.trade?.ticker,
-          signal.trade?.action,
-          signal.trade?.asset_type,
-          signal.trade?.disclosed_price,
-          signal.trade?.price_at_filing,
-          signal.trade?.disclosed_date,
-          signal.trade?.filing_date,
-          signal.trade?.position_size,
-          signal.trade?.position_size_min,
-          signal.trade?.position_size_max,
-          signal.trade?.option_type,
-          signal.trade?.strike_price,
-          signal.trade?.expiration_date,
-          signal.meta?.source_url,
-          signal.meta?.source_id,
-          signal.meta?.scraped_at
+          signal.source ?? null,
+          signal.politician?.name ?? null,
+          signal.politician?.chamber ?? null,
+          signal.politician?.party ?? null,
+          signal.politician?.state ?? null,
+          signal.trade?.ticker ?? null,
+          signal.trade?.action ?? null,
+          signal.trade?.asset_type ?? null,
+          signal.trade?.disclosed_price ?? null,
+          signal.trade?.price_at_filing ?? null,
+          signal.trade?.disclosed_date ?? null,
+          signal.trade?.filing_date ?? null,
+          signal.trade?.position_size ?? null,
+          signal.trade?.position_size_min ?? null,
+          signal.trade?.position_size_max ?? null,
+          signal.trade?.option_type ?? null,
+          signal.trade?.strike_price ?? null,
+          signal.trade?.expiration_date ?? null,
+          signal.meta?.source_url ?? null,
+          signal.meta?.source_id ?? null,
+          signal.meta?.scraped_at ?? null
         )
         .run();
 
@@ -255,14 +266,14 @@ export async function handleBackfillBatch(
   }
 
   console.log(
-    `Backfill batch ${payload.batch_number} from ${payload.source}: ` +
+    `Backfill batch ${batchNumber} from ${source}: ` +
     `${inserted} inserted, ${duplicates} duplicates, ${errors} errors`
   );
 
   return jsonResponse({
     success: true,
-    job_id: payload.job_id,
-    batch_number: payload.batch_number,
+    job_id: jobId,
+    batch_number: batchNumber,
     inserted,
     duplicates,
     errors,
