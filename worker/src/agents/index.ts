@@ -194,3 +194,56 @@ export {
   closePosition,
   updateHighestPrice,
 } from "./monitor";
+
+// =============================================================================
+// Simulation Exports (Phase 4)
+// =============================================================================
+
+export {
+  // Core simulation classes
+  SimulationClock,
+  SignalReplayer,
+  PortfolioState,
+  EventLogger,
+  // Types
+  type SignalForSim,
+  // Utilities
+  daysBetween as simDaysBetween,
+  addDays as simAddDays,
+  generateSimId,
+} from "./simulation";
+
+export {
+  // Price providers
+  MockPriceProvider,
+  StaticPriceProvider,
+  D1PriceProvider,
+  type PriceProvider,
+  type AsyncPriceProvider,
+  type OHLC,
+  type MarketPriceRow,
+} from "./priceProvider";
+
+export {
+  // Metrics calculation
+  calculateMetrics,
+  compareAgents,
+  calculateInformationRatio,
+  calculateSortinoRatio,
+} from "./metrics";
+
+// Simulation-specific types
+export type {
+  SimPosition,
+  DailySnapshot,
+  AgentPortfolio,
+  FilterCheck,
+  ScoreBreakdown,
+  SizeCalculation,
+  ReasoningChain,
+  AgentDecisionWithReasoning,
+  SimulationEvent,
+  SimulationEventType,
+  PerformanceMetrics,
+  SimulationReport,
+} from "./types";

@@ -6,6 +6,31 @@ import { TraderEnv, ScraperDataPackage, Signal } from "./types";
 import { generateId } from "./utils";
 import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from "./agents";
 
+// =============================================================================
+// Market Prices Types
+// =============================================================================
+
+interface MarketPriceRecord {
+  ticker: string;
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume?: number;
+}
+
+interface MarketHistoricalResponse {
+  success: boolean;
+  data: {
+    records: MarketPriceRecord[];
+    record_count: number;
+    ticker_count: number;
+    start_date: string;
+    end_date: string;
+  };
+}
+
 /**
  * Creates a scheduled handler for cron jobs.
  *
@@ -27,24 +52,9 @@ export function createScheduledHandler(
   return async (cron: string): Promise<void> => {
     console.log("Scheduled task running:", cron);
 
-    // Fetch data from hadoku-scraper every 8 hours
+    // Main sync: fetch data, process signals, update performance, handle monthly budget
     if (cron === "0 */8 * * *") {
-      await fetchFromScraper(env);
-    }
-
-    // Process pending signals every 6 hours (after scraper sync)
-    if (cron === "0 */6 * * *") {
-      await processSignals(env);
-    }
-
-    // Update performance history daily at midnight
-    if (cron === "0 0 * * *") {
-      await updatePerformanceHistory(env);
-    }
-
-    // Reset monthly budgets on 1st of month
-    if (cron === "0 0 1 * *") {
-      await resetBudgets(env);
+      await runFullSync(env);
     }
 
     // Monitor positions every 15 minutes during market hours (9am-4pm ET, Mon-Fri)
@@ -56,8 +66,54 @@ export function createScheduledHandler(
 }
 
 /**
+ * Run the full sync: fetch data, process signals, update performance, handle monthly budget.
+ * This is the main scheduled job that runs every 8 hours.
+ */
+export async function runFullSync(env: TraderEnv): Promise<void> {
+  const startTime = Date.now();
+  console.log("=== Starting full sync ===");
+
+  try {
+    // 1. Fetch signals and market data from scraper
+    await fetchFromScraper(env);
+
+    // 2. Sync historical market prices
+    await syncMarketPrices(env);
+
+    // 3. Process pending signals through agents
+    await processSignals(env);
+
+    // 4. Update performance history
+    await updatePerformanceHistory(env);
+
+    // 5. Check if we need to add monthly budget (1st of month)
+    const today = new Date();
+    if (today.getUTCDate() === 1) {
+      // Only run once on the 1st - check if we already did it today
+      const lastBudgetAdd = await env.TRADER_DB.prepare(
+        "SELECT value FROM config WHERE key = 'last_budget_add_date'"
+      ).first();
+
+      const todayStr = today.toISOString().split("T")[0];
+      if (lastBudgetAdd?.value !== todayStr) {
+        await resetBudgets(env);
+        await env.TRADER_DB.prepare(
+          "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)"
+        )
+          .bind("last_budget_add_date", todayStr, new Date().toISOString())
+          .run();
+      }
+    }
+
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+    console.log(`=== Full sync completed in ${elapsed}s ===`);
+  } catch (error) {
+    console.error("Full sync error:", error);
+  }
+}
+
+/**
  * Fetch signals and market data from hadoku-scraper.
- * This is the primary data sync that runs every 8 hours.
  */
 export async function fetchFromScraper(env: TraderEnv): Promise<void> {
   try {
@@ -105,7 +161,7 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
       )
       .run();
 
-    console.log("Scraper sync completed");
+    console.log("Scraper data sync completed");
   } catch (error) {
     console.error("Scraper fetch error:", error);
   }
@@ -399,4 +455,230 @@ async function monitorAllPositions(env: TraderEnv): Promise<void> {
   } catch (error) {
     console.error("Error monitoring positions:", error);
   }
+}
+
+// =============================================================================
+// Market Prices Sync
+// =============================================================================
+
+/**
+ * Sync market prices from hadoku-scrape.
+ * Fetches historical OHLCV data for all tickers we're tracking.
+ * Called daily after market close.
+ */
+export async function syncMarketPrices(env: TraderEnv): Promise<void> {
+  try {
+    console.log("Syncing market prices from hadoku-scrape...");
+
+    // Get unique tickers from signals and positions
+    const tickersResult = await env.TRADER_DB.prepare(`
+      SELECT DISTINCT ticker FROM (
+        SELECT ticker FROM signals
+        UNION
+        SELECT ticker FROM positions WHERE status = 'open'
+        UNION
+        SELECT ticker FROM agent_positions WHERE status = 'open'
+      )
+      ORDER BY ticker
+    `).all();
+
+    const allTickers = tickersResult.results.map((r) => r.ticker as string);
+
+    if (allTickers.length === 0) {
+      console.log("No tickers to sync");
+      return;
+    }
+
+    console.log(`Found ${allTickers.length} tickers to sync`);
+
+    // Determine date range: last 7 days for daily updates
+    const endDate = new Date().toISOString().split("T")[0];
+    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split("T")[0];
+
+    // Batch into groups of 100 (API limit)
+    const batchSize = 100;
+    let totalInserted = 0;
+    let totalErrors = 0;
+
+    for (let i = 0; i < allTickers.length; i += batchSize) {
+      const batch = allTickers.slice(i, i + batchSize);
+      console.log(
+        `Fetching batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
+      );
+
+      try {
+        const response = await fetch(
+          `${env.SCRAPER_URL}/api/v1/market/historical`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
+            },
+            body: JSON.stringify({
+              tickers: batch,
+              start_date: startDate,
+              end_date: endDate,
+            }),
+          }
+        );
+
+        if (!response.ok) {
+          console.error(
+            `Market prices fetch failed for batch: ${response.status}`
+          );
+          totalErrors += batch.length;
+          continue;
+        }
+
+        const result: MarketHistoricalResponse = await response.json();
+        console.log(
+          `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
+        );
+
+        // Store prices in D1
+        for (const price of result.data.records) {
+          try {
+            await env.TRADER_DB.prepare(`
+              INSERT OR REPLACE INTO market_prices
+              (ticker, date, open, high, low, close, volume, source)
+              VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')
+            `)
+              .bind(
+                price.ticker,
+                price.date,
+                price.open,
+                price.high,
+                price.low,
+                price.close,
+                price.volume ?? null
+              )
+              .run();
+
+            totalInserted++;
+          } catch (error) {
+            console.error(`Error inserting price for ${price.ticker}:`, error);
+            totalErrors++;
+          }
+        }
+      } catch (error) {
+        console.error(`Error fetching batch:`, error);
+        totalErrors += batch.length;
+      }
+    }
+
+    console.log(
+      `Market prices sync complete: ${totalInserted} inserted, ${totalErrors} errors`
+    );
+  } catch (error) {
+    console.error("Error syncing market prices:", error);
+  }
+}
+
+/**
+ * Backfill historical market prices for simulation/backtesting.
+ * Call this manually to populate historical data.
+ *
+ * @param env - Environment with DB and API keys
+ * @param startDate - Start date (YYYY-MM-DD)
+ * @param endDate - End date (YYYY-MM-DD)
+ * @param tickers - Optional specific tickers (defaults to all from signals)
+ */
+export async function backfillMarketPrices(
+  env: TraderEnv,
+  startDate: string,
+  endDate: string,
+  tickers?: string[]
+): Promise<{ inserted: number; errors: number }> {
+  console.log(`Backfilling market prices from ${startDate} to ${endDate}...`);
+
+  // Get tickers from signals if not provided
+  if (!tickers || tickers.length === 0) {
+    const tickersResult = await env.TRADER_DB.prepare(`
+      SELECT DISTINCT ticker FROM signals ORDER BY ticker
+    `).all();
+    tickers = tickersResult.results.map((r) => r.ticker as string);
+  }
+
+  if (tickers.length === 0) {
+    console.log("No tickers to backfill");
+    return { inserted: 0, errors: 0 };
+  }
+
+  console.log(`Backfilling ${tickers.length} tickers`);
+
+  const batchSize = 100;
+  let totalInserted = 0;
+  let totalErrors = 0;
+
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    console.log(
+      `Backfilling batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
+    );
+
+    try {
+      const response = await fetch(
+        `${env.SCRAPER_URL}/api/v1/market/historical`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
+          },
+          body: JSON.stringify({
+            tickers: batch,
+            start_date: startDate,
+            end_date: endDate,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        console.error(`Backfill fetch failed: ${response.status}`);
+        totalErrors += batch.length;
+        continue;
+      }
+
+      const result: MarketHistoricalResponse = await response.json();
+      console.log(
+        `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
+      );
+
+      for (const price of result.data.records) {
+        try {
+          await env.TRADER_DB.prepare(`
+            INSERT OR REPLACE INTO market_prices
+            (ticker, date, open, high, low, close, volume, source)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')
+          `)
+            .bind(
+              price.ticker,
+              price.date,
+              price.open,
+              price.high,
+              price.low,
+              price.close,
+              price.volume ?? null
+            )
+            .run();
+
+          totalInserted++;
+        } catch (error) {
+          console.error(`Error inserting price for ${price.ticker}:`, error);
+          totalErrors++;
+        }
+      }
+    } catch (error) {
+      console.error(`Error fetching batch:`, error);
+      totalErrors += batch.length;
+    }
+  }
+
+  console.log(
+    `Backfill complete: ${totalInserted} inserted, ${totalErrors} errors`
+  );
+  return { inserted: totalInserted, errors: totalErrors };
 }

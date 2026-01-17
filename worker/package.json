@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/trader-worker",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Cloudflare Worker API for hadoku-trader - importable package",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
@@ -27,6 +27,8 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
+    "test": "vitest",
+    "test:run": "vitest run",
     "db:create": "wrangler d1 create trader-db",
     "db:migrate": "wrangler d1 execute trader-db --file=./schema.sql",
     "db:migrate:local": "wrangler d1 execute trader-db --local --file=./schema.sql"

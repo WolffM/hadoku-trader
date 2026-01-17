@@ -428,3 +428,163 @@ export interface MonitorResult {
   highest_price_updates: number;
   errors: string[];
 }
+
+// =============================================================================
+// Simulation Types (Phase 4)
+// =============================================================================
+
+/**
+ * Position tracked during simulation.
+ */
+export interface SimPosition {
+  id: string;
+  ticker: string;
+  shares: number;
+  entryPrice: number;
+  entryDate: string;
+  currentPrice: number;
+  highestPrice: number;
+  partialSold: boolean;
+  signalId: string;
+  closePrice?: number;
+  closeDate?: string;
+  closeReason?: CloseReason;
+}
+
+/**
+ * Daily snapshot of portfolio state.
+ */
+export interface DailySnapshot {
+  date: string;
+  totalValue: number;
+  cash: number;
+  positionsValue: number;
+  returnPct: number;
+  openPositions: number;
+  closedToday: number;
+}
+
+/**
+ * Per-agent portfolio state during simulation.
+ */
+export interface AgentPortfolio {
+  agentId: string;
+  cash: number;
+  initialCash: number;
+  positions: SimPosition[];
+  closedPositions: SimPosition[];
+  dailySnapshots: DailySnapshot[];
+}
+
+/**
+ * Filter check result for verbose logging.
+ */
+export interface FilterCheck {
+  check: string;
+  passed: boolean;
+  details: Record<string, unknown>;
+}
+
+/**
+ * Score component breakdown for verbose logging.
+ */
+export interface ScoreBreakdown {
+  time_decay?: number;
+  price_movement?: number;
+  position_size?: number;
+  politician_skill?: number;
+  source_quality?: number;
+  filing_speed?: number;
+  cross_confirmation?: number;
+  weighted_total: number;
+}
+
+/**
+ * Size calculation details for verbose logging.
+ */
+export interface SizeCalculation {
+  mode: SizingMode;
+  rawSize: number;
+  constraints: {
+    maxAmount: { limit: number; applied: boolean };
+    maxPct: { limit: number; applied: boolean };
+    budgetRemaining: { limit: number; applied: boolean };
+    minimum: { limit: number; passed: boolean };
+  };
+  finalSize: number;
+}
+
+/**
+ * Full reasoning chain for a decision.
+ */
+export interface ReasoningChain {
+  filters: FilterCheck[];
+  scoreComponents: ScoreBreakdown | null;
+  sizeCalculation: SizeCalculation | null;
+}
+
+/**
+ * Extended agent decision with full reasoning chain.
+ */
+export interface AgentDecisionWithReasoning extends AgentDecision {
+  reasoning: ReasoningChain;
+}
+
+/**
+ * Simulation event for logging.
+ */
+export type SimulationEventType =
+  | "signal_received"
+  | "decision_made"
+  | "trade_executed"
+  | "exit_triggered"
+  | "daily_summary";
+
+export interface SimulationEvent {
+  timestamp: string;
+  eventType: SimulationEventType;
+  agentId?: string;
+  data: Record<string, unknown>;
+}
+
+/**
+ * Performance metrics for an agent.
+ */
+export interface PerformanceMetrics {
+  // Returns
+  totalReturnPct: number;
+  annualizedReturnPct: number;
+
+  // Risk
+  maxDrawdownPct: number;
+  volatility: number;
+  sharpeRatio: number;
+
+  // Activity
+  totalTrades: number;
+  winRate: number;
+  avgWinPct: number;
+  avgLossPct: number;
+  avgHoldDays: number;
+
+  // Exits by reason
+  exitReasons: {
+    stop_loss: number;
+    take_profit: number;
+    time_exit: number;
+    soft_stop: number;
+  };
+}
+
+/**
+ * Overall simulation report.
+ */
+export interface SimulationReport {
+  startDate: string;
+  endDate: string;
+  totalDays: number;
+  marketDays: number;
+  signalsProcessed: number;
+  signalsSkipped: number;
+  agentResults: Record<string, PerformanceMetrics>;
+}

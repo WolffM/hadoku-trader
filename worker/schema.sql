@@ -215,6 +215,28 @@ CREATE TABLE IF NOT EXISTS agent_performance (
 CREATE INDEX IF NOT EXISTS idx_agent_perf_agent_date ON agent_performance(agent_id, date);
 
 -- =============================================================================
+-- Market Prices Table
+-- Daily OHLCV data for backtesting and live monitoring
+-- =============================================================================
+
+CREATE TABLE IF NOT EXISTS market_prices (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  ticker TEXT NOT NULL,
+  date TEXT NOT NULL,           -- YYYY-MM-DD
+  open REAL NOT NULL,
+  high REAL NOT NULL,
+  low REAL NOT NULL,
+  close REAL NOT NULL,
+  volume INTEGER,
+  source TEXT DEFAULT 'yahoo',  -- 'yahoo', 'alpha_vantage', etc.
+  created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(ticker, date)
+);
+
+CREATE INDEX IF NOT EXISTS idx_market_prices_ticker_date ON market_prices(ticker, date);
+CREATE INDEX IF NOT EXISTS idx_market_prices_date ON market_prices(date);
+
+-- =============================================================================
 -- Schema Migrations Table
 -- Track applied migrations
 -- =============================================================================

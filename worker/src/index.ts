@@ -32,7 +32,7 @@ export * from "./types";
 
 // Export handlers
 export { createTraderHandler } from "./handler";
-export { createScheduledHandler } from "./scheduled";
+export { createScheduledHandler, runFullSync, syncMarketPrices, backfillMarketPrices } from "./scheduled";
 
 // Export individual route handlers for fine-grained control
 export {
@@ -47,6 +47,9 @@ export {
   handleGetAgents,
   handleGetAgentById,
   handleProcessSignals,
+  handleMarketPricesBackfill,
+  handleGetMarketPrices,
+  handleGetMarketTickers,
 } from "./routes";
 
 // Export the agents module for direct access

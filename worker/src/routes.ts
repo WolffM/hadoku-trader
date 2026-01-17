@@ -282,6 +282,190 @@ export async function handleBackfillBatch(
 }
 
 // =============================================================================
+// Market Prices Backfill Handler
+// =============================================================================
+
+/**
+ * POST /market/backfill - Receive batch of market prices from hadoku-scrape
+ *
+ * Expected payload:
+ * {
+ *   "event": "market.backfill",
+ *   "data": {
+ *     "prices": [
+ *       { "ticker": "NVDA", "date": "2025-10-16", "open": 478.50, "high": 485.20, "low": 475.00, "close": 482.30, "volume": 45000000 },
+ *       ...
+ *     ],
+ *     "source": "yahoo"
+ *   }
+ * }
+ */
+export async function handleMarketPricesBackfill(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key from scraper
+  if (!verifyApiKey(request, env, "SCRAPER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  interface PriceData {
+    ticker: string;
+    date: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume?: number;
+    source?: string;
+  }
+
+  const payload = await request.json() as {
+    event?: string;
+    data?: {
+      prices?: PriceData[];
+      source?: string;
+    };
+    prices?: PriceData[];
+    source?: string;
+  };
+
+  // Extract prices from payload.data or top-level
+  const prices = payload.data?.prices || payload.prices || [];
+  const source = payload.data?.source || payload.source || "yahoo";
+
+  if (prices.length === 0) {
+    return jsonResponse({
+      success: true,
+      message: "No prices to insert",
+      inserted: 0,
+    });
+  }
+
+  let inserted = 0;
+  let updated = 0;
+  let errors = 0;
+
+  for (const price of prices) {
+    try {
+      // Validate required fields
+      if (!price.ticker || !price.date || price.close === undefined) {
+        errors++;
+        continue;
+      }
+
+      // Use INSERT OR REPLACE to handle duplicates
+      await env.TRADER_DB.prepare(`
+        INSERT OR REPLACE INTO market_prices
+        (ticker, date, open, high, low, close, volume, source)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+        .bind(
+          price.ticker,
+          price.date,
+          price.open ?? price.close,
+          price.high ?? price.close,
+          price.low ?? price.close,
+          price.close,
+          price.volume ?? null,
+          price.source || source
+        )
+        .run();
+
+      inserted++;
+    } catch (error) {
+      console.error(`Error inserting price for ${price.ticker}:`, error);
+      errors++;
+    }
+  }
+
+  console.log(
+    `Market prices backfill: ${inserted} inserted/updated, ${errors} errors`
+  );
+
+  return jsonResponse({
+    success: true,
+    inserted,
+    updated,
+    errors,
+    total_received: prices.length,
+  });
+}
+
+/**
+ * GET /market/prices - Get market prices with optional filters
+ *
+ * Query params:
+ * - ticker: single ticker or comma-separated list
+ * - start_date: YYYY-MM-DD
+ * - end_date: YYYY-MM-DD
+ */
+export async function handleGetMarketPrices(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  const url = new URL(request.url);
+  const ticker = url.searchParams.get("ticker");
+  const startDate = url.searchParams.get("start_date");
+  const endDate = url.searchParams.get("end_date");
+
+  let query = "SELECT * FROM market_prices WHERE 1=1";
+  const params: (string | null)[] = [];
+
+  if (ticker) {
+    const tickers = ticker.split(",").map((t) => t.trim());
+    if (tickers.length === 1) {
+      query += " AND ticker = ?";
+      params.push(tickers[0]);
+    } else {
+      const placeholders = tickers.map(() => "?").join(",");
+      query += ` AND ticker IN (${placeholders})`;
+      params.push(...tickers);
+    }
+  }
+
+  if (startDate) {
+    query += " AND date >= ?";
+    params.push(startDate);
+  }
+
+  if (endDate) {
+    query += " AND date <= ?";
+    params.push(endDate);
+  }
+
+  query += " ORDER BY ticker, date LIMIT 10000";
+
+  const results = await env.TRADER_DB.prepare(query).bind(...params).all();
+
+  return jsonResponse({
+    prices: results.results,
+    count: results.results.length,
+  });
+}
+
+/**
+ * GET /market/tickers - Get list of unique tickers with price data
+ */
+export async function handleGetMarketTickers(env: TraderEnv): Promise<Response> {
+  const results = await env.TRADER_DB.prepare(`
+    SELECT
+      ticker,
+      COUNT(*) as price_count,
+      MIN(date) as first_date,
+      MAX(date) as last_date
+    FROM market_prices
+    GROUP BY ticker
+    ORDER BY ticker
+  `).all();
+
+  return jsonResponse({
+    tickers: results.results,
+    count: results.results.length,
+  });
+}
+
+// =============================================================================
 // Performance Handler
 // =============================================================================
 
