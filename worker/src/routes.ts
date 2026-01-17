@@ -943,10 +943,11 @@ export async function handleRunSimulation(
   const body = await request.json() as {
     start_date?: string;
     end_date?: string;
+    monthly_budget?: number;
   };
 
-  const startDate = body.start_date || "2025-10-01";
   const endDate = body.end_date || new Date().toISOString().split("T")[0];
+  const monthlyBudget = body.monthly_budget || 1000;
 
   try {
     // Import simulation components
@@ -964,7 +965,19 @@ export async function handleRunSimulation(
     const { shouldAgentProcessSignal, lerp, clamp } = await import("./agents/filters");
     const { calculatePositionSize, calculateShares } = await import("./agents/sizing");
 
-    // Fetch real signals from D1
+    // Determine start date - use provided or earliest signal
+    let startDate: string;
+    if (body.start_date) {
+      startDate = body.start_date;
+    } else {
+      const earliest = await env.TRADER_DB.prepare(`
+        SELECT MIN(disclosed_date) as min_date FROM signals
+        WHERE action IN ('buy', 'sell') AND asset_type = 'stock'
+      `).first() as any;
+      startDate = earliest?.min_date || "2025-01-01";
+    }
+
+    // Fetch real signals from D1 - only those with valid price data
     const signalsResult = await env.TRADER_DB.prepare(`
       SELECT
         id, source, ticker, action, asset_type,
@@ -974,21 +987,26 @@ export async function handleRunSimulation(
       WHERE disclosed_date >= ? AND disclosed_date <= ?
         AND action IN ('buy', 'sell')
         AND asset_type = 'stock'
+        AND disclosed_price IS NOT NULL
+        AND disclosed_price > 0
       ORDER BY disclosed_date
     `).bind(startDate, endDate).all();
 
-    const signals = signalsResult.results.map((r: any) => ({
-      id: r.id,
-      ticker: r.ticker,
-      action: r.action as "buy" | "sell",
-      asset_type: r.asset_type,
-      disclosed_price: r.disclosed_price || 100,
-      disclosed_date: r.disclosed_date,
-      filing_date: r.filing_date || r.disclosed_date,
-      position_size_min: r.position_size_min || 15000,
-      politician_name: r.politician_name,
-      source: r.source,
-    }));
+    // Filter and map signals - skip those without required data
+    const signals = signalsResult.results
+      .filter((r: any) => r.ticker && r.disclosed_date && r.disclosed_price > 0)
+      .map((r: any) => ({
+        id: r.id,
+        ticker: r.ticker,
+        action: r.action as "buy" | "sell",
+        asset_type: r.asset_type,
+        disclosed_price: r.disclosed_price,
+        disclosed_date: r.disclosed_date,
+        filing_date: r.filing_date || r.disclosed_date,
+        position_size_min: r.position_size_min || 0,
+        politician_name: r.politician_name,
+        source: r.source,
+      }));
 
     // Check market prices availability
     const priceStats = await env.TRADER_DB.prepare(`
@@ -1018,11 +1036,10 @@ export async function handleRunSimulation(
     const eventLogger = new EventLogger(false);
 
     const agentConfigs = [CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG];
-    const MONTHLY_BUDGET = 1000;
 
     portfolioState.initialize(
       agentConfigs.map((a) => a.id),
-      MONTHLY_BUDGET
+      monthlyBudget
     );
 
     let lastMonth = startDate.substring(0, 7);
@@ -1155,7 +1172,7 @@ export async function handleRunSimulation(
       const currentMonth = currentDate.substring(0, 7);
       if (portfolioState.isNewMonth(currentDate, `${lastMonth}-01`)) {
         for (const agent of agentConfigs) {
-          portfolioState.addMonthlyBudget(agent.id, MONTHLY_BUDGET);
+          portfolioState.addMonthlyBudget(agent.id, monthlyBudget);
         }
         lastMonth = currentMonth;
       }
