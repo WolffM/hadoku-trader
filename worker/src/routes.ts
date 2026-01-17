@@ -136,6 +136,140 @@ export async function handlePostSignal(
 }
 
 // =============================================================================
+// Backfill Webhook Handler
+// =============================================================================
+
+/**
+ * POST /signals/backfill - Receive batch of signals from hadoku-scrape backfill
+ *
+ * Expected webhook payload from hadoku-scrape:
+ * {
+ *   "event": "backfill.batch",
+ *   "job_id": "...",
+ *   "batch_number": 1,
+ *   "source": "capitol_trades",
+ *   "signals": [...],
+ *   "is_last_batch": false
+ * }
+ */
+export async function handleBackfillBatch(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key from scraper
+  if (!verifyApiKey(request, env, "SCRAPER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  const payload = await request.json() as {
+    event: string;
+    job_id: string;
+    batch_number: number;
+    source: string;
+    signals: Signal[];
+    is_last_batch?: boolean;
+  };
+
+  // Validate event type
+  if (payload.event !== "backfill.batch" && payload.event !== "backfill.completed") {
+    return jsonResponse({
+      success: true,
+      message: `Ignored event: ${payload.event}`,
+    });
+  }
+
+  // Handle completion event
+  if (payload.event === "backfill.completed") {
+    console.log(`Backfill job ${payload.job_id} completed`);
+    return jsonResponse({
+      success: true,
+      message: "Backfill completed acknowledged",
+      job_id: payload.job_id,
+    });
+  }
+
+  // Process batch of signals
+  const signals = payload.signals || [];
+  let inserted = 0;
+  let duplicates = 0;
+  let errors = 0;
+
+  for (const signal of signals) {
+    try {
+      // Check for duplicate
+      const existing = await env.TRADER_DB.prepare(
+        "SELECT id FROM signals WHERE source = ? AND source_id = ?"
+      )
+        .bind(signal.source, signal.meta?.source_id)
+        .first();
+
+      if (existing) {
+        duplicates++;
+        continue;
+      }
+
+      // Insert new signal
+      const id = generateId("sig");
+
+      await env.TRADER_DB.prepare(`
+        INSERT INTO signals (
+          id, source, politician_name, politician_chamber, politician_party, politician_state,
+          ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
+          position_size, position_size_min, position_size_max,
+          option_type, strike_price, expiration_date,
+          source_url, source_id, scraped_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `)
+        .bind(
+          id,
+          signal.source,
+          signal.politician?.name,
+          signal.politician?.chamber,
+          signal.politician?.party,
+          signal.politician?.state,
+          signal.trade?.ticker,
+          signal.trade?.action,
+          signal.trade?.asset_type,
+          signal.trade?.disclosed_price,
+          signal.trade?.price_at_filing,
+          signal.trade?.disclosed_date,
+          signal.trade?.filing_date,
+          signal.trade?.position_size,
+          signal.trade?.position_size_min,
+          signal.trade?.position_size_max,
+          signal.trade?.option_type,
+          signal.trade?.strike_price,
+          signal.trade?.expiration_date,
+          signal.meta?.source_url,
+          signal.meta?.source_id,
+          signal.meta?.scraped_at
+        )
+        .run();
+
+      inserted++;
+    } catch (error) {
+      console.error("Error inserting signal:", error);
+      errors++;
+    }
+  }
+
+  console.log(
+    `Backfill batch ${payload.batch_number} from ${payload.source}: ` +
+    `${inserted} inserted, ${duplicates} duplicates, ${errors} errors`
+  );
+
+  return jsonResponse({
+    success: true,
+    job_id: payload.job_id,
+    batch_number: payload.batch_number,
+    inserted,
+    duplicates,
+    errors,
+    total_received: signals.length,
+  });
+}
+
+// =============================================================================
 // Performance Handler
 // =============================================================================
 

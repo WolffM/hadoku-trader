@@ -8,6 +8,7 @@ import { TraderEnv } from "./types";
 import {
   handleGetSignals,
   handlePostSignal,
+  handleBackfillBatch,
   handleGetPerformance,
   handleGetTrades,
   handleGetSources,
@@ -69,6 +70,10 @@ export function createTraderHandler(
 
         case route === "/signals" && request.method === "POST":
           response = await handlePostSignal(request, env);
+          break;
+
+        case route === "/signals/backfill" && request.method === "POST":
+          response = await handleBackfillBatch(request, env);
           break;
 
         case route === "/performance" && request.method === "GET":
