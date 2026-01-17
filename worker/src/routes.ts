@@ -166,7 +166,8 @@ export async function handleBackfillBatch(
     job_id: string;
     batch_number: number;
     source: string;
-    signals: Signal[];
+    signals?: Signal[];
+    data?: { signals: Signal[] };
     is_last_batch?: boolean;
   };
 
@@ -188,8 +189,8 @@ export async function handleBackfillBatch(
     });
   }
 
-  // Process batch of signals
-  const signals = payload.signals || [];
+  // Process batch of signals (support both payload.data.signals and payload.signals)
+  const signals = payload.data?.signals || payload.signals || [];
   let inserted = 0;
   let duplicates = 0;
   let errors = 0;
