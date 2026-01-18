@@ -57,14 +57,14 @@ function SignalCard({ signal }: SignalCardProps) {
         <div className="signal-card__ticker">{trade.ticker}</div>
         <div className="signal-card__details">
           <span className="signal-card__size">{trade.position_size}</span>
-          <span className="signal-card__price">{formatPrice(trade.disclosed_price)}</span>
+          <span className="signal-card__price">{formatPrice(trade.disclosure_price)}</span>
         </div>
       </div>
 
       <div className="signal-card__footer">
         <span className="signal-card__source">{SOURCE_LABELS[source] || source}</span>
         <span className="signal-card__date">
-          Filed {formatDate(trade.filing_date)}
+          Disclosed {formatDate(trade.disclosure_date)}
           <a
             href={meta.source_url}
             target="_blank"
@@ -80,9 +80,9 @@ function SignalCard({ signal }: SignalCardProps) {
 }
 
 export function SignalsFeed({ signals }: SignalsFeedProps) {
-  // Sort by filing date, most recent first
+  // Sort by disclosure date, most recent first
   const sortedSignals = [...signals].sort(
-    (a, b) => new Date(b.trade.filing_date).getTime() - new Date(a.trade.filing_date).getTime()
+    (a, b) => new Date(b.trade.disclosure_date).getTime() - new Date(a.trade.disclosure_date).getTime()
   )
 
   return (

@@ -12,9 +12,10 @@ export interface Trade {
   ticker: string
   action: 'buy' | 'sell'
   asset_type: 'stock' | 'option' | 'etf' | 'bond' | 'crypto'
-  disclosed_price: number | null
-  disclosed_date: string
-  filing_date: string
+  trade_date: string          // When politician traded
+  trade_price: number | null  // Price at time of trade
+  disclosure_date: string     // When filing became public
+  disclosure_price: number | null // Price when disclosed
   position_size: string
   position_size_min: number
   position_size_max: number
