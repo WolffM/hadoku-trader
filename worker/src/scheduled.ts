@@ -619,15 +619,15 @@ export async function backfillMarketPrices(
   console.log(`Backfilling ${tickers.length} tickers`);
 
   const batchSize = 100;
+  const maxRetries = 3;
   let totalInserted = 0;
   let totalErrors = 0;
 
-  for (let i = 0; i < tickers.length; i += batchSize) {
-    const batch = tickers.slice(i, i + batchSize);
-    console.log(
-      `Backfilling batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
-    );
-
+  // Helper for exponential backoff retry
+  async function fetchWithRetry(
+    batch: string[],
+    attempt: number = 1
+  ): Promise<Response | null> {
     try {
       const response = await fetch(
         `${env.SCRAPER_URL}/api/v1/market/historical`,
@@ -645,8 +645,39 @@ export async function backfillMarketPrices(
         }
       );
 
-      if (!response.ok) {
-        console.error(`Backfill fetch failed: ${response.status}`);
+      // Retry on rate limit (429) or server error (5xx)
+      if (response.status === 429 || response.status >= 500) {
+        if (attempt < maxRetries) {
+          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
+          console.log(`Rate limited/error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+          await new Promise((r) => setTimeout(r, delay));
+          return fetchWithRetry(batch, attempt + 1);
+        }
+      }
+
+      return response;
+    } catch (error) {
+      if (attempt < maxRetries) {
+        const delay = Math.pow(2, attempt) * 1000;
+        console.log(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
+        await new Promise((r) => setTimeout(r, delay));
+        return fetchWithRetry(batch, attempt + 1);
+      }
+      throw error;
+    }
+  }
+
+  for (let i = 0; i < tickers.length; i += batchSize) {
+    const batch = tickers.slice(i, i + batchSize);
+    console.log(
+      `Backfilling batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
+    );
+
+    try {
+      const response = await fetchWithRetry(batch);
+
+      if (!response || !response.ok) {
+        console.error(`Backfill fetch failed: ${response?.status ?? "network error"}`);
         totalErrors += batch.length;
         continue;
       }

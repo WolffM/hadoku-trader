@@ -404,6 +404,67 @@ export class D1PriceProvider implements AsyncPriceProvider {
   }
 
   /**
+   * Preload all prices for a specific date into cache.
+   * Call this once per simulation day to minimize D1 queries.
+   */
+  async preloadPricesForDate(date: string): Promise<number> {
+    const results = await this.db
+      .prepare(
+        `SELECT ticker, close FROM market_prices WHERE date = ?`
+      )
+      .bind(date)
+      .all();
+
+    for (const row of results.results) {
+      const ticker = row.ticker as string;
+      const close = row.close as number;
+      this.cache.set(`${ticker}:${date}`, close);
+    }
+
+    return results.results.length;
+  }
+
+  /**
+   * Preload prices for multiple tickers across a date range.
+   * Useful for reducing queries when simulating many days.
+   */
+  async preloadPricesForRange(
+    tickers: string[],
+    startDate: string,
+    endDate: string
+  ): Promise<number> {
+    if (tickers.length === 0) return 0;
+
+    // Batch in groups of 50 tickers to avoid query size limits
+    const batchSize = 50;
+    let totalLoaded = 0;
+
+    for (let i = 0; i < tickers.length; i += batchSize) {
+      const batch = tickers.slice(i, i + batchSize);
+      const placeholders = batch.map(() => "?").join(",");
+
+      const results = await this.db
+        .prepare(
+          `SELECT ticker, date, close FROM market_prices
+           WHERE ticker IN (${placeholders})
+           AND date >= ? AND date <= ?`
+        )
+        .bind(...batch, startDate, endDate)
+        .all();
+
+      for (const row of results.results) {
+        const ticker = row.ticker as string;
+        const date = row.date as string;
+        const close = row.close as number;
+        this.cache.set(`${ticker}:${date}`, close);
+        totalLoaded++;
+      }
+    }
+
+    return totalLoaded;
+  }
+
+  /**
    * Get full OHLC data for a ticker on a date.
    */
   async getOHLC(ticker: string, date: string): Promise<OHLC | null> {

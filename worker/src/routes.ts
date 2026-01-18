@@ -1047,14 +1047,22 @@ export async function handleRunSimulation(
     // Determine if we use real or mock prices
     const useRealPrices = priceStats && priceStats.total_prices > 0;
     let priceMode: "real" | "mock";
-    let priceProvider: { getPrice: (ticker: string, date: string) => Promise<number | null>; getClosingPrices: (tickers: string[], date: string) => Promise<Map<string, number>> };
+    let priceProvider: {
+      getPrice: (ticker: string, date: string) => Promise<number | null>;
+      getClosingPrices: (tickers: string[], date: string) => Promise<Map<string, number>>;
+      preloadPricesForDate?: (date: string) => Promise<number>;
+    };
 
     // Initialize components
     const clock = new SimulationClock(startDate, endDate);
 
+    // Track D1 provider reference for preloading
+    let d1Provider: D1PriceProvider | null = null;
+
     if (useRealPrices) {
       priceMode = "real";
-      priceProvider = new D1PriceProvider(env.TRADER_DB);
+      d1Provider = new D1PriceProvider(env.TRADER_DB);
+      priceProvider = d1Provider;
     } else {
       // Fall back to MockPriceProvider - generates prices from trade_price
       priceMode = "mock";
@@ -1223,6 +1231,11 @@ export async function handleRunSimulation(
       }
 
       marketDays++;
+
+      // Preload all prices for this date to minimize D1 queries
+      if (d1Provider) {
+        await d1Provider.preloadPricesForDate(currentDate);
+      }
 
       const currentMonth = currentDate.substring(0, 7);
       if (portfolioState.isNewMonth(currentDate, `${lastMonth}-01`)) {
