@@ -117,16 +117,16 @@ function generateTestSignals(): SignalForSim[] {
 
       // Disclosed price is the base price with some variation
       const priceVariation = (seededRandom() - 0.5) * 0.1;
-      const disclosedPrice = tickerData.basePrice * (1 + priceVariation);
+      const tradePrice = tickerData.basePrice * (1 + priceVariation);
 
       signals.push({
         id: `sig_${signalId++}`,
         ticker: tickerData.ticker,
         action: action as "buy" | "sell",
         asset_type: "stock",
-        disclosed_price: Math.round(disclosedPrice * 100) / 100,
-        disclosed_date: currentDate.toISOString().split("T")[0],
-        filing_date: filingDate.toISOString().split("T")[0],
+        trade_price: Math.round(tradePrice * 100) / 100,
+        trade_date: currentDate.toISOString().split("T")[0],
+        disclosure_date: filingDate.toISOString().split("T")[0],
         position_size_min: positionSize.min,
         politician_name: politician.name,
         source,
@@ -151,25 +151,25 @@ function enrichSignalForSim(
   currentPrice: number,
   currentDate: string
 ): EnrichedSignal {
-  const daysSinceTrade = daysBetween(signal.disclosed_date, currentDate);
-  const daysSinceFiling = daysBetween(signal.filing_date, currentDate);
+  const daysSinceTrade = daysBetween(signal.trade_date, currentDate);
+  const daysSinceDisclosure = daysBetween(signal.disclosure_date, currentDate);
   const priceChangePct =
-    ((currentPrice - signal.disclosed_price) / signal.disclosed_price) * 100;
+    ((currentPrice - signal.trade_price) / signal.trade_price) * 100;
 
   return {
     id: signal.id,
     ticker: signal.ticker,
     action: signal.action,
     asset_type: signal.asset_type as "stock" | "etf" | "option",
-    disclosed_price: signal.disclosed_price,
+    trade_price: signal.trade_price,
     current_price: currentPrice,
-    trade_date: signal.disclosed_date,
-    filing_date: signal.filing_date,
+    trade_date: signal.trade_date,
+    disclosure_date: signal.disclosure_date,
     position_size_min: signal.position_size_min,
     politician_name: signal.politician_name,
     source: signal.source,
     days_since_trade: daysSinceTrade,
-    days_since_filing: Math.max(daysSinceFiling, 0),
+    days_since_filing: Math.max(daysSinceDisclosure, 0),
     price_change_pct: priceChangePct,
   };
 }
@@ -511,9 +511,9 @@ describe("SignalReplayer", () => {
       ticker: "NVDA",
       action: "buy",
       asset_type: "stock",
-      disclosed_price: 100,
-      disclosed_date: "2025-10-16",
-      filing_date: "2025-10-20",
+      trade_price: 100,
+      trade_date: "2025-10-16",
+      disclosure_date: "2025-10-20",
       position_size_min: 50000,
       politician_name: "Nancy Pelosi",
       source: "capitol_trades",
@@ -523,9 +523,9 @@ describe("SignalReplayer", () => {
       ticker: "MSFT",
       action: "buy",
       asset_type: "stock",
-      disclosed_price: 400,
-      disclosed_date: "2025-10-17",
-      filing_date: "2025-10-25",
+      trade_price: 400,
+      trade_date: "2025-10-17",
+      disclosure_date: "2025-10-25",
       position_size_min: 100000,
       politician_name: "Mark Green",
       source: "senate_stock_watcher",
@@ -633,9 +633,9 @@ describe("MockPriceProvider", () => {
       ticker: "NVDA",
       action: "buy",
       asset_type: "stock",
-      disclosed_price: 100,
-      disclosed_date: "2025-10-16",
-      filing_date: "2025-10-20",
+      trade_price: 100,
+      trade_date: "2025-10-16",
+      disclosure_date: "2025-10-20",
       position_size_min: 50000,
       politician_name: "Nancy Pelosi",
       source: "capitol_trades",

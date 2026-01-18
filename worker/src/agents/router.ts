@@ -331,9 +331,9 @@ export async function getUnprocessedSignals(
       ticker,
       action,
       asset_type,
-      disclosed_price,
-      disclosed_date,
-      filing_date,
+      trade_price,
+      trade_date,
+      disclosure_date,
       position_size_min,
       politician_name,
       source
@@ -403,10 +403,10 @@ export async function processAllPendingSignals(
   }> = [];
 
   for (const signal of unprocessed) {
-    // Get current price (from positions table or use disclosed price)
+    // Get current price (from positions table or use trade price)
     const currentPrice =
       (await getCurrentPrice(env, signal.ticker)) ??
-      signal.disclosed_price ??
+      signal.trade_price ??
       0;
 
     if (currentPrice === 0) {

@@ -117,9 +117,9 @@ export interface RawSignalRow {
   ticker: string;
   action: "buy" | "sell";
   asset_type: string;
-  disclosed_price: number | null;
-  disclosed_date: string;
-  filing_date: string;
+  trade_price: number | null;
+  trade_date: string;
+  disclosure_date: string;
   position_size_min: number;
   politician_name: string;
   source: string;
@@ -133,23 +133,23 @@ export function enrichSignal(
   currentPrice: number
 ): EnrichedSignal {
   const today = getCurrentDate();
-  const disclosedPrice = rawSignal.disclosed_price ?? currentPrice;
+  const tradePrice = rawSignal.trade_price ?? currentPrice;
 
   return {
     id: rawSignal.id,
     ticker: rawSignal.ticker,
     action: rawSignal.action,
     asset_type: rawSignal.asset_type as AssetType,
-    disclosed_price: disclosedPrice,
+    trade_price: tradePrice,
     current_price: currentPrice,
-    trade_date: rawSignal.disclosed_date,
-    filing_date: rawSignal.filing_date,
+    trade_date: rawSignal.trade_date,
+    disclosure_date: rawSignal.disclosure_date,
     position_size_min: rawSignal.position_size_min,
     politician_name: rawSignal.politician_name,
     source: rawSignal.source,
-    days_since_trade: daysBetween(rawSignal.disclosed_date, today),
-    days_since_filing: daysBetween(rawSignal.filing_date, today),
-    price_change_pct: calculatePriceChangePct(disclosedPrice, currentPrice),
+    days_since_trade: daysBetween(rawSignal.trade_date, today),
+    days_since_filing: daysBetween(rawSignal.disclosure_date, today),
+    price_change_pct: calculatePriceChangePct(tradePrice, currentPrice),
   };
 }
 

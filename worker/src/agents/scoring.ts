@@ -312,7 +312,7 @@ export async function getSignalConfirmationCount(
     FROM signals
     WHERE ticker = ?
       AND action = ?
-      AND disclosed_date = ?
+      AND trade_date = ?
   `
   )
     .bind(ticker, action, tradeDate)

@@ -201,12 +201,12 @@ export interface EnrichedSignal {
   asset_type: AssetType;
 
   // Pricing
-  disclosed_price: number;
+  trade_price: number;
   current_price: number;
 
   // Dates
   trade_date: string;
-  filing_date: string;
+  disclosure_date: string;
 
   // Size
   position_size_min: number;
@@ -217,7 +217,7 @@ export interface EnrichedSignal {
 
   // Computed fields (set by enrichment)
   days_since_trade: number;
-  days_since_filing: number;
+  days_since_filing: number;  // Days since disclosure
   price_change_pct: number;
 }
 

@@ -44,13 +44,24 @@ export interface Trade {
   ticker: string;
   action: string;   // "buy", "sell", "exchange", etc. (extensible)
   asset_type: string; // "stock", "option", "etf", "bond", "crypto", etc. (extensible)
-  disclosed_price: number | null;
-  price_at_filing: number | null; // Price on filing/disclosure date
-  disclosed_date: string; // YYYY-MM-DD (trade date)
-  filing_date: string; // YYYY-MM-DD
+
+  // Trade timing & price (when politician traded)
+  trade_date: string;           // YYYY-MM-DD - when the trade was executed
+  trade_price: number | null;   // Price at time of trade
+
+  // Disclosure timing & price (when public learned)
+  disclosure_date: string;           // YYYY-MM-DD - when filing became public
+  disclosure_price: number | null;   // Price when disclosed
+  disclosure_lag_days?: number;      // Computed: disclosure_date - trade_date
+
+  // Current price (for portfolio valuation)
+  current_price?: number | null;
+  current_price_at?: string | null;  // ISO8601 timestamp
+
   position_size: string;
   position_size_min: number;
   position_size_max: number;
+
   // Option-specific fields
   option_type: "call" | "put" | null;
   strike_price: number | null;

@@ -44,9 +44,13 @@ export async function handleGetSignals(env: TraderEnv): Promise<Response> {
       ticker: row.ticker,
       action: row.action,
       asset_type: row.asset_type,
-      disclosed_price: row.disclosed_price,
-      disclosed_date: row.disclosed_date,
-      filing_date: row.filing_date,
+      trade_price: row.trade_price,
+      trade_date: row.trade_date,
+      disclosure_price: row.disclosure_price,
+      disclosure_date: row.disclosure_date,
+      disclosure_lag_days: row.disclosure_lag_days,
+      current_price: row.current_price,
+      current_price_at: row.current_price_at,
       position_size: row.position_size,
       position_size_min: row.position_size_min,
       position_size_max: row.position_size_max,
@@ -94,14 +98,20 @@ export async function handlePostSignal(
   // Insert new signal
   const id = generateId("sig");
 
+  // Calculate disclosure lag in days
+  const tradeDate = new Date(signal.trade.trade_date);
+  const disclosureDate = new Date(signal.trade.disclosure_date);
+  const disclosureLagDays = Math.floor((disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24));
+
   await env.TRADER_DB.prepare(`
     INSERT INTO signals (
       id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
+      ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
+      disclosure_lag_days, current_price, current_price_at,
       position_size, position_size_min, position_size_max,
       option_type, strike_price, expiration_date,
       source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
     .bind(
       id,
@@ -113,10 +123,13 @@ export async function handlePostSignal(
       signal.trade.ticker,
       signal.trade.action,
       signal.trade.asset_type,
-      signal.trade.disclosed_price,
-      signal.trade.price_at_filing,
-      signal.trade.disclosed_date,
-      signal.trade.filing_date,
+      signal.trade.trade_price,
+      signal.trade.disclosure_price,
+      signal.trade.trade_date,
+      signal.trade.disclosure_date,
+      disclosureLagDays,
+      signal.trade.current_price ?? null,
+      signal.trade.current_price_at ?? null,
       signal.trade.position_size,
       signal.trade.position_size_min,
       signal.trade.position_size_max,
@@ -224,14 +237,22 @@ export async function handleBackfillBatch(
       // Insert new signal - use defaults for NOT NULL columns, null for nullable
       const id = generateId("sig");
 
+      // Calculate disclosure lag in days
+      const tradeDate = signal.trade?.trade_date ? new Date(signal.trade.trade_date) : null;
+      const disclosureDate = signal.trade?.disclosure_date ? new Date(signal.trade.disclosure_date) : null;
+      const disclosureLagDays = tradeDate && disclosureDate
+        ? Math.floor((disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
+
       await env.TRADER_DB.prepare(`
         INSERT INTO signals (
           id, source, politician_name, politician_chamber, politician_party, politician_state,
-          ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
+          ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
+          disclosure_lag_days, current_price, current_price_at,
           position_size, position_size_min, position_size_max,
           option_type, strike_price, expiration_date,
           source_url, source_id, scraped_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
       `)
         .bind(
           id,
@@ -243,10 +264,13 @@ export async function handleBackfillBatch(
           signal.trade?.ticker ?? null,
           signal.trade?.action ?? null,
           signal.trade?.asset_type ?? null,
-          signal.trade?.disclosed_price ?? null,
-          signal.trade?.price_at_filing ?? null,
-          signal.trade?.disclosed_date ?? null,
-          signal.trade?.filing_date ?? "",            // NOT NULL - default
+          signal.trade?.trade_price ?? null,
+          signal.trade?.disclosure_price ?? null,
+          signal.trade?.trade_date ?? null,
+          signal.trade?.disclosure_date ?? "",        // NOT NULL - default
+          disclosureLagDays,
+          signal.trade?.current_price ?? null,
+          signal.trade?.current_price_at ?? null,
           signal.trade?.position_size ?? "",          // NOT NULL - default
           signal.trade?.position_size_min ?? 0,       // NOT NULL - default
           signal.trade?.position_size_max ?? 0,       // NOT NULL - default
@@ -972,7 +996,7 @@ export async function handleRunSimulation(
       startDate = body.start_date;
     } else {
       const earliest = await env.TRADER_DB.prepare(`
-        SELECT MIN(disclosed_date) as min_date FROM signals
+        SELECT MIN(trade_date) as min_date FROM signals
         WHERE action IN ('buy', 'sell') AND asset_type = 'stock'
       `).first() as any;
       startDate = earliest?.min_date || "2025-01-01";
@@ -982,28 +1006,28 @@ export async function handleRunSimulation(
     const signalsResult = await env.TRADER_DB.prepare(`
       SELECT
         id, source, ticker, action, asset_type,
-        disclosed_price, disclosed_date, filing_date,
+        trade_price, trade_date, disclosure_date,
         position_size_min, politician_name
       FROM signals
-      WHERE disclosed_date >= ? AND disclosed_date <= ?
+      WHERE trade_date >= ? AND trade_date <= ?
         AND action IN ('buy', 'sell')
         AND asset_type = 'stock'
-        AND disclosed_price IS NOT NULL
-        AND disclosed_price > 0
-      ORDER BY disclosed_date
+        AND trade_price IS NOT NULL
+        AND trade_price > 0
+      ORDER BY trade_date
     `).bind(startDate, endDate).all();
 
     // Filter and map signals - skip those without required data
     const signals = signalsResult.results
-      .filter((r: any) => r.ticker && r.disclosed_date && r.disclosed_price > 0)
+      .filter((r: any) => r.ticker && r.trade_date && r.trade_price > 0)
       .map((r: any) => ({
         id: r.id,
         ticker: r.ticker,
         action: r.action as "buy" | "sell",
         asset_type: r.asset_type,
-        disclosed_price: r.disclosed_price,
-        disclosed_date: r.disclosed_date,
-        filing_date: r.filing_date || r.disclosed_date,
+        trade_price: r.trade_price,
+        trade_date: r.trade_date,
+        disclosure_date: r.disclosure_date || r.trade_date,
         position_size_min: r.position_size_min || 0,
         politician_name: r.politician_name,
         source: r.source,
@@ -1032,7 +1056,7 @@ export async function handleRunSimulation(
       priceMode = "real";
       priceProvider = new D1PriceProvider(env.TRADER_DB);
     } else {
-      // Fall back to MockPriceProvider - generates prices from disclosed_price
+      // Fall back to MockPriceProvider - generates prices from trade_price
       priceMode = "mock";
       const mockProvider = new MockPriceProvider(signals, 42, 200);
       // Wrap sync provider in async interface
@@ -1062,24 +1086,24 @@ export async function handleRunSimulation(
 
     // Helper functions (simplified for route handler)
     function enrichSignal(signal: any, currentPrice: number, currentDate: string) {
-      const daysSinceTrade = daysBetween(signal.disclosed_date, currentDate);
-      const daysSinceFiling = daysBetween(signal.filing_date, currentDate);
-      const priceChangePct = ((currentPrice - signal.disclosed_price) / signal.disclosed_price) * 100;
+      const daysSinceTrade = daysBetween(signal.trade_date, currentDate);
+      const daysSinceDisclosure = daysBetween(signal.disclosure_date, currentDate);
+      const priceChangePct = ((currentPrice - signal.trade_price) / signal.trade_price) * 100;
 
       return {
         id: signal.id,
         ticker: signal.ticker,
         action: signal.action,
         asset_type: signal.asset_type,
-        disclosed_price: signal.disclosed_price,
+        trade_price: signal.trade_price,
         current_price: currentPrice,
-        trade_date: signal.disclosed_date,
-        filing_date: signal.filing_date,
+        trade_date: signal.trade_date,
+        disclosure_date: signal.disclosure_date,
         position_size_min: signal.position_size_min,
         politician_name: signal.politician_name,
         source: signal.source,
         days_since_trade: daysSinceTrade,
-        days_since_filing: Math.max(daysSinceFiling, 0),
+        days_since_filing: Math.max(daysSinceDisclosure, 0),  // Keep field name for scoring compatibility
         price_change_pct: priceChangePct,
       };
     }
@@ -1311,7 +1335,7 @@ export async function handleRunSimulation(
       },
       market_data: {
         mode: priceMode,
-        prices_available: useRealPrices ? priceStats.total_prices : "generated from disclosed_price",
+        prices_available: useRealPrices ? priceStats.total_prices : "generated from trade_price",
         tickers_covered: useRealPrices ? priceStats.unique_tickers : signals.length,
         data_range: useRealPrices ? {
           start: priceStats.min_date,
@@ -1319,7 +1343,7 @@ export async function handleRunSimulation(
         } : {
           start: startDate,
           end: endDate,
-          note: "Mock prices generated with random walk from disclosed_price",
+          note: "Mock prices generated with random walk from trade_price",
         },
       },
       results,

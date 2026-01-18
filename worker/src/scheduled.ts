@@ -184,14 +184,20 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
 
   const id = generateId("sig");
 
+  // Calculate disclosure lag in days
+  const tradeDate = new Date(signal.trade.trade_date);
+  const disclosureDate = new Date(signal.trade.disclosure_date);
+  const disclosureLagDays = Math.floor((disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24));
+
   await env.TRADER_DB.prepare(`
     INSERT INTO signals (
       id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, disclosed_price, price_at_filing, disclosed_date, filing_date,
+      ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
+      disclosure_lag_days, current_price, current_price_at,
       position_size, position_size_min, position_size_max,
       option_type, strike_price, expiration_date,
       source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `)
     .bind(
       id,
@@ -203,10 +209,13 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
       signal.trade.ticker,
       signal.trade.action,
       signal.trade.asset_type,
-      signal.trade.disclosed_price,
-      signal.trade.price_at_filing,
-      signal.trade.disclosed_date,
-      signal.trade.filing_date,
+      signal.trade.trade_price,
+      signal.trade.disclosure_price,
+      signal.trade.trade_date,
+      signal.trade.disclosure_date,
+      disclosureLagDays,
+      signal.trade.current_price ?? null,
+      signal.trade.current_price_at ?? null,
       signal.trade.position_size,
       signal.trade.position_size_min,
       signal.trade.position_size_max,
@@ -255,16 +264,16 @@ export async function updatePerformanceHistory(env: TraderEnv): Promise<void> {
  * Calculate theoretical return if following all signals equally.
  */
 async function calculateSignalsReturn(env: TraderEnv): Promise<number> {
-  // Get all signals with disclosed prices and current prices
+  // Get all signals with trade prices and current prices
   const results = await env.TRADER_DB.prepare(`
     SELECT
       s.ticker,
       s.action,
-      s.disclosed_price,
+      s.trade_price,
       p.current_price
     FROM signals s
     LEFT JOIN positions p ON s.ticker = p.ticker
-    WHERE s.disclosed_price IS NOT NULL
+    WHERE s.trade_price IS NOT NULL
       AND p.current_price IS NOT NULL
   `).all();
 
@@ -277,7 +286,7 @@ async function calculateSignalsReturn(env: TraderEnv): Promise<number> {
   let count = 0;
 
   for (const row of results.results as any[]) {
-    const entryPrice = row.disclosed_price;
+    const entryPrice = row.trade_price;
     const currentPrice = row.current_price;
 
     if (entryPrice > 0 && currentPrice > 0) {

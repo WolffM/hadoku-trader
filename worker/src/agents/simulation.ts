@@ -97,9 +97,9 @@ export interface SignalForSim {
   ticker: string;
   action: "buy" | "sell";
   asset_type: "stock" | "etf" | "option";
-  disclosed_price: number;
-  disclosed_date: string;
-  filing_date: string;
+  trade_price: number;
+  trade_date: string;
+  disclosure_date: string;
   position_size_min: number;
   politician_name: string;
   source: string;
@@ -110,9 +110,9 @@ export class SignalReplayer {
   private processedIds: Set<string> = new Set();
 
   constructor(signals: SignalForSim[]) {
-    // Sort by disclosed_date ascending
+    // Sort by trade_date ascending
     this.signals = [...signals].sort((a, b) =>
-      a.disclosed_date.localeCompare(b.disclosed_date)
+      a.trade_date.localeCompare(b.trade_date)
     );
   }
 
@@ -122,7 +122,7 @@ export class SignalReplayer {
    */
   getSignalsForDate(date: string): SignalForSim[] {
     return this.signals.filter(
-      (s) => s.disclosed_date <= date && !this.processedIds.has(s.id)
+      (s) => s.trade_date <= date && !this.processedIds.has(s.id)
     );
   }
 
@@ -138,7 +138,7 @@ export class SignalReplayer {
    */
   getSignalCountForDate(date: string): number {
     return this.signals.filter(
-      (s) => s.disclosed_date <= date && !this.processedIds.has(s.id)
+      (s) => s.trade_date <= date && !this.processedIds.has(s.id)
     ).length;
   }
 
@@ -401,7 +401,7 @@ export class EventLogger {
         action: signal.action,
         politician: signal.politician_name,
         source: signal.source,
-        disclosedPrice: signal.disclosed_price,
+        tradePrice: signal.trade_price,
         positionSize: signal.position_size_min,
       },
     });
