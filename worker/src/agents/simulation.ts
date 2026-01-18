@@ -355,14 +355,13 @@ export class PortfolioState {
 
   /**
    * Check if it's a new month compared to last check.
+   * Uses YYYY-MM string comparison to avoid timezone issues.
    */
   isNewMonth(currentDate: string, lastDate: string): boolean {
-    const current = new Date(currentDate);
-    const last = new Date(lastDate);
-    return (
-      current.getFullYear() > last.getFullYear() ||
-      current.getMonth() > last.getMonth()
-    );
+    // Extract YYYY-MM from both dates (first 7 characters)
+    const currentYearMonth = currentDate.substring(0, 7);
+    const lastYearMonth = lastDate.substring(0, 7);
+    return currentYearMonth > lastYearMonth;
   }
 
   /**
