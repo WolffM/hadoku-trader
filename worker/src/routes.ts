@@ -1057,7 +1057,7 @@ export async function handleRunSimulation(
     const clock = new SimulationClock(startDate, endDate);
 
     // Track D1 provider reference for preloading
-    let d1Provider: D1PriceProvider | null = null;
+    let d1Provider: InstanceType<typeof D1PriceProvider> | null = null;
 
     if (useRealPrices) {
       priceMode = "real";
