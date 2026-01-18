@@ -176,6 +176,94 @@ export const CLAUDE_CONFIG: AgentConfig = {
 };
 
 /**
+ * Naive Control Agent: "Monkey Trader"
+ * - All politicians
+ * - No scoring at all
+ * - No timing filters (except very old signals)
+ * - Buys everything it sees
+ * - Control strategy to test if our algorithms add value
+ */
+export const NAIVE_CONFIG: AgentConfig = {
+  id: "naive",
+  name: "Monkey Trader",
+  monthly_budget: 1000,
+
+  politician_whitelist: null, // All politicians
+  politician_scope_all: true,
+  allowed_asset_types: ["stock", "etf", "option"],
+
+  max_signal_age_days: 90, // Very permissive
+  max_price_move_pct: 100, // No price filter
+
+  scoring: null, // No scoring - just buy everything
+
+  execute_threshold: 0, // Any signal = execute
+  half_size_threshold: null,
+
+  sizing: {
+    mode: "equal_split",
+    max_position_pct: 0.1,
+    max_position_amount: 100,
+    min_position_amount: 25,
+    max_open_positions: 20,
+    max_per_ticker: 1,
+  },
+
+  exit: {
+    stop_loss: {
+      mode: "fixed",
+      threshold_pct: 20,
+    },
+    max_hold_days: null, // Hold forever (or until stop loss)
+  },
+};
+
+/**
+ * S&P 500 Benchmark Agent: "Index Investor"
+ * - Only trades SPY (S&P 500 ETF)
+ * - No scoring, just buys and holds
+ * - Control strategy to compare against market return
+ * NOTE: Requires SPY signals in data, or synthetic signal injection
+ */
+export const SPY_BENCHMARK_CONFIG: AgentConfig = {
+  id: "spy_benchmark",
+  name: "Index Investor",
+  monthly_budget: 1000,
+
+  politician_whitelist: null,
+  politician_scope_all: true,
+  allowed_asset_types: ["etf"],
+
+  // Accept any ETF signal that's for SPY
+  ticker_whitelist: ["SPY", "VOO", "IVV"], // S&P 500 ETFs
+
+  max_signal_age_days: 365, // Very permissive
+  max_price_move_pct: 100, // No price filter
+
+  scoring: null, // No scoring
+
+  execute_threshold: 0,
+  half_size_threshold: null,
+
+  sizing: {
+    mode: "equal_split",
+    max_position_pct: 1.0, // Put all money in
+    max_position_amount: 1000,
+    min_position_amount: 100,
+    max_open_positions: 1,
+    max_per_ticker: 1,
+  },
+
+  exit: {
+    stop_loss: {
+      mode: "fixed",
+      threshold_pct: 50, // Very loose - basically never stop out
+    },
+    max_hold_days: null, // Hold forever
+  },
+};
+
+/**
  * Gemini Agent: "Titan Conviction"
  * - 5 Titan politicians only
  * - No scoring (pass/fail filters only)
@@ -228,7 +316,24 @@ export const AGENT_CONFIGS: Record<string, AgentConfig> = {
   chatgpt: CHATGPT_CONFIG,
   claude: CLAUDE_CONFIG,
   gemini: GEMINI_CONFIG,
+  naive: NAIVE_CONFIG,
+  spy_benchmark: SPY_BENCHMARK_CONFIG,
 };
+
+/**
+ * Primary trading agents (excludes benchmarks/controls)
+ */
+export const TRADING_AGENTS = [CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG];
+
+/**
+ * Control/benchmark agents for comparison
+ */
+export const CONTROL_AGENTS = [NAIVE_CONFIG, SPY_BENCHMARK_CONFIG];
+
+/**
+ * All agents for simulation
+ */
+export const ALL_AGENTS = [...TRADING_AGENTS, ...CONTROL_AGENTS];
 
 /**
  * Gemini-specific: Consensus Core basket for dry spells

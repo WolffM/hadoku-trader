@@ -32,17 +32,28 @@ export function shouldAgentProcessSignal(
     }
   }
 
-  // 2. Check asset type
+  // 2. Check ticker whitelist (for benchmark agents like SPY)
+  if (agent.ticker_whitelist && agent.ticker_whitelist.length > 0) {
+    const normalizedWhitelist = agent.ticker_whitelist.map((t) =>
+      t.toUpperCase().trim()
+    );
+    const normalizedTicker = signal.ticker.toUpperCase().trim();
+    if (!normalizedWhitelist.includes(normalizedTicker)) {
+      return { passes: false, reason: "filter_ticker" };
+    }
+  }
+
+  // 3. Check asset type
   if (!agent.allowed_asset_types.includes(signal.asset_type as AssetType)) {
     return { passes: false, reason: "filter_asset_type" };
   }
 
-  // 3. Check signal age (days since trade)
+  // 4. Check signal age (days since trade)
   if (signal.days_since_trade > agent.max_signal_age_days) {
     return { passes: false, reason: "filter_age" };
   }
 
-  // 4. Check price movement (absolute value)
+  // 5. Check price movement (absolute value)
   if (Math.abs(signal.price_change_pct) > agent.max_price_move_pct) {
     return { passes: false, reason: "filter_price_move" };
   }

@@ -986,7 +986,7 @@ export async function handleRunSimulation(
       daysBetween,
     } = await import("./agents");
 
-    const { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG } = await import("./agents/configs");
+    const { ALL_AGENTS, NAIVE_CONFIG, SPY_BENCHMARK_CONFIG } = await import("./agents/configs");
     const { shouldAgentProcessSignal, lerp, clamp } = await import("./agents/filters");
     const { calculatePositionSize, calculateShares } = await import("./agents/sizing");
 
@@ -1058,7 +1058,23 @@ export async function handleRunSimulation(
     } else {
       // Fall back to MockPriceProvider - generates prices from trade_price
       priceMode = "mock";
-      const mockProvider = new MockPriceProvider(signals, 42, 200);
+      // Add synthetic SPY signal for benchmark calculation
+      const signalsWithSpy = [
+        ...signals,
+        {
+          id: "synthetic_spy",
+          ticker: "SPY",
+          action: "buy" as const,
+          asset_type: "etf",
+          trade_price: 500, // Approximate SPY price as starting point
+          trade_date: startDate,
+          disclosure_date: startDate,
+          position_size_min: 0,
+          politician_name: "Benchmark",
+          source: "synthetic",
+        },
+      ];
+      const mockProvider = new MockPriceProvider(signalsWithSpy, 42, 200);
       // Wrap sync provider in async interface
       priceProvider = {
         async getPrice(ticker: string, date: string) {
@@ -1073,7 +1089,8 @@ export async function handleRunSimulation(
     const portfolioState = new PortfolioState();
     const eventLogger = new EventLogger(false);
 
-    const agentConfigs = [CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG];
+    // Use all agents including control strategies (Naive, SPY benchmark)
+    const agentConfigs = ALL_AGENTS;
 
     portfolioState.initialize(
       agentConfigs.map((a) => a.id),
@@ -1308,6 +1325,7 @@ export async function handleRunSimulation(
       const metrics = portfolioState.getMetrics(agent.id);
       const portfolio = portfolioState.getPortfolio(agent.id);
       results[agent.id] = {
+        name: agent.name,
         totalReturn: metrics.totalReturnPct,
         maxDrawdown: metrics.maxDrawdownPct,
         sharpeRatio: metrics.sharpeRatio,
@@ -1322,6 +1340,31 @@ export async function handleRunSimulation(
         finalCash: portfolioState.getCash(agent.id),
       };
     }
+
+    // Calculate pure SPY buy-and-hold benchmark (independent of signals)
+    const spyStartPrice = await priceProvider.getPrice("SPY", startDate);
+    const spyEndPrice = await priceProvider.getPrice("SPY", endDate);
+    const spyBuyHoldReturn = spyStartPrice && spyEndPrice
+      ? ((spyEndPrice - spyStartPrice) / spyStartPrice) * 100
+      : null;
+
+    // Add SPY buy-and-hold benchmark to results
+    results["spy_buy_hold"] = {
+      name: "SPY Buy & Hold",
+      totalReturn: spyBuyHoldReturn,
+      maxDrawdown: null, // Would need daily tracking for this
+      sharpeRatio: null,
+      totalTrades: 1,
+      winRate: spyBuyHoldReturn && spyBuyHoldReturn > 0 ? 100 : 0,
+      avgWinPct: spyBuyHoldReturn && spyBuyHoldReturn > 0 ? spyBuyHoldReturn : 0,
+      avgLossPct: spyBuyHoldReturn && spyBuyHoldReturn < 0 ? spyBuyHoldReturn : 0,
+      avgHoldDays: Math.round((new Date(endDate).getTime() - new Date(startDate).getTime()) / (1000 * 60 * 60 * 24)),
+      exitReasons: { stop_loss: 0, take_profit: 0, time_exit: 0, soft_stop: 0 },
+      openPositions: 1,
+      closedPositions: 0,
+      finalCash: 0,
+      note: "Pure buy-and-hold benchmark (not signal-based)",
+    };
 
     return jsonResponse({
       success: true,

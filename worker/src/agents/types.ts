@@ -127,6 +127,8 @@ export interface AgentConfig {
 
   // Filtering
   politician_whitelist: string[] | null;  // null = all politicians
+  politician_scope_all?: boolean;          // Explicit flag for all politicians
+  ticker_whitelist?: string[] | null;      // null = all tickers, otherwise limit to list
   allowed_asset_types: AssetType[];
 
   // Hard filters
@@ -223,6 +225,7 @@ export interface EnrichedSignal {
 
 export type FilterReason =
   | "filter_politician"
+  | "filter_ticker"
   | "filter_asset_type"
   | "filter_age"
   | "filter_price_move";
