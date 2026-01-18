@@ -89,22 +89,26 @@ export class MockPriceProvider implements PriceProvider {
   }
 
   /**
-   * Generate price paths from each signal's disclosed price.
+   * Generate price paths from each signal's disclosure date and price.
+   * We use disclosure_date because that's when we learn about the trade and can act.
+   * We use disclosure_price if available, otherwise fall back to trade_price.
    */
   private initializePrices(signals: SignalForSim[]): void {
-    // Track unique tickers with their earliest trade date and price
+    // Track unique tickers with their earliest disclosure date and price
     const tickerInfo = new Map<
       string,
       { date: string; price: number }
     >();
 
-    // Find earliest trade date and price for each ticker
+    // Find earliest disclosure date and price for each ticker
     for (const signal of signals) {
       const existing = tickerInfo.get(signal.ticker);
-      if (!existing || signal.trade_date < existing.date) {
+      // Use disclosure_date since that's when we can act on the signal
+      if (!existing || signal.disclosure_date < existing.date) {
         tickerInfo.set(signal.ticker, {
-          date: signal.trade_date,
-          price: signal.trade_price || 100,
+          date: signal.disclosure_date,
+          // Use disclosure_price if available, otherwise trade_price
+          price: signal.disclosure_price || signal.trade_price || 100,
         });
       }
     }

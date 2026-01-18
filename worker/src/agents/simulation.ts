@@ -100,6 +100,7 @@ export interface SignalForSim {
   trade_price: number;
   trade_date: string;
   disclosure_date: string;
+  disclosure_price?: number | null; // Price when signal was disclosed (when we can act)
   position_size_min: number;
   politician_name: string;
   source: string;
@@ -110,19 +111,21 @@ export class SignalReplayer {
   private processedIds: Set<string> = new Set();
 
   constructor(signals: SignalForSim[]) {
-    // Sort by trade_date ascending
+    // Sort by disclosure_date ascending - this is when we learn about trades
     this.signals = [...signals].sort((a, b) =>
-      a.trade_date.localeCompare(b.trade_date)
+      a.disclosure_date.localeCompare(b.disclosure_date)
     );
   }
 
   /**
    * Get signals that should be visible on this date.
-   * Only returns signals that haven't been processed yet.
+   * Only returns signals that have been DISCLOSED by this date.
+   * The trade_date is when the politician traded (in the past, unknown to us).
+   * The disclosure_date is when we find out about it (when we can act).
    */
   getSignalsForDate(date: string): SignalForSim[] {
     return this.signals.filter(
-      (s) => s.trade_date <= date && !this.processedIds.has(s.id)
+      (s) => s.disclosure_date <= date && !this.processedIds.has(s.id)
     );
   }
 
@@ -138,7 +141,7 @@ export class SignalReplayer {
    */
   getSignalCountForDate(date: string): number {
     return this.signals.filter(
-      (s) => s.trade_date <= date && !this.processedIds.has(s.id)
+      (s) => s.disclosure_date <= date && !this.processedIds.has(s.id)
     ).length;
   }
 

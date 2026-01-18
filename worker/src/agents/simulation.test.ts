@@ -513,7 +513,7 @@ describe("SignalReplayer", () => {
       asset_type: "stock",
       trade_price: 100,
       trade_date: "2025-10-16",
-      disclosure_date: "2025-10-20",
+      disclosure_date: "2025-10-20", // Disclosed 4 days after trade
       position_size_min: 50000,
       politician_name: "Nancy Pelosi",
       source: "capitol_trades",
@@ -525,30 +525,40 @@ describe("SignalReplayer", () => {
       asset_type: "stock",
       trade_price: 400,
       trade_date: "2025-10-17",
-      disclosure_date: "2025-10-25",
+      disclosure_date: "2025-10-25", // Disclosed 8 days after trade
       position_size_min: 100000,
       politician_name: "Mark Green",
       source: "senate_stock_watcher",
     },
   ];
 
-  it("should return signals for current date", () => {
+  it("should NOT return signals before disclosure date", () => {
     const replayer = new SignalReplayer(testSignals);
+    // On trade date, we can't see the signal yet (not disclosed)
     const signals = replayer.getSignalsForDate("2025-10-16");
+    expect(signals.length).toBe(0);
+  });
+
+  it("should return signals on or after disclosure date", () => {
+    const replayer = new SignalReplayer(testSignals);
+    // On Oct 20, sig_1 is disclosed but sig_2 is not yet
+    const signals = replayer.getSignalsForDate("2025-10-20");
     expect(signals.length).toBe(1);
     expect(signals[0].id).toBe("sig_1");
   });
 
-  it("should return multiple signals if date is later", () => {
+  it("should return multiple signals once all are disclosed", () => {
     const replayer = new SignalReplayer(testSignals);
-    const signals = replayer.getSignalsForDate("2025-10-18");
+    // On Oct 25, both signals are disclosed
+    const signals = replayer.getSignalsForDate("2025-10-25");
     expect(signals.length).toBe(2);
   });
 
   it("should not return processed signals", () => {
     const replayer = new SignalReplayer(testSignals);
     replayer.markProcessed("sig_1");
-    const signals = replayer.getSignalsForDate("2025-10-18");
+    // After marking sig_1 processed, only sig_2 should be returned
+    const signals = replayer.getSignalsForDate("2025-10-25");
     expect(signals.length).toBe(1);
     expect(signals[0].id).toBe("sig_2");
   });
@@ -635,26 +645,28 @@ describe("MockPriceProvider", () => {
       asset_type: "stock",
       trade_price: 100,
       trade_date: "2025-10-16",
-      disclosure_date: "2025-10-20",
+      disclosure_date: "2025-10-20", // Prices start from disclosure_date
+      disclosure_price: 105, // Price when disclosed
       position_size_min: 50000,
       politician_name: "Nancy Pelosi",
       source: "capitol_trades",
     },
   ];
 
-  it("should generate prices for tickers", () => {
+  it("should generate prices starting from disclosure_date", () => {
     const provider = new MockPriceProvider(testSignals, 42);
-    const price = provider.getPrice("NVDA", "2025-10-16");
+    // Price on disclosure_date should be close to disclosure_price
+    const price = provider.getPrice("NVDA", "2025-10-20");
     expect(price).not.toBeNull();
-    expect(price).toBeCloseTo(100, 0);
+    expect(price).toBeCloseTo(105, 0);
   });
 
   it("should be deterministic with same seed", () => {
     const provider1 = new MockPriceProvider(testSignals, 42);
     const provider2 = new MockPriceProvider(testSignals, 42);
 
-    const price1 = provider1.getPrice("NVDA", "2025-10-20");
-    const price2 = provider2.getPrice("NVDA", "2025-10-20");
+    const price1 = provider1.getPrice("NVDA", "2025-10-25");
+    const price2 = provider2.getPrice("NVDA", "2025-10-25");
 
     expect(price1).toBe(price2);
   });
@@ -667,6 +679,31 @@ describe("MockPriceProvider", () => {
     const price2 = provider2.getPrice("NVDA", "2025-10-30");
 
     expect(price1).not.toBe(price2);
+  });
+
+  it("should fallback to trade_price if disclosure_price is null", () => {
+    const signalsWithoutDisclosurePrice: SignalForSim[] = [
+      {
+        id: "sig_1",
+        ticker: "MSFT",
+        action: "buy",
+        asset_type: "stock",
+        trade_price: 400,
+        trade_date: "2025-10-16",
+        disclosure_date: "2025-10-20",
+        disclosure_price: null, // No disclosure price
+        position_size_min: 50000,
+        politician_name: "Nancy Pelosi",
+        source: "capitol_trades",
+      },
+    ];
+    const provider = new MockPriceProvider(signalsWithoutDisclosurePrice, 42);
+    const price = provider.getPrice("MSFT", "2025-10-20");
+    expect(price).not.toBeNull();
+    // Random walk applies small daily change, so use larger tolerance
+    // The important thing is that we're starting from ~400, not some other base
+    expect(price).toBeGreaterThan(380);
+    expect(price).toBeLessThan(420);
   });
 });
 
