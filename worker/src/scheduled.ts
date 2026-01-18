@@ -618,8 +618,11 @@ export async function backfillMarketPrices(
 
   console.log(`Backfilling ${tickers.length} tickers`);
 
-  const batchSize = 100;
+  // Reduced from 100 to 20 tickers per fetch to stay under subrequest limits
+  const batchSize = 20;
   const maxRetries = 3;
+  // Batch D1 inserts to reduce operations
+  const d1BatchSize = 50;
   let totalInserted = 0;
   let totalErrors = 0;
 
@@ -687,28 +690,32 @@ export async function backfillMarketPrices(
         `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
       );
 
-      for (const price of result.data.records) {
-        try {
-          await env.TRADER_DB.prepare(`
+      // Batch D1 inserts to reduce operations
+      const records = result.data.records;
+      for (let j = 0; j < records.length; j += d1BatchSize) {
+        const insertBatch = records.slice(j, j + d1BatchSize);
+        const statements = insertBatch.map((price) =>
+          env.TRADER_DB.prepare(`
             INSERT OR REPLACE INTO market_prices
             (ticker, date, open, high, low, close, volume, source)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')
-          `)
-            .bind(
-              price.ticker,
-              price.date,
-              price.open,
-              price.high,
-              price.low,
-              price.close,
-              price.volume ?? null
-            )
-            .run();
+          `).bind(
+            price.ticker,
+            price.date,
+            price.open,
+            price.high,
+            price.low,
+            price.close,
+            price.volume ?? null
+          )
+        );
 
-          totalInserted++;
+        try {
+          await env.TRADER_DB.batch(statements);
+          totalInserted += insertBatch.length;
         } catch (error) {
-          console.error(`Error inserting price for ${price.ticker}:`, error);
-          totalErrors++;
+          console.error(`Error inserting batch of ${insertBatch.length} prices:`, error);
+          totalErrors += insertBatch.length;
         }
       }
     } catch (error) {
