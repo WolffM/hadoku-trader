@@ -957,6 +957,7 @@ export async function handleRunSimulation(
       PortfolioState,
       EventLogger,
       D1PriceProvider,
+      MockPriceProvider,
       generateSimId,
       daysBetween,
     } = await import("./agents");
@@ -1019,18 +1020,31 @@ export async function handleRunSimulation(
       WHERE date >= ? AND date <= ?
     `).bind(startDate, endDate).first() as any;
 
-    if (!priceStats || priceStats.total_prices === 0) {
-      return jsonResponse({
-        success: false,
-        error: "No market price data available for the specified period",
-        hint: "Run POST /market/backfill/trigger to populate price data",
-        requested_range: { start_date: startDate, end_date: endDate },
-      }, 400);
-    }
+    // Determine if we use real or mock prices
+    const useRealPrices = priceStats && priceStats.total_prices > 0;
+    let priceMode: "real" | "mock";
+    let priceProvider: { getPrice: (ticker: string, date: string) => Promise<number | null>; getClosingPrices: (tickers: string[], date: string) => Promise<Map<string, number>> };
 
     // Initialize components
     const clock = new SimulationClock(startDate, endDate);
-    const priceProvider = new D1PriceProvider(env.TRADER_DB);
+
+    if (useRealPrices) {
+      priceMode = "real";
+      priceProvider = new D1PriceProvider(env.TRADER_DB);
+    } else {
+      // Fall back to MockPriceProvider - generates prices from disclosed_price
+      priceMode = "mock";
+      const mockProvider = new MockPriceProvider(signals, 42, 200);
+      // Wrap sync provider in async interface
+      priceProvider = {
+        async getPrice(ticker: string, date: string) {
+          return mockProvider.getPrice(ticker, date);
+        },
+        async getClosingPrices(tickers: string[], date: string) {
+          return mockProvider.getClosingPrices(tickers, date);
+        },
+      };
+    }
     const signalReplayer = new SignalReplayer(signals);
     const portfolioState = new PortfolioState();
     const eventLogger = new EventLogger(false);
@@ -1296,11 +1310,16 @@ export async function handleRunSimulation(
         signals_available: signals.length,
       },
       market_data: {
-        prices_available: priceStats.total_prices,
-        tickers_covered: priceStats.unique_tickers,
-        data_range: {
+        mode: priceMode,
+        prices_available: useRealPrices ? priceStats.total_prices : "generated from disclosed_price",
+        tickers_covered: useRealPrices ? priceStats.unique_tickers : signals.length,
+        data_range: useRealPrices ? {
           start: priceStats.min_date,
           end: priceStats.max_date,
+        } : {
+          start: startDate,
+          end: endDate,
+          note: "Mock prices generated with random walk from disclosed_price",
         },
       },
       results,
