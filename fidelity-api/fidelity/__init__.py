@@ -25,7 +25,7 @@ For backward compatibility with the old API:
 from .client import FidelityClient, FidelityAutomation
 
 # Models
-from .models import Account, Stock, OrderResult, LoginResult
+from .models import Account, Stock, OrderResult, LoginResult, TradeAlert
 
 # Exceptions
 from .exceptions import (
@@ -121,6 +121,7 @@ __all__ = [
     "Stock",
     "OrderResult",
     "LoginResult",
+    "TradeAlert",
     # Exceptions
     "FidelityError",
     "AuthenticationError",

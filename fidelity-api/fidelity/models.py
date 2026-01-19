@@ -5,7 +5,42 @@ Uses dataclasses for clean, typed data structures.
 """
 
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import Optional
+
+
+class TradeAlert(str, Enum):
+    """
+    Standardized trade alert codes for error classification.
+
+    These codes help identify the specific reason a trade failed,
+    enabling better error handling and user feedback.
+    """
+
+    # Success
+    SUCCESS = "SUCCESS"
+
+    # Buy-specific errors
+    INVALID_TICKER = "INVALID_TICKER"  # Ticker symbol not found
+    INSUFFICIENT_FUNDS = "INSUFFICIENT_FUNDS"  # Not enough buying power
+
+    # Sell-specific errors
+    NO_POSITION = "NO_POSITION"  # No shares of ticker in account
+    INSUFFICIENT_SHARES = "INSUFFICIENT_SHARES"  # Trying to sell more than owned
+    SHARES_RESTRICTED = "SHARES_RESTRICTED"  # Shares held for settlement/margin
+
+    # Market/timing errors
+    MARKET_CLOSED = "MARKET_CLOSED"  # Market order outside trading hours
+    STOCK_NOT_TRADEABLE = "STOCK_NOT_TRADEABLE"  # OTC/penny stock restrictions
+
+    # Account errors
+    ACCOUNT_RESTRICTED = "ACCOUNT_RESTRICTED"  # Account has trading restrictions
+    SESSION_EXPIRED = "SESSION_EXPIRED"  # Authentication expired
+
+    # Generic errors
+    ORDER_REJECTED = "ORDER_REJECTED"  # Generic broker rejection
+    TIMEOUT = "TIMEOUT"  # Page/network timeout
+    UNKNOWN = "UNKNOWN"  # Unclassified error
 
 
 @dataclass
@@ -77,10 +112,16 @@ class OrderResult:
     """Result of a transaction attempt."""
     success: bool
     error_message: Optional[str] = None
+    alert: TradeAlert = TradeAlert.UNKNOWN
 
     def __iter__(self):
         """Allow unpacking as tuple for backward compatibility."""
         return iter((self.success, self.error_message))
+
+    @property
+    def alert_code(self) -> str:
+        """Return the alert code as a string."""
+        return self.alert.value
 
 
 @dataclass

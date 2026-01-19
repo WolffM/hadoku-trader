@@ -36,6 +36,7 @@ class TradeResponse(BaseModel):
 
     success: bool
     message: str
+    alert: str = "UNKNOWN"  # TradeAlert code (SUCCESS, NO_POSITION, etc.)
     order_id: Optional[str] = None
     details: Optional[dict] = None
 
@@ -170,9 +171,13 @@ def create_app(
         if not success and "Not authenticated" in message:
             raise HTTPException(status_code=503, detail=message)
 
+        # Extract alert code from details
+        alert = details.get("alert", "UNKNOWN") if details else "UNKNOWN"
+
         return TradeResponse(
             success=success,
             message=message,
+            alert=alert,
             details=details,
         )
 

@@ -116,7 +116,7 @@ class TraderService:
             return False, "No account specified", None
 
         try:
-            success, error_message = await self.client.transaction(
+            success, error_message, alert_code = await self.client.transaction(
                 stock=ticker.upper(),
                 quantity=quantity,
                 action=action.lower(),
@@ -133,12 +133,19 @@ class TraderService:
                     "quantity": quantity,
                     "account": target_account,
                     "dry_run": dry_run,
+                    "alert": alert_code,
                 }
             else:
-                return False, error_message or "Trade failed", None
+                return False, error_message or "Trade failed", {
+                    "alert": alert_code,
+                    "ticker": ticker.upper(),
+                    "action": action,
+                }
 
         except Exception as e:
-            return False, f"Trade execution error: {str(e)}", None
+            return False, f"Trade execution error: {str(e)}", {
+                "alert": "UNKNOWN",
+            }
 
     async def get_accounts(self) -> list[dict]:
         """Get all accounts and their positions."""

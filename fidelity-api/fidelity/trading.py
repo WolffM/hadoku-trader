@@ -10,8 +10,86 @@ from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
 
 from .browser import FidelityBrowser
 from .selectors import URLs, Selectors, Timeouts
-from .models import OrderResult
+from .models import OrderResult, TradeAlert
 from .exceptions import TransactionError, OrderPreviewError, OrderSubmitError
+
+
+# Error message patterns for classification
+ERROR_PATTERNS = {
+    TradeAlert.INVALID_TICKER: [
+        "symbol is not valid",
+        "invalid symbol",
+        "not found",
+        "symbol not recognized",
+        "unable to find",
+    ],
+    TradeAlert.INSUFFICIENT_FUNDS: [
+        "insufficient funds",
+        "not enough buying power",
+        "exceeds your buying power",
+        "insufficient buying power",
+        "available to trade",
+        "cash available",
+    ],
+    TradeAlert.NO_POSITION: [
+        "you don't own",
+        "no shares",
+        "don't have any shares",
+        "position not found",
+        "you do not own",
+        "don't own any",
+    ],
+    TradeAlert.INSUFFICIENT_SHARES: [
+        "exceeds your available",
+        "not enough shares",
+        "insufficient shares",
+        "exceeds the quantity",
+    ],
+    TradeAlert.SHARES_RESTRICTED: [
+        "shares are restricted",
+        "held for settlement",
+        "margin requirement",
+        "not available for sale",
+    ],
+    TradeAlert.MARKET_CLOSED: [
+        "market is closed",
+        "outside market hours",
+        "market hours",
+        "not accepted outside",
+    ],
+    TradeAlert.STOCK_NOT_TRADEABLE: [
+        "not available for trading",
+        "cannot be traded",
+        "otc",
+        "penny stock",
+        "trading restricted",
+    ],
+    TradeAlert.ACCOUNT_RESTRICTED: [
+        "account is restricted",
+        "account restriction",
+        "trading suspended",
+    ],
+    TradeAlert.SESSION_EXPIRED: [
+        "session expired",
+        "logged out",
+        "please log in",
+        "authentication",
+    ],
+}
+
+
+def classify_error(error_message: str) -> TradeAlert:
+    """Classify an error message into a TradeAlert code."""
+    if not error_message:
+        return TradeAlert.UNKNOWN
+
+    lower_msg = error_message.lower()
+    for alert, patterns in ERROR_PATTERNS.items():
+        for pattern in patterns:
+            if pattern in lower_msg:
+                return alert
+
+    return TradeAlert.ORDER_REJECTED
 
 
 class FidelityTrading:
@@ -75,6 +153,7 @@ class FidelityTrading:
                 return OrderResult(
                     success=False,
                     error_message=f"Could not select '{action}' after 5 attempts",
+                    alert=TradeAlert.UNKNOWN,
                 )
 
             # Enter quantity
@@ -92,35 +171,45 @@ class FidelityTrading:
             # Preview order
             preview_error = self._preview_order()
             if preview_error:
-                return OrderResult(success=False, error_message=preview_error)
+                alert = classify_error(preview_error)
+                return OrderResult(
+                    success=False,
+                    error_message=preview_error,
+                    alert=alert,
+                )
 
             # Validate preview
             if not self._validate_preview(account, stock, action, quantity):
                 return OrderResult(
                     success=False,
                     error_message="Order preview doesn't match expected values",
+                    alert=TradeAlert.ORDER_REJECTED,
                 )
 
             # Submit if not dry run
             if not dry:
                 return self._submit_order()
 
-            return OrderResult(success=True, error_message=None)
+            return OrderResult(success=True, error_message=None, alert=TradeAlert.SUCCESS)
 
         except PlaywrightTimeoutError as e:
             return OrderResult(
                 success=False,
                 error_message=f"Timeout during transaction: {e}",
+                alert=TradeAlert.TIMEOUT,
             )
         except Exception as e:
+            error_msg = f"Transaction error: {e}"
             return OrderResult(
                 success=False,
-                error_message=f"Transaction error: {e}",
+                error_message=error_msg,
+                alert=classify_error(str(e)),
             )
 
     def _navigate_to_trade_page(self) -> None:
         """Navigate to the trade entry page."""
         page = self.browser.page
+        page.bring_to_front()  # Ensure browser has focus
         page.wait_for_load_state(state="load")
         if page.url != URLs.TRADE_EQUITY:
             page.goto(URLs.TRADE_EQUITY)
@@ -147,13 +236,18 @@ class FidelityTrading:
         """Enter the stock symbol and get the quote."""
         page = self.browser.page
 
-        symbol_input = page.get_by_label(Selectors.SYMBOL_INPUT, exact=True)
-        symbol_input.click()
-        symbol_input.fill(stock)
-        symbol_input.press("Enter")
+        # Click input first to ensure focus (force=True bypasses overlay)
+        symbol_input = page.locator(Selectors.SYMBOL_INPUT)
+        symbol_input.click(force=True)
+        symbol_input.fill(stock.upper())
+        page.wait_for_timeout(500)
 
-        # Wait for quote
-        page.locator(Selectors.QUOTE_PANEL).wait_for(timeout=Timeouts.SHORT)
+        # Press Enter using locator method (more reliable than keyboard.press)
+        symbol_input.press("Enter")
+        page.wait_for_timeout(2000)
+
+        # Wait for quote panel with longer timeout
+        page.locator(Selectors.QUOTE_PANEL).wait_for(timeout=Timeouts.MEDIUM)
 
         # Get last price
         price_text = page.query_selector(Selectors.LAST_PRICE).text_content()
@@ -244,8 +338,15 @@ class FidelityTrading:
     def _enter_quantity(self, quantity: float) -> None:
         """Enter the order quantity."""
         page = self.browser.page
-        page.locator(Selectors.QUANTITY_INPUT).filter(has_text="Quantity").click()
-        page.get_by_text("Quantity", exact=True).fill(str(quantity))
+        # Try multiple approaches to find and fill quantity input
+        qty_input = page.locator(Selectors.QUANTITY_INPUT)
+        if not qty_input.is_visible():
+            qty_input = page.get_by_placeholder("Quantity")
+        if not qty_input.is_visible():
+            qty_input = page.get_by_label("Quantity")
+
+        qty_input.click(force=True)
+        qty_input.fill(str(int(quantity)))
 
     def _set_order_type(
         self,
@@ -297,7 +398,15 @@ class FidelityTrading:
     def _set_market_order(self) -> None:
         """Set up a market order."""
         page = self.browser.page
-        page.locator(Selectors.ORDER_TYPE_CONTAINER).click()
+        # Try multiple ways to find the order type dropdown
+        order_dropdown = page.locator(Selectors.ORDER_TYPE_CONTAINER)
+        if not order_dropdown.is_visible():
+            order_dropdown = page.locator(Selectors.ORDER_TYPE_DROPDOWN)
+        if not order_dropdown.is_visible():
+            order_dropdown = page.get_by_text("Order type", exact=False).first
+
+        order_dropdown.click(force=True)
+        page.wait_for_timeout(500)
         page.get_by_role("option", name="Market", exact=True).click()
 
     def _preview_order(self) -> Optional[str]:
@@ -394,9 +503,10 @@ class FidelityTrading:
             page.get_by_text("Order received", exact=True).wait_for(
                 timeout=10000, state="visible"
             )
-            return OrderResult(success=True, error_message=None)
+            return OrderResult(success=True, error_message=None, alert=TradeAlert.SUCCESS)
         except PlaywrightTimeoutError as e:
             return OrderResult(
                 success=False,
                 error_message=f"Timeout waiting for order confirmation: {e}",
+                alert=TradeAlert.TIMEOUT,
             )

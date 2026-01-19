@@ -14,7 +14,8 @@ from playwright.async_api import TimeoutError as PlaywrightTimeoutError
 
 from .browser import FidelityBrowserAsync
 from .selectors import URLs, Selectors, Timeouts
-from .models import LoginResult, Account, Stock
+from .models import LoginResult, Account, Stock, TradeAlert
+from .trading import classify_error
 
 
 class FidelityClientAsync:
@@ -302,7 +303,7 @@ class FidelityClientAsync:
         account: str,
         dry: bool = True,
         limit_price: Optional[float] = None,
-    ) -> tuple[bool, Optional[str]]:
+    ) -> tuple[bool, Optional[str], str]:
         """
         Execute a trade.
 
@@ -315,7 +316,8 @@ class FidelityClientAsync:
             limit_price: Optional limit price
 
         Returns:
-            Tuple of (success, error_message)
+            Tuple of (success, error_message, alert_code)
+            alert_code is a TradeAlert enum value as string
         """
         try:
             page = self._browser.page
@@ -369,10 +371,11 @@ class FidelityClientAsync:
             error_elem = page.locator(Selectors.ORDER_ERROR)
             if await error_elem.count() > 0 and await error_elem.first.is_visible():
                 error_text = await error_elem.first.inner_text()
-                return (False, error_text)
+                alert = classify_error(error_text)
+                return (False, error_text, alert.value)
 
             if dry:
-                return (True, None)
+                return (True, None, TradeAlert.SUCCESS.value)
 
             # Submit order
             submit_btn = page.get_by_role("button", name="Place order")
@@ -383,16 +386,21 @@ class FidelityClientAsync:
             # Check for confirmation
             confirm = page.locator(Selectors.ORDER_CONFIRMATION)
             if await confirm.count() > 0 and await confirm.first.is_visible():
-                return (True, None)
+                return (True, None, TradeAlert.SUCCESS.value)
 
             # Check for success message
             success_text = page.get_by_text("Order received", exact=False)
             if await success_text.count() > 0:
-                return (True, None)
+                return (True, None, TradeAlert.SUCCESS.value)
 
-            return (False, "Order may not have been placed")
+            return (False, "Order may not have been placed", TradeAlert.UNKNOWN.value)
 
+        except PlaywrightTimeoutError as e:
+            print(f"Transaction timeout: {e}")
+            traceback.print_exc()
+            return (False, str(e), TradeAlert.TIMEOUT.value)
         except Exception as e:
             print(f"Transaction error: {e}")
             traceback.print_exc()
-            return (False, str(e))
+            alert = classify_error(str(e))
+            return (False, str(e), alert.value)
