@@ -730,6 +730,11 @@ export async function handleExecuteTrade(
 // =============================================================================
 
 export async function handleHealth(env: TraderEnv): Promise<Response> {
+  // Debug: log env keys to diagnose missing bindings
+  console.log("[health] env keys:", Object.keys(env));
+  console.log("[health] TRADER_API_KEY exists:", !!env.TRADER_API_KEY);
+  console.log("[health] TUNNEL_URL:", env.TUNNEL_URL);
+
   // Check DB connection
   let dbOk = false;
   try {
@@ -741,11 +746,14 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
 
   // Check tunnel connectivity
   let tunnelOk = false;
+  if (!env.TRADER_API_KEY) {
+    console.error("[health] TRADER_API_KEY is missing from env! Add it to wrangler.toml secrets.");
+  }
   try {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
       method: "GET",
       headers: {
-        "X-API-Key": env.TRADER_API_KEY,
+        "X-API-Key": env.TRADER_API_KEY || "",
       },
       signal: AbortSignal.timeout(5000),
     });
