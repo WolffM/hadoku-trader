@@ -47,6 +47,8 @@ export type {
   DecisionReason,
   AgentDecision,
   ScoreResult,
+  // Trade action types (Phase 5)
+  TradeAction,
   // API response types
   AgentSummary,
   AgentDetailResponse,
@@ -160,6 +162,8 @@ export {
   markSignalProcessed,
   getCurrentPrice,
   processAllPendingSignals,
+  // Pure analysis function (Phase 5)
+  analyzeSignals,
 } from "./router";
 
 // =============================================================================

@@ -253,6 +253,29 @@ export interface ScoreResult {
 }
 
 // =============================================================================
+// Trade Action Types (Phase 5 - for hadoku-site integration)
+// =============================================================================
+
+/**
+ * A trade action returned by analyzeSignals().
+ * Contains all information needed for hadoku-site to execute the trade.
+ */
+export interface TradeAction {
+  agent_id: string;
+  agent_name: string;
+  signal_id: string;
+  ticker: string;
+  action: "buy" | "sell";
+  decision: "execute" | "execute_half" | "skip";
+  quantity: number;        // Shares to trade
+  position_size: number;   // Dollar amount
+  current_price: number;
+  score: number | null;
+  score_breakdown: Record<string, number> | null;
+  reasoning: string;
+}
+
+// =============================================================================
 // API Response Types
 // =============================================================================
 

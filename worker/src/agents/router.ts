@@ -9,6 +9,7 @@ import type {
   EnrichedSignal,
   AgentDecision,
   DecisionReason,
+  TradeAction,
 } from "./types";
 import {
   getActiveAgents,
@@ -23,7 +24,7 @@ import {
   type RawSignalRow,
 } from "./filters";
 import { calculateScore } from "./scoring";
-import { calculatePositionSize } from "./sizing";
+import { calculatePositionSize, calculateShares } from "./sizing";
 import { executeTrade, getPendingTradeId } from "./execution";
 
 // =============================================================================
@@ -433,4 +434,64 @@ export async function processAllPendingSignals(
     processed_count: results.length,
     results,
   };
+}
+
+// =============================================================================
+// Pure Analysis Function (Phase 5 - for hadoku-site integration)
+// =============================================================================
+
+/**
+ * Analyze signals and return trade actions without executing them.
+ * This is a pure decision engine - hadoku-site handles actual execution.
+ *
+ * @param env - Environment with DB access
+ * @param signals - Enriched signals to analyze
+ * @returns Array of TradeAction with all decision data for each agent
+ */
+export async function analyzeSignals(
+  env: TraderEnv,
+  signals: EnrichedSignal[]
+): Promise<TradeAction[]> {
+  const actions: TradeAction[] = [];
+  const agents = await getActiveAgents(env);
+
+  for (const signal of signals) {
+    for (const agent of agents) {
+      // Get decision from existing logic
+      const decision = await processSignalForAgent(env, agent, signal);
+
+      // Calculate position size if executing
+      let quantity = 0;
+      let positionSize = 0;
+
+      if (decision.action === "execute" || decision.action === "execute_half") {
+        const budget = await getAgentBudget(env, agent.id);
+        positionSize = calculatePositionSize(
+          agent,
+          decision.score ?? 0,
+          budget,
+          1, // signalCount for equal_split mode
+          decision.action === "execute_half"
+        );
+        quantity = calculateShares(positionSize, signal.current_price);
+      }
+
+      actions.push({
+        agent_id: agent.id,
+        agent_name: agent.name,
+        signal_id: signal.id,
+        ticker: signal.ticker,
+        action: signal.action,
+        decision: decision.action,
+        quantity,
+        position_size: positionSize,
+        current_price: signal.current_price,
+        score: decision.score,
+        score_breakdown: decision.score_breakdown,
+        reasoning: decision.decision_reason,
+      });
+    }
+  }
+
+  return actions;
 }

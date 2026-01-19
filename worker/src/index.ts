@@ -56,3 +56,7 @@ export {
 
 // Export the agents module for direct access
 export * as agents from "./agents";
+
+// Direct exports for Phase 5 integration (hadoku-site)
+export { analyzeSignals } from "./agents/router";
+export type { TradeAction, EnrichedSignal } from "./agents/types";

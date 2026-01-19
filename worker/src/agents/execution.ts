@@ -289,7 +289,7 @@ export async function callFidelityApi(
   request: FidelityTradeRequest
 ): Promise<FidelityTradeResponse> {
   try {
-    const response = await fetch(`${env.TUNNEL_URL}/api/trade`, {
+    const response = await fetch(`${env.TUNNEL_URL}/execute-trade`, {
       method: "POST",
       headers: {
         "X-API-Key": env.TRADER_API_KEY,
