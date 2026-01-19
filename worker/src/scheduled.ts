@@ -500,9 +500,9 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
 
     console.log(`Found ${allTickers.length} tickers to sync`);
 
-    // Determine date range: last 7 days for daily updates
+    // Determine date range: last 30 days to catch gaps from infrequent tickers
     const endDate = new Date().toISOString().split("T")[0];
-    const startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split("T")[0];
 
