@@ -312,20 +312,20 @@ describe("Trade Execution Engine", () => {
       });
 
       expect(global.fetch).toHaveBeenCalledWith(
-        "https://tunnel.example.com/api/trade",
-        expect.objectContaining({
+        "https://tunnel.example.com/execute-trade",
+        {
           method: "POST",
-          headers: expect.objectContaining({
+          headers: {
             "X-API-Key": "test-api-key",
             "Content-Type": "application/json",
-          }),
+          },
           body: JSON.stringify({
             ticker: "AAPL",
             quantity: 10,
             action: "buy",
             account: "12345",
           }),
-        })
+        }
       );
     });
 
