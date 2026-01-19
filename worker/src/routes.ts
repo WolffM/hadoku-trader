@@ -744,6 +744,9 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
   try {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
       method: "GET",
+      headers: {
+        "X-API-Key": env.TRADER_API_KEY,
+      },
       signal: AbortSignal.timeout(5000),
     });
     tunnelOk = resp.ok;
