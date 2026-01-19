@@ -42,3 +42,7 @@ coverage/
 # Python (in case of fidelity-api)
 __pycache__/
 *.egg-info/
+
+# Database exports (large files)
+trader-db-export.json
+*-db-export.json
