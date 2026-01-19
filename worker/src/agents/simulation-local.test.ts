@@ -745,6 +745,23 @@ describe("Local Data Analysis", () => {
     const report = eventLogger.getReport(clock, portfolioState);
     eventLogger.printReport(report);
 
+    // Calculate and display SPY benchmark
+    const spyStartPrice = priceProvider.getPrice("SPY", simStart);
+    const spyEndPrice = priceProvider.getPrice("SPY", simEnd);
+    if (spyStartPrice && spyEndPrice) {
+      const spyReturn = ((spyEndPrice - spyStartPrice) / spyStartPrice) * 100;
+      console.log(`\n--- SPY BENCHMARK ---`);
+      console.log(`SPY Buy & Hold: ${spyReturn >= 0 ? "+" : ""}${spyReturn.toFixed(2)}%`);
+      console.log(`  (${simStart} to ${simEnd}: $${spyStartPrice.toFixed(2)} → $${spyEndPrice.toFixed(2)})`);
+
+      // Compare each agent to SPY
+      console.log(`\n--- ALPHA vs SPY ---`);
+      for (const [agentId, metrics] of Object.entries(report.agentResults)) {
+        const alpha = metrics.totalReturnPct - spyReturn;
+        console.log(`${agentId.toUpperCase()}: ${alpha >= 0 ? "+" : ""}${alpha.toFixed(2)}% alpha`);
+      }
+    }
+
     console.log(`\nSignals processed: ${signalsProcessed}`);
 
     expect(signalsProcessed).toBeGreaterThanOrEqual(0);
