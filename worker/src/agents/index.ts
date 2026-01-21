@@ -249,7 +249,9 @@ export {
 // =============================================================================
 // Smart Simulation Exports
 // =============================================================================
-
+// Note: run-simulation.ts has been removed. These exports are disabled.
+// TODO: Re-enable if run-simulation.ts is recreated with these functions.
+/*
 export {
   // Smart agent config
   SMART_CONFIG,
@@ -263,6 +265,7 @@ export {
   type DetailedStats,
   type SimulationSummary,
 } from "./run-simulation";
+*/
 
 // Simulation-specific types
 export type {
