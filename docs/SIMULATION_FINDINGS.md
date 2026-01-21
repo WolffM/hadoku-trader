@@ -181,54 +181,24 @@ Based on all testing, the optimal ChatGPT configuration is:
 
 ---
 
-## 7. Next Steps
+## 7. Production vs Simulation Gaps
 
-### 7.1 Validate Integration
-Ensure all findings are properly integrated into the production trading flow:
+The simulation tests use optimized settings discovered through backtesting. Some findings have not been integrated into production configs yet:
 
-**Current gaps between simulation and production:**
+| Finding | Simulation | Production (`configs.ts`) | Notes |
+|---------|------------|---------------------------|-------|
+| Politician Filter | Top 10 dynamic | `politician_whitelist: null` | Production uses all politicians |
+| Sizing Mode | Bucket-based + Linear | `mode: "score_squared"` | Different sizing algorithms |
+| Threshold | 0.55 | 0.55 | Aligned |
+| Weights | Tested optimal | Current values | Aligned |
 
-| Finding | Simulation | Production (`configs.ts`) | Status |
-|---------|------------|---------------------------|--------|
-| Politician Filter | Top 10 dynamic filter | `politician_whitelist: null` | **NEEDS UPDATE** |
-| Sizing Mode | Bucket-based + Linear | `mode: "score_squared"` | **NEEDS UPDATE** |
-| Threshold | 0.55 | 0.55 | OK |
-| Weights | Tested optimal | Current values | OK |
+**Future improvements to consider:**
 
-**Integration checklist:**
+- **Dynamic Politician Filtering**: Production could dynamically calculate top performers
+- **Wash Sale Prevention**: Add 30-day loss tracking to prevent wash sales
+- **Bucket-based Sizing**: Implement smart_budget mode based on simulation findings
 
-- [ ] **Politician Filter**: Add Top 10 filter calculation to signal routing
-  - Location: `router.ts:routeSignalToAgents()`
-  - Need to fetch top politicians and filter before processing
-
-- [ ] **Position Sizing**: Change to bucket-based + Linear
-  - Option A: Add new sizing mode `bucket_linear` to `sizing.ts`
-  - Option B: Update simulation to use existing `score_linear` mode
-  - Current: `sizing.mode: "score_squared"` uses `score² × base_multiplier × budget`
-  - Optimal: `bucketSize × score` (linear scaling of bucket allocation)
-
-- [ ] **Bucket Stats**: Add historical stats calculation to production
-  - The simulation calls `calculateHistoricalBucketStats()`
-  - Production doesn't calculate this dynamically
-  - May need a scheduled job to recalculate bucket stats
-
-- [ ] **Wash Sale Prevention**: Not implemented in production
-  - Location: `execution.ts:executeTrade()`
-  - Need to check recent sales at loss before buying
-
-### 7.2 End-to-End Test
-Run a full test with a real scraped signal through the complete pipeline:
-
-1. Scraper ingests new congressional trade
-2. Signal arrives at `/api/trader/signals`
-3. Signal routed to ChatGPT agent
-4. Scoring applied with correct weights
-5. Position size calculated with Linear formula
-6. Trade decision made and logged
-7. Execute via Fidelity API (dry run first)
-
-### 7.3 Monitor Live Performance
-Compare live results against backtested expectations
+These are optimization opportunities, not bugs. The current production config is functional and based on the original agent designs.
 
 ---
 

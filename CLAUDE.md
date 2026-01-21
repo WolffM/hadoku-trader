@@ -178,15 +178,18 @@ When a signal arrives:
 | `/api/trader/signals` | GET | List signals |
 | `/api/trader/signals` | POST | Ingest signal from scraper |
 | `/api/trader/signals/backfill` | POST | Batch signal backfill |
+| `/api/trader/signals/process` | POST | Process pending signals |
 | `/api/trader/agents` | GET | List agents + performance |
 | `/api/trader/agents/:id` | GET | Agent details |
 | `/api/trader/performance` | GET | Overall performance |
 | `/api/trader/trades` | GET | Trade history |
+| `/api/trader/sources` | GET | Source leaderboard |
 | `/api/trader/execute` | POST | Execute trade via tunnel |
 | `/api/trader/market/prices` | GET | Get market prices |
 | `/api/trader/market/tickers` | GET | Get tracked tickers |
 | `/api/trader/market/backfill` | POST | Backfill market prices |
 | `/api/trader/market/backfill/trigger` | POST | Trigger market backfill |
+| `/api/trader/health` | GET | Health check |
 
 ## Important Constraints
 

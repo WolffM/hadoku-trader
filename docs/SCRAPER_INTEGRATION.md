@@ -403,16 +403,26 @@ def generate_source_id(source: str, signal: dict) -> str:
 
 ## Testing
 
-After backfilling, verify with simulation:
+After backfilling, verify the data was ingested correctly:
 
 ```bash
-curl -X POST https://hadoku.me/api/trader/simulation/run \
-  -H "Content-Type: application/json" \
-  -H "X-User-Key: $TRADER_API_KEY" \
-  -d '{"start_date": "2024-01-01", "end_date": "2025-01-15"}'
+# Check signal count
+curl https://hadoku.me/api/trader/signals | jq '.signals | length'
+
+# Check source distribution
+curl https://hadoku.me/api/trader/sources
 ```
 
-Expected response should show:
+For backtesting/simulation, use the test files locally:
+
+```bash
+cd worker
+pnpm test simulation.test.ts
+```
+
+Expected simulation results:
 - `signals_processed` > 100 (many signals with prices)
 - `closedPositions` > 0 (positions that exited)
 - Meaningful return/drawdown metrics
+
+See `docs/SIMULATION_FINDINGS.md` for backtesting methodology.

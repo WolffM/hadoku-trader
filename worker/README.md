@@ -26,7 +26,7 @@ pnpm add git+https://github.com/hadoku/hadoku-trader.git#main:worker
 
 ```typescript
 // hadoku-site/src/worker.ts
-import { createTraderHandler, type TraderEnv, isTraderRoute } from 'hadoku-trader-worker';
+import { createTraderHandler, type TraderEnv, isTraderRoute } from '@wolffm/trader-worker';
 
 // Extend your env to include TraderEnv
 interface Env extends TraderEnv {
@@ -49,7 +49,7 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     // Import scheduled handler if you need cron jobs
-    const { createScheduledHandler } = await import('hadoku-trader-worker');
+    const { createScheduledHandler } = await import('@wolffm/trader-worker');
     const handler = createScheduledHandler(env);
     await handler(event.cron);
   }
@@ -85,7 +85,7 @@ wrangler secret put TUNNEL_URL
 
 ```bash
 wrangler d1 create trader-db
-wrangler d1 execute trader-db --file=./node_modules/hadoku-trader-worker/schema.sql
+wrangler d1 execute trader-db --file=./node_modules/@wolffm/trader-worker/schema.sql
 ```
 
 ## API Endpoints
@@ -123,10 +123,10 @@ pnpm dev
 
 ```typescript
 // Main handler factory
-import { createTraderHandler, isTraderRoute } from 'hadoku-trader-worker';
+import { createTraderHandler, isTraderRoute } from '@wolffm/trader-worker';
 
 // Scheduled tasks
-import { createScheduledHandler } from 'hadoku-trader-worker';
+import { createScheduledHandler } from '@wolffm/trader-worker';
 
 // Individual route handlers (for custom routing)
 import {
@@ -143,7 +143,7 @@ import {
   handleProcessSignals,
   handleGetMarketPrices,
   handleMarketPricesBackfill,
-} from 'hadoku-trader-worker';
+} from '@wolffm/trader-worker';
 
 // Types
 import type {
@@ -152,10 +152,10 @@ import type {
   ExecuteTradeRequest,
   ExecuteTradeResponse,
   // ... all types
-} from 'hadoku-trader-worker';
+} from '@wolffm/trader-worker';
 
 // Or import types separately
-import type { Signal } from 'hadoku-trader-worker/types';
+import type { Signal } from '@wolffm/trader-worker/types';
 ```
 
 ## Building

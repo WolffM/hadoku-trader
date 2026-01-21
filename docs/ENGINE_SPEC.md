@@ -907,38 +907,51 @@ async function monitorPositions(): Promise<void> {
 
 ## API Endpoints
 
-### Agents
-
-```
-GET    /api/agents                    # List all agents
-GET    /api/agents/:id                # Get agent details + config
-GET    /api/agents/:id/portfolio      # Current positions
-GET    /api/agents/:id/trades         # Trade history
-GET    /api/agents/:id/performance    # Performance metrics
-PATCH  /api/agents/:id/config         # Update agent config
-```
+All endpoints are prefixed with `/api/trader` in production.
 
 ### Signals
 
 ```
-GET    /api/signals                   # List recent signals
-GET    /api/signals/:id               # Signal details + how each agent scored it
-POST   /api/signals/process           # Manually trigger signal processing
+GET    /api/trader/signals              # List recent signals
+POST   /api/trader/signals              # Ingest signal from scraper
+POST   /api/trader/signals/backfill     # Batch signal backfill
+POST   /api/trader/signals/process      # Process pending signals
 ```
 
-### Positions
+### Agents
 
 ```
-GET    /api/positions                 # All open positions
-POST   /api/positions/:id/close       # Manually close a position
+GET    /api/trader/agents               # List all agents with budget info
+GET    /api/trader/agents/:id           # Get agent details with positions
 ```
 
-### Admin
+### Performance
 
 ```
-POST   /api/admin/reset-budgets       # Reset monthly budgets
-POST   /api/admin/update-titan        # Update Gemini's Titan whitelist
-POST   /api/admin/update-basket       # Update Gemini's Consensus Core basket
+GET    /api/trader/performance          # Overall performance metrics
+GET    /api/trader/trades               # Trade history
+GET    /api/trader/sources              # Source leaderboard
+```
+
+### Trade Execution
+
+```
+POST   /api/trader/execute              # Execute trade via Fidelity tunnel
+```
+
+### Market Data
+
+```
+GET    /api/trader/market/prices        # Get market prices
+GET    /api/trader/market/tickers       # Get tracked tickers
+POST   /api/trader/market/backfill      # Backfill market prices
+POST   /api/trader/market/backfill/trigger  # Trigger market backfill
+```
+
+### Health
+
+```
+GET    /api/trader/health               # Health check
 ```
 
 ---
@@ -1038,30 +1051,12 @@ async function updatePoliticianStats(): Promise<void> {
 
 ---
 
-## Implementation Phases
+## Implementation Status
 
-### Phase 1: Core Infrastructure (Week 1)
-- [ ] Database schema
-- [ ] Agent configuration loader
-- [ ] Signal ingestion from existing scraper
+All phases have been completed. See `worker/src/agents/` for implementation details.
 
-### Phase 2: Scoring Engine (Week 2)
-- [ ] Unified scoring function
-- [ ] All component calculators
-- [ ] Decision logic
-
-### Phase 3: Execution (Week 3)
-- [ ] Position sizing
-- [ ] Fidelity API integration
-- [ ] Trade logging
-
-### Phase 4: Monitoring (Week 4)
-- [ ] Position monitor job
-- [ ] Stop-loss / take-profit logic
-- [ ] Budget tracking
-
-### Phase 5: Dashboard (Week 5)
-- [ ] Agent comparison view
-- [ ] Position details
-- [ ] Trade history
-- [ ] Performance charts
+- **Phase 1: Core Infrastructure** - Database schema, agent configs, signal ingestion
+- **Phase 2: Scoring Engine** - Unified scoring with 7 components, decision logic
+- **Phase 3: Execution** - Position sizing (3 modes), Fidelity API integration, trade logging
+- **Phase 4: Monitoring** - Position monitor, stop-loss/take-profit, budget tracking
+- **Phase 5: Dashboard** - Agent comparison, positions, trade history, performance charts
