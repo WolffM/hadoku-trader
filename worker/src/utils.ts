@@ -69,6 +69,24 @@ export function withCors(response: Response): Response {
 }
 
 /**
+ * Check if a signal already exists in the database.
+ * Used for deduplication before inserting signals.
+ */
+export async function checkSignalExists(
+  env: TraderEnv,
+  source: string | null,
+  sourceId: string | null
+): Promise<{ id: string } | null> {
+  const existing = await env.TRADER_DB.prepare(
+    "SELECT id FROM signals WHERE source = ? AND source_id = ?"
+  )
+    .bind(source, sourceId)
+    .first<{ id: string }>();
+
+  return existing ?? null;
+}
+
+/**
  * Result of inserting a signal into the database.
  */
 export interface InsertSignalResult {
@@ -84,12 +102,8 @@ export async function insertSignal(
   env: TraderEnv,
   signal: Signal
 ): Promise<InsertSignalResult> {
-  // Check for duplicate
-  const existing = await env.TRADER_DB.prepare(
-    "SELECT id FROM signals WHERE source = ? AND source_id = ?"
-  )
-    .bind(signal.source, signal.meta.source_id)
-    .first<{ id: string }>();
+  // Check for duplicate using shared function
+  const existing = await checkSignalExists(env, signal.source, signal.meta.source_id);
 
   if (existing) {
     return { id: existing.id, duplicate: true };

@@ -9,7 +9,7 @@ import {
   ExecuteTradeRequest,
   ExecuteTradeResponse,
 } from "./types";
-import { jsonResponse, verifyApiKey, generateId, insertSignal } from "./utils";
+import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists } from "./utils";
 import {
   getActiveAgents,
   getAgent,
@@ -169,13 +169,12 @@ export async function handleBackfillBatch(
 
   for (const signal of signals) {
     try {
-      // Check for duplicate (D1 requires null, not undefined)
-      const sourceId = signal.meta?.source_id ?? null;
-      const existing = await env.TRADER_DB.prepare(
-        "SELECT id FROM signals WHERE source = ? AND source_id = ?"
-      )
-        .bind(signal.source ?? null, sourceId)
-        .first();
+      // Check for duplicate using shared function
+      const existing = await checkSignalExists(
+        env,
+        signal.source ?? null,
+        signal.meta?.source_id ?? null
+      );
 
       if (existing) {
         duplicates++;
@@ -589,6 +588,7 @@ export async function handleGetTrades(env: TraderEnv): Promise<Response> {
 // =============================================================================
 
 export async function handleGetSources(env: TraderEnv): Promise<Response> {
+  // Get signal counts per source
   const stats = await env.TRADER_DB.prepare(`
     SELECT
       source as name,
@@ -598,14 +598,45 @@ export async function handleGetSources(env: TraderEnv): Promise<Response> {
     GROUP BY source
   `).all();
 
-  // Calculate returns per source (simplified - would need trade outcome data)
-  const sources = stats.results.map((s: any) => ({
-    name: s.name,
-    total_signals: s.total_signals,
-    executed_signals: s.executed_signals || 0,
-    avg_return_pct: 0, // TODO: Calculate from trade outcomes
-    win_rate: 0, // TODO: Calculate from trade outcomes
-  }));
+  // Get trade outcomes per source for calculating returns and win rate
+  const tradeOutcomes = await env.TRADER_DB.prepare(`
+    SELECT
+      s.source,
+      COUNT(*) as trade_count,
+      SUM(CASE WHEN p.close_price > p.entry_price THEN 1 ELSE 0 END) as winning_trades,
+      AVG(CASE
+        WHEN p.close_price IS NOT NULL AND p.entry_price > 0
+        THEN ((p.close_price - p.entry_price) / p.entry_price) * 100
+        ELSE NULL
+      END) as avg_return_pct
+    FROM trades t
+    JOIN signals s ON t.signal_id = s.id
+    LEFT JOIN positions p ON p.signal_id = s.id
+    WHERE t.status = 'executed'
+    GROUP BY s.source
+  `).all();
+
+  // Build a map of source -> outcomes
+  const outcomeMap = new Map<string, { avg_return_pct: number; win_rate: number }>();
+  for (const outcome of tradeOutcomes.results as any[]) {
+    const winRate = outcome.trade_count > 0 ? outcome.winning_trades / outcome.trade_count : 0;
+    outcomeMap.set(outcome.source, {
+      avg_return_pct: outcome.avg_return_pct ?? 0,
+      win_rate: winRate,
+    });
+  }
+
+  // Combine stats with outcomes
+  const sources = stats.results.map((s: any) => {
+    const outcomes = outcomeMap.get(s.name) ?? { avg_return_pct: 0, win_rate: 0 };
+    return {
+      name: s.name,
+      total_signals: s.total_signals,
+      executed_signals: s.executed_signals || 0,
+      avg_return_pct: Math.round(outcomes.avg_return_pct * 100) / 100,
+      win_rate: Math.round(outcomes.win_rate * 100) / 100,
+    };
+  });
 
   return jsonResponse({
     sources,

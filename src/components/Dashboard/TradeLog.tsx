@@ -1,32 +1,9 @@
 import type { ExecutedTrade } from '../../types/api'
+import { formatCurrency, formatDate } from '../../utils/formatters'
+import { STATUS_CLASSES } from '../../constants/labels'
 
 interface TradeLogProps {
   trades: ExecutedTrade[]
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value)
-}
-
-const STATUS_CLASSES: Record<string, string> = {
-  executed: 'trade-row__status--executed',
-  pending: 'trade-row__status--pending',
-  skipped: 'trade-row__status--skipped'
 }
 
 interface TradeRowProps {
@@ -41,7 +18,7 @@ function TradeRow({ trade, onExpand, isExpanded }: TradeRowProps) {
   return (
     <>
       <tr className="trade-row" onClick={() => onExpand(trade.id)}>
-        <td className="trade-row__date">{formatDate(trade.date)}</td>
+        <td className="trade-row__date">{formatDate(trade.date, true)}</td>
         <td className="trade-row__ticker">{trade.ticker}</td>
         <td className={`trade-row__action trade-row__action--${trade.action}`}>
           {isBuy ? 'BUY' : 'SELL'}

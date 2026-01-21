@@ -1,34 +1,9 @@
 import type { Signal } from '../../types/api'
+import { formatDate, formatPrice } from '../../utils/formatters'
+import { SOURCE_LABELS, PARTY_COLORS } from '../../constants/labels'
 
 interface SignalsFeedProps {
   signals: Signal[]
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-US', {
-    month: 'short',
-    day: 'numeric'
-  })
-}
-
-function formatPrice(price: number | null): string {
-  if (price === null) return 'N/A'
-  return `$${price.toFixed(2)}`
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  unusual_whales: 'Unusual Whales',
-  capitol_trades: 'Capitol Trades',
-  quiver_quant: 'Quiver Quant',
-  house_stock_watcher: 'House Watcher',
-  senate_stock_watcher: 'Senate Watcher'
-}
-
-const PARTY_COLORS: Record<string, string> = {
-  D: 'signal-card__party--dem',
-  R: 'signal-card__party--rep',
-  I: 'signal-card__party--ind'
 }
 
 interface SignalCardProps {

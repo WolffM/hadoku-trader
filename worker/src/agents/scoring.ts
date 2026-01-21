@@ -20,6 +20,39 @@ import { lerp, clamp } from "./filters";
 import { getPoliticianStats } from "./loader";
 
 // =============================================================================
+// Shared Weighting Helper
+// =============================================================================
+
+interface ComponentScore {
+  name: string;
+  score: number;
+  weight: number;
+}
+
+/**
+ * Calculate weighted average from component scores.
+ * Shared logic used by both async and sync scoring functions.
+ */
+function calculateWeightedScore(components: ComponentScore[]): ScoreResult {
+  const breakdown: Record<string, number> = {};
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  for (const { name, score, weight } of components) {
+    breakdown[name] = score;
+    weightedSum += score * weight;
+    totalWeight += weight;
+  }
+
+  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+  return {
+    score: clamp(finalScore, 0, 1),
+    breakdown,
+  };
+}
+
+// =============================================================================
 // Main Scoring Function
 // =============================================================================
 
@@ -32,87 +65,73 @@ export async function calculateScore(
   config: ScoringConfig,
   signal: EnrichedSignal
 ): Promise<ScoreResult> {
-  const breakdown: Record<string, number> = {};
-  let totalWeight = 0;
-  let weightedSum = 0;
-
   const components = config.components;
+  const scores: ComponentScore[] = [];
 
   // 1. Time Decay
   if (components.time_decay) {
-    const score = scoreTimeDecay(components.time_decay, signal);
-    breakdown.time_decay = score;
-    weightedSum += score * components.time_decay.weight;
-    totalWeight += components.time_decay.weight;
+    scores.push({
+      name: "time_decay",
+      score: scoreTimeDecay(components.time_decay, signal),
+      weight: components.time_decay.weight,
+    });
   }
 
   // 2. Price Movement
   if (components.price_movement) {
-    const score = scorePriceMovement(components.price_movement, signal);
-    breakdown.price_movement = score;
-    weightedSum += score * components.price_movement.weight;
-    totalWeight += components.price_movement.weight;
+    scores.push({
+      name: "price_movement",
+      score: scorePriceMovement(components.price_movement, signal),
+      weight: components.price_movement.weight,
+    });
   }
 
   // 3. Position Size
   if (components.position_size) {
-    const score = scorePositionSize(components.position_size, signal);
-    breakdown.position_size = score;
-    weightedSum += score * components.position_size.weight;
-    totalWeight += components.position_size.weight;
+    scores.push({
+      name: "position_size",
+      score: scorePositionSize(components.position_size, signal),
+      weight: components.position_size.weight,
+    });
   }
 
   // 4. Politician Skill (async - DB lookup)
   if (components.politician_skill) {
-    const score = await scorePoliticianSkill(
-      env,
-      components.politician_skill,
-      signal
-    );
-    breakdown.politician_skill = score;
-    weightedSum += score * components.politician_skill.weight;
-    totalWeight += components.politician_skill.weight;
+    scores.push({
+      name: "politician_skill",
+      score: await scorePoliticianSkill(env, components.politician_skill, signal),
+      weight: components.politician_skill.weight,
+    });
   }
 
   // 5. Source Quality (async - DB lookup for confirmations)
   if (components.source_quality) {
-    const score = await scoreSourceQuality(
-      env,
-      components.source_quality,
-      signal
-    );
-    breakdown.source_quality = score;
-    weightedSum += score * components.source_quality.weight;
-    totalWeight += components.source_quality.weight;
+    scores.push({
+      name: "source_quality",
+      score: await scoreSourceQuality(env, components.source_quality, signal),
+      weight: components.source_quality.weight,
+    });
   }
 
   // 6. Filing Speed (Claude only)
   if (components.filing_speed) {
-    const score = scoreFilingSpeed(components.filing_speed, signal);
-    breakdown.filing_speed = score;
-    weightedSum += score * components.filing_speed.weight;
-    totalWeight += components.filing_speed.weight;
+    scores.push({
+      name: "filing_speed",
+      score: scoreFilingSpeed(components.filing_speed, signal),
+      weight: components.filing_speed.weight,
+    });
   }
 
   // 7. Cross Confirmation (Claude only, async)
   if (components.cross_confirmation) {
-    const score = await scoreCrossConfirmation(
-      env,
-      components.cross_confirmation,
-      signal
-    );
-    breakdown.cross_confirmation = score;
-    weightedSum += score * components.cross_confirmation.weight;
-    totalWeight += components.cross_confirmation.weight;
+    scores.push({
+      name: "cross_confirmation",
+      score: await scoreCrossConfirmation(env, components.cross_confirmation, signal),
+      weight: components.cross_confirmation.weight,
+    });
   }
 
-  // Calculate final weighted average
-  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
-
-  return {
-    score: clamp(finalScore, 0, 1),
-    breakdown,
-  };
+  return calculateWeightedScore(scores);
 }
 
 /**
@@ -125,44 +144,45 @@ export function calculateScoreSync(
   politicianWinRate?: number,
   confirmationCount?: number
 ): ScoreResult {
-  const breakdown: Record<string, number> = {};
-  let totalWeight = 0;
-  let weightedSum = 0;
-
   const components = config.components;
+  const scores: ComponentScore[] = [];
 
   // 1. Time Decay
   if (components.time_decay) {
-    const score = scoreTimeDecay(components.time_decay, signal);
-    breakdown.time_decay = score;
-    weightedSum += score * components.time_decay.weight;
-    totalWeight += components.time_decay.weight;
+    scores.push({
+      name: "time_decay",
+      score: scoreTimeDecay(components.time_decay, signal),
+      weight: components.time_decay.weight,
+    });
   }
 
   // 2. Price Movement
   if (components.price_movement) {
-    const score = scorePriceMovement(components.price_movement, signal);
-    breakdown.price_movement = score;
-    weightedSum += score * components.price_movement.weight;
-    totalWeight += components.price_movement.weight;
+    scores.push({
+      name: "price_movement",
+      score: scorePriceMovement(components.price_movement, signal),
+      weight: components.price_movement.weight,
+    });
   }
 
   // 3. Position Size
   if (components.position_size) {
-    const score = scorePositionSize(components.position_size, signal);
-    breakdown.position_size = score;
-    weightedSum += score * components.position_size.weight;
-    totalWeight += components.position_size.weight;
+    scores.push({
+      name: "position_size",
+      score: scorePositionSize(components.position_size, signal),
+      weight: components.position_size.weight,
+    });
   }
 
   // 4. Politician Skill (uses pre-computed win rate)
   if (components.politician_skill) {
-    const score = politicianWinRate !== undefined
-      ? clamp(politicianWinRate, 0.4, 0.7)
-      : components.politician_skill.default_score;
-    breakdown.politician_skill = score;
-    weightedSum += score * components.politician_skill.weight;
-    totalWeight += components.politician_skill.weight;
+    scores.push({
+      name: "politician_skill",
+      score: politicianWinRate !== undefined
+        ? clamp(politicianWinRate, 0.4, 0.7)
+        : components.politician_skill.default_score,
+      weight: components.politician_skill.weight,
+    });
   }
 
   // 5. Source Quality (uses pre-computed confirmation count)
@@ -174,17 +194,20 @@ export function calculateScoreSync(
       const bonus = (confirmationCount - 1) * components.source_quality.confirmation_bonus;
       score += Math.min(bonus, components.source_quality.max_confirmation_bonus);
     }
-    breakdown.source_quality = score;
-    weightedSum += score * components.source_quality.weight;
-    totalWeight += components.source_quality.weight;
+    scores.push({
+      name: "source_quality",
+      score,
+      weight: components.source_quality.weight,
+    });
   }
 
   // 6. Filing Speed
   if (components.filing_speed) {
-    const score = scoreFilingSpeed(components.filing_speed, signal);
-    breakdown.filing_speed = score;
-    weightedSum += score * components.filing_speed.weight;
-    totalWeight += components.filing_speed.weight;
+    scores.push({
+      name: "filing_speed",
+      score: scoreFilingSpeed(components.filing_speed, signal),
+      weight: components.filing_speed.weight,
+    });
   }
 
   // 7. Cross Confirmation (uses pre-computed confirmation count)
@@ -193,17 +216,14 @@ export function calculateScoreSync(
     let score = 0.5;
     if (count >= 3) score = 1.0;
     else if (count === 2) score = 0.75;
-    breakdown.cross_confirmation = score;
-    weightedSum += score * components.cross_confirmation.weight;
-    totalWeight += components.cross_confirmation.weight;
+    scores.push({
+      name: "cross_confirmation",
+      score,
+      weight: components.cross_confirmation.weight,
+    });
   }
 
-  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
-
-  return {
-    score: clamp(finalScore, 0, 1),
-    breakdown,
-  };
+  return calculateWeightedScore(scores);
 }
 
 // =============================================================================

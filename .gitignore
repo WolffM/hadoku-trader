@@ -46,3 +46,6 @@ __pycache__/
 # Database exports (large files)
 trader-db-export.json
 *-db-export.json
+
+# Playwright browser state (contains auth cookies)
+fidelity-api/Fidelity.json

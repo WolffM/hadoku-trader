@@ -3,8 +3,8 @@
  * Generates mock historical prices for backtesting
  */
 
-import type { SignalForSim } from "./simulation";
-import { addDays } from "./simulation";
+import type { SimSignal } from "./simulation";
+import { addDays } from "./filters";
 
 // =============================================================================
 // Price Provider Interface
@@ -71,7 +71,7 @@ export class MockPriceProvider implements PriceProvider {
    * @param daysToGenerate - Days of price data to generate forward (default: 150)
    */
   constructor(
-    signals: SignalForSim[],
+    signals: SimSignal[],
     seed: number = 42,
     daysToGenerate: number = 150
   ) {
@@ -93,7 +93,7 @@ export class MockPriceProvider implements PriceProvider {
    * We use disclosure_date because that's when we learn about the trade and can act.
    * We use disclosure_price if available, otherwise fall back to trade_price.
    */
-  private initializePrices(signals: SignalForSim[]): void {
+  private initializePrices(signals: SimSignal[]): void {
     // Track unique tickers with their earliest disclosure date and price
     const tickerInfo = new Map<
       string,

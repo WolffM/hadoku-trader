@@ -1,12 +1,8 @@
 import type { PerformanceData } from '../../types/api'
+import { formatPercent } from '../../utils/formatters'
 
 interface OverviewCardsProps {
   performance: PerformanceData
-}
-
-function formatPercent(value: number): string {
-  const sign = value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(1)}%`
 }
 
 interface KPICardProps {
@@ -44,23 +40,23 @@ export function OverviewCards({ performance }: OverviewCardsProps) {
     <div className="overview-cards">
       <KPICard
         title="Hadoku"
-        value={formatPercent(hadokuReturn)}
+        value={formatPercent(hadokuReturn, 1)}
         changeType={hadokuReturn >= 0 ? 'positive' : 'negative'}
         subtitle="Our trades"
       />
 
       <KPICard
         title="vs Signals"
-        value={formatPercent(vsSignals)}
+        value={formatPercent(vsSignals, 1)}
         changeType={vsSignals >= 0 ? 'positive' : 'negative'}
-        subtitle={`Signals: ${formatPercent(signalsReturn)}`}
+        subtitle={`Signals: ${formatPercent(signalsReturn, 1)}`}
       />
 
       <KPICard
         title="vs S&P 500"
-        value={formatPercent(vsSP500)}
+        value={formatPercent(vsSP500, 1)}
         changeType={vsSP500 >= 0 ? 'positive' : 'negative'}
-        subtitle={`S&P 500: ${formatPercent(sp500Return)}`}
+        subtitle={`S&P 500: ${formatPercent(sp500Return, 1)}`}
       />
     </div>
   )

@@ -1,20 +1,7 @@
 import { useState, useEffect } from 'react'
 import type { AgentSummary, AgentPosition } from '../../types/api'
 import { fetchAgents, fetchAgent } from '../../services/api'
-
-function formatCurrency(value: number): string {
-  return new Intl.NumberFormat('en-US', {
-    style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  }).format(value)
-}
-
-function formatPercent(value: number): string {
-  const sign = value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(2)}%`
-}
+import { formatCurrency, formatPercent } from '../../utils/formatters'
 
 interface AgentCardProps {
   agent: AgentSummary

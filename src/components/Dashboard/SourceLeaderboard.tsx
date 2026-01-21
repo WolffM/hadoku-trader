@@ -1,20 +1,9 @@
 import type { SourcePerformance } from '../../types/api'
+import { formatPercent } from '../../utils/formatters'
+import { SOURCE_LABELS } from '../../constants/labels'
 
 interface SourceLeaderboardProps {
   sources: SourcePerformance[]
-}
-
-const SOURCE_LABELS: Record<string, string> = {
-  unusual_whales: 'Unusual Whales',
-  capitol_trades: 'Capitol Trades',
-  quiver_quant: 'Quiver Quant',
-  house_stock_watcher: 'House Watcher',
-  senate_stock_watcher: 'Senate Watcher'
-}
-
-function formatPercent(value: number): string {
-  const sign = value >= 0 ? '+' : ''
-  return `${sign}${value.toFixed(1)}%`
 }
 
 export function SourceLeaderboard({ sources }: SourceLeaderboardProps) {
@@ -43,7 +32,7 @@ export function SourceLeaderboard({ sources }: SourceLeaderboardProps) {
                 <div className="source-card__stats">
                   <span className="source-card__stat">
                     <span className="source-card__stat-value">
-                      {formatPercent(source.avg_return_pct)}
+                      {formatPercent(source.avg_return_pct, 1)}
                     </span>
                     <span className="source-card__stat-label">Avg Return</span>
                   </span>

@@ -4,7 +4,7 @@
  */
 
 import type { AgentPortfolio, PerformanceMetrics, CloseReason } from "./types";
-import { daysBetween } from "./simulation";
+import { daysBetween } from "./filters";
 
 // =============================================================================
 // Main Metrics Calculation
