@@ -1,670 +1,492 @@
 /**
- * Simulation Framework for Backtesting Trading Strategies
- * Phase 4: Strategy validation through historical replay
+ * Portfolio Simulation Engine
+ *
+ * Simulates trading strategies using production engine logic.
+ * Uses bucket-based position sizing based on historical signal distribution.
  */
 
-import type {
-  AgentPortfolio,
-  DailySnapshot,
-  SimPosition,
-  SimulationEvent,
-  SimulationEventType,
-  SimulationReport,
-  PerformanceMetrics,
-  CloseReason,
-  ScoreBreakdown,
-  AgentDecision,
-} from "./types";
-import { calculateMetrics } from "./metrics";
+import type { AgentConfig, SmartBudgetConfig } from "./types";
+import { calculateScoreSync } from "./scoring";
+import { enrichSignal, type RawSignalRow } from "./filters";
 
 // =============================================================================
-// SimulationClock - Controls simulation time
+// Types
 // =============================================================================
 
-export class SimulationClock {
-  private currentDate: string;
-  private startDate: string;
-  private endDate: string;
-
-  constructor(startDate: string, endDate: string) {
-    this.startDate = startDate;
-    this.endDate = endDate;
-    this.currentDate = startDate;
-  }
-
-  getDate(): string {
-    return this.currentDate;
-  }
-
-  getStartDate(): string {
-    return this.startDate;
-  }
-
-  getEndDate(): string {
-    return this.endDate;
-  }
-
-  advance(days: number = 1): void {
-    // Parse date components directly to avoid timezone issues
-    const [year, month, dayOfMonth] = this.currentDate.split("-").map(Number);
-    const d = new Date(year, month - 1, dayOfMonth);
-    d.setDate(d.getDate() + days);
-    this.currentDate = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-  }
-
-  isMarketDay(): boolean {
-    // Parse date components directly to avoid timezone issues
-    const [year, month, dayOfMonth] = this.currentDate.split("-").map(Number);
-    const d = new Date(year, month - 1, dayOfMonth);
-    const dayOfWeek = d.getDay();
-    return dayOfWeek !== 0 && dayOfWeek !== 6; // Skip weekends
-  }
-
-  isComplete(): boolean {
-    return this.currentDate > this.endDate;
-  }
-
-  reset(): void {
-    this.currentDate = this.startDate;
-  }
-
-  /**
-   * Get number of market days in the simulation period.
-   */
-  getMarketDaysCount(): number {
-    let count = 0;
-    const d = new Date(this.startDate);
-    const end = new Date(this.endDate);
-
-    while (d <= end) {
-      const day = d.getDay();
-      if (day !== 0 && day !== 6) {
-        count++;
-      }
-      d.setDate(d.getDate() + 1);
-    }
-
-    return count;
-  }
+export interface SimSignal extends RawSignalRow {
+  disclosure_price: number | null;
 }
 
-// =============================================================================
-// SignalReplayer - Feeds signals chronologically
-// =============================================================================
-
-export interface SignalForSim {
-  id: string;
+export interface SimPosition {
   ticker: string;
-  action: "buy" | "sell";
-  asset_type: "stock" | "etf" | "option";
-  trade_price: number;
-  trade_date: string;
-  disclosure_date: string;
-  disclosure_price?: number | null; // Price when signal was disclosed (when we can act)
-  position_size_min: number;
-  politician_name: string;
-  source: string;
+  shares: number;
+  cost: number;
+  entryPrice: number;
+  entryDate: string;
 }
 
-export class SignalReplayer {
-  private signals: SignalForSim[];
-  private processedIds: Set<string> = new Set();
+export interface ClosedTrade {
+  ticker: string;
+  profit: number;
+  returnPct: number;
+  entryDate: string;
+  exitDate: string;
+}
 
-  constructor(signals: SignalForSim[]) {
-    // Sort by disclosure_date ascending - this is when we learn about trades
-    this.signals = [...signals].sort((a, b) =>
-      a.disclosure_date.localeCompare(b.disclosure_date)
-    );
-  }
+export interface MonthlySnapshot {
+  month: string;
+  buys: number;
+  sells: number;
+  skips: number;
+  cash: number;
+  positionCount: number;
+  deployed: number;
+  realizedPnL: number;
+  portfolioValue: number;
+  totalDeposits: number;
+  growthPct: number;
+}
 
-  /**
-   * Get signals that should be visible on this date.
-   * Only returns signals that have been DISCLOSED by this date.
-   * The trade_date is when the politician traded (in the past, unknown to us).
-   * The disclosure_date is when we find out about it (when we can act).
-   */
-  getSignalsForDate(date: string): SignalForSim[] {
-    return this.signals.filter(
-      (s) => s.disclosure_date <= date && !this.processedIds.has(s.id)
-    );
-  }
-
-  /**
-   * Mark a signal as processed so it won't be returned again.
-   */
-  markProcessed(signalId: string): void {
-    this.processedIds.add(signalId);
-  }
-
-  /**
-   * Get count of signals available on a specific date.
-   */
-  getSignalCountForDate(date: string): number {
-    return this.signals.filter(
-      (s) => s.disclosure_date <= date && !this.processedIds.has(s.id)
-    ).length;
-  }
-
-  /**
-   * Reset for a new simulation run.
-   */
-  reset(): void {
-    this.processedIds.clear();
-  }
-
-  /**
-   * Get total signal count.
-   */
-  getTotalCount(): number {
-    return this.signals.length;
-  }
+export interface SimulationResult {
+  startDate: string;
+  endDate: string;
+  months: number;
+  totalDeposits: number;
+  finalCash: number;
+  openPositions: SimPosition[];
+  closedTrades: ClosedTrade[];
+  realizedPnL: number;
+  monthlySnapshots: MonthlySnapshot[];
 }
 
 // =============================================================================
-// PortfolioState - Tracks positions and cash per agent
+// Bucket-Based Sizing
 // =============================================================================
 
-export class PortfolioState {
-  private portfolios: Map<string, AgentPortfolio> = new Map();
-
-  /**
-   * Initialize portfolios for a list of agents with starting budget.
-   */
-  initialize(agentIds: string[], budget: number): void {
-    for (const id of agentIds) {
-      this.portfolios.set(id, {
-        agentId: id,
-        cash: budget,
-        initialCash: budget,
-        positions: [],
-        closedPositions: [],
-        dailySnapshots: [],
-      });
-    }
-  }
-
-  /**
-   * Get portfolio for an agent.
-   */
-  getPortfolio(agentId: string): AgentPortfolio {
-    const portfolio = this.portfolios.get(agentId);
-    if (!portfolio) {
-      throw new Error(`Portfolio not found for agent: ${agentId}`);
-    }
-    return portfolio;
-  }
-
-  /**
-   * Get all portfolios.
-   */
-  getAllPortfolios(): Map<string, AgentPortfolio> {
-    return this.portfolios;
-  }
-
-  /**
-   * Get current cash for an agent.
-   */
-  getCash(agentId: string): number {
-    return this.getPortfolio(agentId).cash;
-  }
-
-  /**
-   * Add a new position to an agent's portfolio.
-   */
-  addPosition(agentId: string, position: SimPosition): void {
-    const portfolio = this.getPortfolio(agentId);
-    const cost = position.shares * position.entryPrice;
-
-    portfolio.positions.push(position);
-    portfolio.cash -= cost;
-  }
-
-  /**
-   * Close a position and move to closed list.
-   */
-  closePosition(
-    agentId: string,
-    positionId: string,
-    closePrice: number,
-    closeDate: string,
-    reason: CloseReason,
-    sellPct: number = 100
-  ): SimPosition | null {
-    const portfolio = this.getPortfolio(agentId);
-    const positionIndex = portfolio.positions.findIndex(
-      (p) => p.id === positionId
-    );
-
-    if (positionIndex === -1) {
-      return null;
-    }
-
-    const position = portfolio.positions[positionIndex];
-
-    if (sellPct === 100) {
-      // Full close
-      position.closePrice = closePrice;
-      position.closeDate = closeDate;
-      position.closeReason = reason;
-
-      // Add proceeds to cash
-      portfolio.cash += position.shares * closePrice;
-
-      // Move to closed positions
-      portfolio.closedPositions.push(position);
-      portfolio.positions.splice(positionIndex, 1);
-
-      return position;
-    } else {
-      // Partial close
-      const sharesToSell = Math.floor(position.shares * (sellPct / 100));
-      const proceeds = sharesToSell * closePrice;
-
-      // Create closed position record
-      const closedPortion: SimPosition = {
-        ...position,
-        id: `${position.id}_partial`,
-        shares: sharesToSell,
-        closePrice,
-        closeDate,
-        closeReason: reason,
-      };
-
-      // Update remaining position
-      position.shares -= sharesToSell;
-      position.partialSold = true;
-
-      // Add proceeds to cash
-      portfolio.cash += proceeds;
-
-      // Add closed portion to closed list
-      portfolio.closedPositions.push(closedPortion);
-
-      return closedPortion;
-    }
-  }
-
-  /**
-   * Update current prices for all positions.
-   */
-  updatePrices(agentId: string, prices: Map<string, number>): void {
-    const portfolio = this.getPortfolio(agentId);
-
-    for (const position of portfolio.positions) {
-      const price = prices.get(position.ticker);
-      if (price !== undefined) {
-        position.currentPrice = price;
-        if (price > position.highestPrice) {
-          position.highestPrice = price;
-        }
-      }
-    }
-  }
-
-  /**
-   * Take a daily snapshot of the portfolio.
-   */
-  snapshot(agentId: string, date: string): void {
-    const portfolio = this.getPortfolio(agentId);
-
-    const positionsValue = portfolio.positions.reduce(
-      (sum, p) => sum + p.shares * p.currentPrice,
-      0
-    );
-
-    const totalValue = portfolio.cash + positionsValue;
-    const returnPct =
-      ((totalValue - portfolio.initialCash) / portfolio.initialCash) * 100;
-
-    // Count positions closed today
-    const closedToday = portfolio.closedPositions.filter(
-      (p) => p.closeDate === date
-    ).length;
-
-    const snapshot: DailySnapshot = {
-      date,
-      totalValue,
-      cash: portfolio.cash,
-      positionsValue,
-      returnPct,
-      openPositions: portfolio.positions.length,
-      closedToday,
-    };
-
-    portfolio.dailySnapshots.push(snapshot);
-  }
-
-  /**
-   * Get performance metrics for an agent.
-   */
-  getMetrics(agentId: string): PerformanceMetrics {
-    const portfolio = this.getPortfolio(agentId);
-    return calculateMetrics(portfolio);
-  }
-
-  /**
-   * Add monthly budget allocation (additive, not reset).
-   * Agents keep their existing cash plus get new monthly allocation.
-   */
-  addMonthlyBudget(agentId: string, additionalBudget: number): void {
-    const portfolio = this.getPortfolio(agentId);
-    portfolio.cash += additionalBudget;
-    // Track total capital allocated for return calculations
-    portfolio.initialCash += additionalBudget;
-  }
-
-  /**
-   * Check if it's a new month compared to last check.
-   * Uses YYYY-MM string comparison to avoid timezone issues.
-   */
-  isNewMonth(currentDate: string, lastDate: string): boolean {
-    // Extract YYYY-MM from both dates (first 7 characters)
-    const currentYearMonth = currentDate.substring(0, 7);
-    const lastYearMonth = lastDate.substring(0, 7);
-    return currentYearMonth > lastYearMonth;
-  }
-
-  /**
-   * Reset all portfolios for a new run.
-   */
-  reset(budget: number): void {
-    for (const [agentId, portfolio] of this.portfolios) {
-      portfolio.cash = budget;
-      portfolio.initialCash = budget;
-      portfolio.positions = [];
-      portfolio.closedPositions = [];
-      portfolio.dailySnapshots = [];
-    }
-  }
+interface BucketStats {
+  count: number;
+  avgSize: number;
+  totalExposure: number;
 }
 
-// =============================================================================
-// EventLogger - Records all simulation events
-// =============================================================================
+interface HistoricalBucketStats {
+  small: BucketStats;
+  medium: BucketStats;
+  large: BucketStats;
+  totalMonths: number;
+  avgSignalsPerMonth: number;
+}
 
-export class EventLogger {
-  private events: SimulationEvent[] = [];
-  private verbose: boolean;
+// Default bucket thresholds (congressional position size)
+const DEFAULT_BUCKET_CONFIG: SmartBudgetConfig = {
+  small: { min_position_size: 0, max_position_size: 15000, expected_monthly_count: 30, avg_congressional_size: 5000 },
+  medium: { min_position_size: 15001, max_position_size: 50000, expected_monthly_count: 15, avg_congressional_size: 30000 },
+  large: { min_position_size: 50001, max_position_size: Infinity, expected_monthly_count: 5, avg_congressional_size: 100000 },
+};
 
-  constructor(verbose: boolean = false) {
-    this.verbose = verbose;
-  }
+/**
+ * Calculate historical bucket stats from all buy signals.
+ * This tells us:
+ * - How many signals per month in each bucket
+ * - Average congressional position size per bucket
+ * - Total exposure per bucket (for ratio calculation)
+ */
+function calculateHistoricalBucketStats(
+  signals: SimSignal[],
+  bucketConfig: SmartBudgetConfig = DEFAULT_BUCKET_CONFIG
+): HistoricalBucketStats {
+  // Only consider buy signals with valid prices
+  const buySignals = signals.filter(s =>
+    s.action === "buy" &&
+    s.disclosure_price &&
+    s.disclosure_price > 0
+  );
 
-  /**
-   * Log when a signal is received.
-   */
-  logSignalReceived(date: string, signal: SignalForSim): void {
-    this.events.push({
-      timestamp: date,
-      eventType: "signal_received",
-      data: {
-        signalId: signal.id,
-        ticker: signal.ticker,
-        action: signal.action,
-        politician: signal.politician_name,
-        source: signal.source,
-        tradePrice: signal.trade_price,
-        positionSize: signal.position_size_min,
-      },
-    });
-
-    if (this.verbose) {
-      console.log(
-        `[${date}] SIGNAL: ${signal.ticker} ${signal.action} by ${signal.politician_name} ($${signal.position_size_min.toLocaleString()})`
-      );
-    }
-  }
-
-  /**
-   * Log an agent's decision on a signal.
-   */
-  logDecision(
-    date: string,
-    agentId: string,
-    signal: SignalForSim,
-    decision: AgentDecision,
-    scoreBreakdown?: ScoreBreakdown
-  ): void {
-    this.events.push({
-      timestamp: date,
-      eventType: "decision_made",
-      agentId,
-      data: {
-        signalId: signal.id,
-        ticker: signal.ticker,
-        action: signal.action,
-        decision: decision.action,
-        reason: decision.decision_reason,
-        score: decision.score,
-        scoreBreakdown,
-        positionSize: decision.position_size,
-      },
-    });
-
-    if (this.verbose) {
-      const scoreStr = decision.score ? ` (score=${decision.score.toFixed(2)})` : "";
-      const sizeStr = decision.position_size
-        ? ` → $${decision.position_size.toFixed(2)}`
-        : "";
-      console.log(
-        `  → ${agentId.toUpperCase()}: ${decision.action.toUpperCase()}${scoreStr}${sizeStr}`
-      );
-
-      if (scoreBreakdown && decision.action !== "skip") {
-        for (const [key, value] of Object.entries(scoreBreakdown)) {
-          if (key !== "weighted_total" && value !== undefined) {
-            console.log(`      ${key}: ${(value as number).toFixed(2)}`);
-          }
-        }
-      }
-    }
-  }
-
-  /**
-   * Log a trade execution.
-   */
-  logTradeExecuted(
-    date: string,
-    agentId: string,
-    position: SimPosition
-  ): void {
-    this.events.push({
-      timestamp: date,
-      eventType: "trade_executed",
-      agentId,
-      data: {
-        positionId: position.id,
-        ticker: position.ticker,
-        shares: position.shares,
-        entryPrice: position.entryPrice,
-        total: position.shares * position.entryPrice,
-      },
-    });
-  }
-
-  /**
-   * Log an exit triggered.
-   */
-  logExit(
-    date: string,
-    agentId: string,
-    position: SimPosition,
-    reason: CloseReason
-  ): void {
-    const pnl =
-      ((position.closePrice! - position.entryPrice) / position.entryPrice) *
-      100;
-
-    this.events.push({
-      timestamp: date,
-      eventType: "exit_triggered",
-      agentId,
-      data: {
-        positionId: position.id,
-        ticker: position.ticker,
-        shares: position.shares,
-        entryPrice: position.entryPrice,
-        closePrice: position.closePrice,
-        reason,
-        pnlPct: pnl,
-        holdDays: daysBetween(position.entryDate, date),
-      },
-    });
-
-    if (this.verbose) {
-      const pnlStr = pnl >= 0 ? `+${pnl.toFixed(1)}%` : `${pnl.toFixed(1)}%`;
-      console.log(
-        `  → ${agentId.toUpperCase()} EXIT: ${position.ticker} @ ${reason} (${pnlStr})`
-      );
-    }
-  }
-
-  /**
-   * Log daily summary.
-   */
-  logDailySummary(
-    date: string,
-    portfolios: Map<string, AgentPortfolio>
-  ): void {
-    const summaryData: Record<string, unknown> = { date };
-
-    for (const [agentId, portfolio] of portfolios) {
-      const snapshot = portfolio.dailySnapshots[portfolio.dailySnapshots.length - 1];
-      if (snapshot) {
-        summaryData[agentId] = {
-          totalValue: snapshot.totalValue,
-          returnPct: snapshot.returnPct,
-          positions: snapshot.openPositions,
-          closedToday: snapshot.closedToday,
-        };
-      }
-    }
-
-    this.events.push({
-      timestamp: date,
-      eventType: "daily_summary",
-      data: summaryData,
-    });
-  }
-
-  /**
-   * Get all events.
-   */
-  getEvents(): SimulationEvent[] {
-    return this.events;
-  }
-
-  /**
-   * Get events for a specific agent.
-   */
-  getAgentEvents(agentId: string): SimulationEvent[] {
-    return this.events.filter((e) => e.agentId === agentId);
-  }
-
-  /**
-   * Get events by type.
-   */
-  getEventsByType(type: SimulationEventType): SimulationEvent[] {
-    return this.events.filter((e) => e.eventType === type);
-  }
-
-  /**
-   * Generate simulation report.
-   */
-  getReport(
-    clock: SimulationClock,
-    portfolioState: PortfolioState
-  ): SimulationReport {
-    const signalEvents = this.getEventsByType("signal_received");
-    const decisionEvents = this.getEventsByType("decision_made");
-
-    const skippedCount = decisionEvents.filter(
-      (e) => e.data.decision === "skip"
-    ).length;
-
-    const agentResults: Record<string, PerformanceMetrics> = {};
-    for (const [agentId] of portfolioState.getAllPortfolios()) {
-      agentResults[agentId] = portfolioState.getMetrics(agentId);
-    }
-
+  // Get date range
+  const dates = buySignals.map(s => s.disclosure_date);
+  if (dates.length === 0) {
     return {
-      startDate: clock.getStartDate(),
-      endDate: clock.getEndDate(),
-      totalDays: daysBetween(clock.getStartDate(), clock.getEndDate()) + 1,
-      marketDays: clock.getMarketDaysCount(),
-      signalsProcessed: signalEvents.length,
-      signalsSkipped: skippedCount,
-      agentResults,
+      small: { count: 1, avgSize: 5000, totalExposure: 5000 },
+      medium: { count: 1, avgSize: 30000, totalExposure: 30000 },
+      large: { count: 1, avgSize: 100000, totalExposure: 100000 },
+      totalMonths: 1,
+      avgSignalsPerMonth: 1,
     };
   }
 
-  /**
-   * Reset for new run.
-   */
-  reset(): void {
-    this.events = [];
+  const minDate = new Date(Math.min(...dates.map(d => new Date(d).getTime())));
+  const maxDate = new Date(Math.max(...dates.map(d => new Date(d).getTime())));
+  const totalMonths = Math.max(1,
+    (maxDate.getFullYear() - minDate.getFullYear()) * 12 +
+    (maxDate.getMonth() - minDate.getMonth()) + 1
+  );
+
+  // Categorize signals by bucket
+  const buckets = {
+    small: { count: 0, totalSize: 0 },
+    medium: { count: 0, totalSize: 0 },
+    large: { count: 0, totalSize: 0 },
+  };
+
+  for (const signal of buySignals) {
+    const size = signal.position_size_min || 1000;
+
+    if (size >= bucketConfig.large.min_position_size) {
+      buckets.large.count++;
+      buckets.large.totalSize += size;
+    } else if (size >= bucketConfig.medium.min_position_size) {
+      buckets.medium.count++;
+      buckets.medium.totalSize += size;
+    } else {
+      buckets.small.count++;
+      buckets.small.totalSize += size;
+    }
   }
 
-  /**
-   * Print summary report to console.
-   */
-  printReport(report: SimulationReport): void {
-    console.log("\n" + "=".repeat(60));
-    console.log(
-      `SIMULATION REPORT: ${report.startDate} → ${report.endDate}`
-    );
-    console.log("=".repeat(60));
-    console.log(`\nTotal Days: ${report.totalDays}`);
-    console.log(`Market Days: ${report.marketDays}`);
-    console.log(`Signals Processed: ${report.signalsProcessed}`);
+  // Calculate per-month averages
+  const smallMonthly = buckets.small.count / totalMonths;
+  const mediumMonthly = buckets.medium.count / totalMonths;
+  const largeMonthly = buckets.large.count / totalMonths;
 
-    for (const [agentId, metrics] of Object.entries(report.agentResults)) {
-      console.log(`\n--- ${agentId.toUpperCase()} ---`);
-      console.log(`Total Return: ${metrics.totalReturnPct >= 0 ? "+" : ""}${metrics.totalReturnPct.toFixed(2)}%`);
-      console.log(`Max Drawdown: ${metrics.maxDrawdownPct.toFixed(2)}%`);
-      console.log(`Sharpe Ratio: ${metrics.sharpeRatio.toFixed(2)}`);
-      console.log(
-        `Trades: ${metrics.totalTrades} (Win Rate: ${metrics.winRate.toFixed(1)}%)`
-      );
-      console.log(`Avg Hold: ${metrics.avgHoldDays.toFixed(0)} days`);
-      console.log(
-        `Exits: stop_loss=${metrics.exitReasons.stop_loss}, ` +
-          `take_profit=${metrics.exitReasons.take_profit}, ` +
-          `time_exit=${metrics.exitReasons.time_exit}, ` +
-          `soft_stop=${metrics.exitReasons.soft_stop}`
-      );
+  const smallAvgSize = buckets.small.count > 0 ? buckets.small.totalSize / buckets.small.count : 5000;
+  const mediumAvgSize = buckets.medium.count > 0 ? buckets.medium.totalSize / buckets.medium.count : 30000;
+  const largeAvgSize = buckets.large.count > 0 ? buckets.large.totalSize / buckets.large.count : 100000;
+
+  // Calculate exposure: count × avgSize
+  // This represents the total "weight" of each bucket for budget allocation
+  const smallExposure = smallMonthly * smallAvgSize;
+  const mediumExposure = mediumMonthly * mediumAvgSize;
+  const largeExposure = largeMonthly * largeAvgSize;
+
+  return {
+    small: { count: smallMonthly, avgSize: smallAvgSize, totalExposure: smallExposure },
+    medium: { count: mediumMonthly, avgSize: mediumAvgSize, totalExposure: mediumExposure },
+    large: { count: largeMonthly, avgSize: largeAvgSize, totalExposure: largeExposure },
+    totalMonths,
+    avgSignalsPerMonth: buySignals.length / totalMonths,
+  };
+}
+
+/**
+ * Calculate per-trade size for each bucket given a budget.
+ *
+ * Algorithm:
+ * 1. Calculate total exposure: sum of all bucket exposures
+ * 2. For each bucket: budget_ratio = bucket_exposure / total_exposure
+ * 3. Bucket budget = budget × budget_ratio
+ * 4. Per-trade size = bucket_budget / expected_monthly_count
+ */
+function calculateBucketSizes(
+  availableBudget: number,
+  stats: HistoricalBucketStats
+): { small: number; medium: number; large: number } {
+  const totalExposure = stats.small.totalExposure + stats.medium.totalExposure + stats.large.totalExposure;
+
+  if (totalExposure === 0) {
+    // Fallback: equal split
+    const perTrade = availableBudget / Math.max(stats.avgSignalsPerMonth, 1);
+    return { small: perTrade, medium: perTrade, large: perTrade };
+  }
+
+  // Calculate budget allocation for each bucket
+  const smallBudget = (stats.small.totalExposure / totalExposure) * availableBudget;
+  const mediumBudget = (stats.medium.totalExposure / totalExposure) * availableBudget;
+  const largeBudget = (stats.large.totalExposure / totalExposure) * availableBudget;
+
+  // Per-trade size = bucket_budget / expected_count
+  const smallPerTrade = stats.small.count > 0 ? smallBudget / stats.small.count : 0;
+  const mediumPerTrade = stats.medium.count > 0 ? mediumBudget / stats.medium.count : 0;
+  const largePerTrade = stats.large.count > 0 ? largeBudget / stats.large.count : 0;
+
+  return {
+    small: Math.max(smallPerTrade, 0),
+    medium: Math.max(mediumPerTrade, 0),
+    large: Math.max(largePerTrade, 0),
+  };
+}
+
+/**
+ * Determine which bucket a signal falls into based on congressional position size.
+ */
+function getBucket(
+  congressionalSize: number,
+  bucketConfig: SmartBudgetConfig = DEFAULT_BUCKET_CONFIG
+): "small" | "medium" | "large" {
+  if (congressionalSize >= bucketConfig.large.min_position_size) {
+    return "large";
+  }
+  if (congressionalSize >= bucketConfig.medium.min_position_size) {
+    return "medium";
+  }
+  return "small";
+}
+
+// =============================================================================
+// Helpers
+// =============================================================================
+
+function computePoliticianWinRates(signals: SimSignal[]): Map<string, number> {
+  const stats = new Map<string, { wins: number; total: number }>();
+
+  for (const signal of signals) {
+    if (signal.action !== "buy" || !signal.disclosure_price || signal.disclosure_price <= 0) continue;
+
+    const existing = stats.get(signal.politician_name) || { wins: 0, total: 0 };
+    existing.total++;
+    if (signal.disclosure_price > (signal.trade_price ?? 0)) {
+      existing.wins++;
+    }
+    stats.set(signal.politician_name, existing);
+  }
+
+  const winRates = new Map<string, number>();
+  for (const [name, { wins, total }] of stats) {
+    winRates.set(name, total > 0 ? wins / total : 0.5);
+  }
+  return winRates;
+}
+
+function generateMonths(startDate: string, endDate: string): string[] {
+  const months: string[] = [];
+  let current = new Date(startDate.substring(0, 7) + "-01");
+  const end = new Date(endDate.substring(0, 7) + "-01");
+  while (current <= end) {
+    months.push(current.toISOString().substring(0, 7));
+    current.setMonth(current.getMonth() + 1);
+  }
+  return months;
+}
+
+// =============================================================================
+// Simulation Engine
+// =============================================================================
+
+/**
+ * Pre-filter signals through ALL filters (age, price move, scoring) to get
+ * the subset that would actually execute. This is used to calculate accurate
+ * historical bucket stats.
+ */
+function preFilterSignals(
+  signals: SimSignal[],
+  config: AgentConfig,
+  politicianWinRates: Map<string, number>
+): SimSignal[] {
+  return signals.filter(s => {
+    if (s.action !== "buy") return false;
+    if (!s.disclosure_price || s.disclosure_price <= 0) return false;
+
+    const signal = enrichSignal(s, s.disclosure_price, s.disclosure_date);
+
+    // Apply hard filters
+    if (signal.days_since_trade > config.max_signal_age_days) return false;
+    if (Math.abs(signal.price_change_pct) > config.max_price_move_pct) return false;
+
+    // Apply scoring filter
+    if (config.scoring) {
+      const winRate = politicianWinRates.get(signal.politician_name);
+      const result = calculateScoreSync(config.scoring, signal, winRate);
+      if (result.score < config.execute_threshold) return false;
     }
 
-    console.log("\n" + "=".repeat(60));
+    return true;
+  });
+}
+
+export function runSimulation(
+  config: AgentConfig,
+  signals: SimSignal[],
+  politicianFilter?: Set<string>
+): SimulationResult {
+  // Filter signals with valid prices
+  let validSignals = signals.filter(s => s.disclosure_price && s.disclosure_price > 0);
+
+  // Apply politician filter if provided
+  if (politicianFilter) {
+    validSignals = validSignals.filter(s => politicianFilter.has(s.politician_name));
   }
+
+  // Sort chronologically
+  validSignals.sort((a, b) => a.disclosure_date.localeCompare(b.disclosure_date));
+
+  if (validSignals.length === 0) {
+    return {
+      startDate: "",
+      endDate: "",
+      months: 0,
+      totalDeposits: 0,
+      finalCash: 0,
+      openPositions: [],
+      closedTrades: [],
+      realizedPnL: 0,
+      monthlySnapshots: [],
+    };
+  }
+
+  // Compute politician win rates from historical data (needed for scoring)
+  const politicianWinRates = computePoliticianWinRates(signals);
+
+  // Pre-filter signals through ALL filters to get the subset that would execute
+  // This gives us accurate historical stats for position sizing
+  const filteredBuySignals = preFilterSignals(validSignals, config, politicianWinRates);
+
+  // Calculate historical bucket stats from the FILTERED signals (not raw signals)
+  const bucketStats = calculateHistoricalBucketStats(
+    filteredBuySignals.map(s => ({ ...s, action: "buy" as const }))
+  );
+
+  // Get date range
+  const startDate = validSignals[0].disclosure_date;
+  const endDate = validSignals[validSignals.length - 1].disclosure_date;
+  const months = generateMonths(startDate, endDate);
+
+  // Simulation state
+  let cash = 0;
+  let totalDeposits = 0;
+  let realizedPnL = 0;
+  const positions: SimPosition[] = [];
+  const closedTrades: ClosedTrade[] = [];
+  const monthlySnapshots: MonthlySnapshot[] = [];
+
+  for (const month of months) {
+    // Deposit at start of month
+    cash += config.monthly_budget;
+    totalDeposits += config.monthly_budget;
+
+    // Recalculate bucket sizes based on current cash
+    const bucketSizes = calculateBucketSizes(cash, bucketStats);
+
+    // Monthly counters
+    let monthBuys = 0;
+    let monthSells = 0;
+    let monthSkips = 0;
+
+    // Get signals for this month
+    const monthSignals = validSignals.filter(s => s.disclosure_date.startsWith(month));
+
+    // Process signals in chronological order (no look-ahead)
+    for (const simSignal of monthSignals) {
+      const signal = enrichSignal(simSignal, simSignal.disclosure_price!, simSignal.disclosure_date);
+
+      // SELL SIGNAL: Close position if we have one
+      if (signal.action === "sell") {
+        const posIdx = positions.findIndex(p => p.ticker === signal.ticker);
+        if (posIdx >= 0) {
+          const pos = positions[posIdx];
+          const proceeds = pos.shares * signal.current_price;
+          const profit = proceeds - pos.cost;
+          const returnPct = (profit / pos.cost) * 100;
+
+          cash += proceeds;
+          realizedPnL += profit;
+          closedTrades.push({
+            ticker: signal.ticker,
+            profit,
+            returnPct,
+            entryDate: pos.entryDate,
+            exitDate: signal.disclosure_date,
+          });
+          positions.splice(posIdx, 1);
+          monthSells++;
+        }
+        continue;
+      }
+
+      // BUY SIGNAL: Apply filters
+      if (signal.days_since_trade > config.max_signal_age_days) {
+        monthSkips++;
+        continue;
+      }
+      if (Math.abs(signal.price_change_pct) > config.max_price_move_pct) {
+        monthSkips++;
+        continue;
+      }
+
+      // Calculate score
+      let score = 1.0;
+      if (config.scoring) {
+        const winRate = politicianWinRates.get(signal.politician_name);
+        const result = calculateScoreSync(config.scoring, signal, winRate);
+        score = result.score;
+      }
+
+      if (score < config.execute_threshold) {
+        monthSkips++;
+        continue;
+      }
+
+      // Determine bucket and get per-trade size from historical stats
+      const congressionalSize = simSignal.position_size_min || 1000;
+      const bucket = getBucket(congressionalSize);
+      let positionSize = bucketSizes[bucket];
+
+      // Apply day-of-month ramp: positions get larger as month progresses
+      // Day 1: 1.0x, Day 15: ~1.5x, Day 31: 2.0x
+      // This naturally deploys more cash if early month was slow
+      const dayOfMonth = parseInt(simSignal.disclosure_date.substring(8, 10), 10);
+      const monthRampMultiplier = 1 + (dayOfMonth - 1) / 30;
+      positionSize = positionSize * monthRampMultiplier;
+
+      // Apply constraints
+      positionSize = Math.min(positionSize, cash);
+      positionSize = Math.min(positionSize, cash * (config.sizing.max_position_pct ?? 1.0));
+
+      // Minimum $10 to avoid dust trades
+      if (positionSize < 10) {
+        monthSkips++;
+        continue;
+      }
+
+      positionSize = Math.round(positionSize * 100) / 100;
+
+      if (positionSize > cash) {
+        monthSkips++;
+        continue;
+      }
+
+      cash -= positionSize;
+      positions.push({
+        ticker: signal.ticker,
+        shares: positionSize / signal.current_price,
+        cost: positionSize,
+        entryPrice: signal.current_price,
+        entryDate: signal.disclosure_date,
+      });
+      monthBuys++;
+    }
+
+    // Record month-end state
+    const deployed = positions.reduce((sum, p) => sum + p.cost, 0);
+    const portfolioValue = cash + deployed;
+    const growthPct = ((portfolioValue - totalDeposits) / totalDeposits) * 100;
+
+    monthlySnapshots.push({
+      month,
+      buys: monthBuys,
+      sells: monthSells,
+      skips: monthSkips,
+      cash,
+      positionCount: positions.length,
+      deployed,
+      realizedPnL,
+      portfolioValue,
+      totalDeposits,
+      growthPct,
+    });
+  }
+
+  return {
+    startDate,
+    endDate,
+    months: months.length,
+    totalDeposits,
+    finalCash: cash,
+    openPositions: positions,
+    closedTrades,
+    realizedPnL,
+    monthlySnapshots,
+  };
 }
 
-// =============================================================================
-// Utility Functions
-// =============================================================================
-
-/**
- * Calculate days between two dates.
- */
-export function daysBetween(startDate: string, endDate: string): number {
-  const start = new Date(startDate);
-  const end = new Date(endDate);
-  const diff = end.getTime() - start.getTime();
-  return Math.floor(diff / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Add days to a date string.
- */
-export function addDays(dateStr: string, days: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
-/**
- * Generate a unique ID for simulation.
- */
-export function generateSimId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-}
+// Export bucket stats calculation for use in tests
+export { calculateHistoricalBucketStats, calculateBucketSizes, getBucket };
+export type { HistoricalBucketStats };

@@ -19,6 +19,9 @@ import { roundTo } from "./filters";
  * @param acceptedSignalsCount - Number of signals accepted this month (for equal_split mode)
  * @param isHalfSize - If true, halves the calculated size (for execute_half decisions)
  * @param congressionalPositionSize - Congressional disclosed position size (for smart_budget mode)
+ * @param availableCapital - Optional: use this as the budget basis instead of monthly_budget.
+ *                           For portfolio simulation with compounding returns, pass the total
+ *                           available cash so position sizes scale with portfolio growth.
  * @returns Position size in dollars, or 0 if below minimum threshold
  */
 export function calculatePositionSize(
@@ -27,14 +30,18 @@ export function calculatePositionSize(
   budget: { remaining: number },
   acceptedSignalsCount: number = 1,
   isHalfSize: boolean = false,
-  congressionalPositionSize?: number
+  congressionalPositionSize?: number,
+  availableCapital?: number
 ): number {
   const sizing = agent.sizing;
   let size: number;
 
+  // Use availableCapital for compounding, otherwise use fixed monthly_budget
+  const budgetBasis = availableCapital ?? agent.monthly_budget;
+
   switch (sizing.mode) {
     case "score_squared":
-      // ChatGPT: score² × base_multiplier × monthly_budget
+      // ChatGPT: score² × base_multiplier × budget_basis
       // Example: 0.8² × 0.2 × 1000 = 0.64 × 200 = $128
       if (score === null) {
         throw new Error("score_squared mode requires a score");
@@ -42,29 +49,33 @@ export function calculatePositionSize(
       size =
         Math.pow(score, 2) *
         (sizing.base_multiplier ?? 0.2) *
-        agent.monthly_budget;
+        budgetBasis;
       break;
 
     case "score_linear":
-      // Claude: base_amount × score
-      // Example: 200 × 0.8 = $160
+      // Claude: (base_amount × budget_ratio) × score
+      // With compounding, base_amount scales with portfolio size
+      // If availableCapital is 10x monthly_budget, positions are 10x larger
       if (score === null) {
         throw new Error("score_linear mode requires a score");
       }
-      size = (sizing.base_amount ?? 200) * score;
+      const budgetRatio = availableCapital
+        ? availableCapital / agent.monthly_budget
+        : 1;
+      size = (sizing.base_amount ?? 200) * budgetRatio * score;
       break;
 
     case "equal_split":
-      // Gemini: monthly_budget / acceptedSignalsCount
+      // Gemini: budget_basis / acceptedSignalsCount
       // Example: 1000 / 5 = $200
-      size = agent.monthly_budget / Math.max(acceptedSignalsCount, 1);
+      size = budgetBasis / Math.max(acceptedSignalsCount, 1);
       break;
 
     case "smart_budget":
       // Bucket-based allocation using discrete math
       // Per-trade size based on congressional position size bucket
       size = calculateSmartBudgetSize(
-        agent.monthly_budget,
+        budgetBasis,
         sizing.bucket_config,
         congressionalPositionSize ?? 0
       );
@@ -80,11 +91,14 @@ export function calculatePositionSize(
   }
 
   // Apply constraints in order of priority
-  // 1. Max position amount (absolute cap)
-  size = Math.min(size, sizing.max_position_amount);
+  // 1. Max position amount (absolute cap) - scales with budget ratio for compounding
+  const maxAmount = availableCapital
+    ? sizing.max_position_amount * (availableCapital / agent.monthly_budget)
+    : sizing.max_position_amount;
+  size = Math.min(size, maxAmount);
 
-  // 2. Max position percentage (relative to monthly budget)
-  size = Math.min(size, agent.monthly_budget * sizing.max_position_pct);
+  // 2. Max position percentage (relative to budget basis)
+  size = Math.min(size, budgetBasis * sizing.max_position_pct);
 
   // 3. Budget remaining (can't spend more than available)
   size = Math.min(size, budget.remaining);
@@ -168,77 +182,93 @@ export function validatePositionSize(
 // =============================================================================
 
 /**
- * Calculate per-trade size using bucket-based allocation.
+ * Monthly bucket statistics calculated from actual signal data.
+ * These should be recalculated for each politician filter.
+ */
+export interface MonthlyBucketStats {
+  small: { count: number; avgSize: number };
+  medium: { count: number; avgSize: number };
+  large: { count: number; avgSize: number };
+  totalCount: number;
+}
+
+/**
+ * Calculate per-trade size using dynamic bucket-based allocation.
  *
- * Discrete math approach:
- * 1. Total exposure per bucket = expected_count × avg_congressional_size
- * 2. Budget ratio = bucket_exposure / total_exposure
- * 3. Per-trade amount = (monthly_budget × ratio) / expected_count
+ * Algorithm:
+ * 1. Calculate weighted exposure per bucket: avgSize × count × (count/total)
+ * 2. Calculate budget ratio: bucket_exposure / total_exposure
+ * 3. Allocate budget to each bucket: ratio × availableCash
+ * 4. Per-trade size: bucket_budget / expected_count
  *
- * @param monthlyBudget - Total monthly budget
- * @param bucketConfig - Bucket configuration with historical stats
+ * This ensures position sizes are calibrated to the ACTUAL signal distribution
+ * for the filtered politician set, deploying capital efficiently.
+ *
+ * @param availableCash - Current available cash
+ * @param bucketConfig - Bucket configuration with size thresholds
  * @param congressionalSize - Congressional disclosed position size
+ * @param monthlyStats - Optional: actual monthly stats for dynamic sizing
  * @returns Per-trade amount in dollars
  */
 export function calculateSmartBudgetSize(
-  monthlyBudget: number,
+  availableCash: number,
   bucketConfig: SmartBudgetConfig | undefined,
-  congressionalSize: number
+  congressionalSize: number,
+  monthlyStats?: MonthlyBucketStats
 ): number {
   if (!bucketConfig) {
-    // Fallback: if no bucket config, use a simple percentage of budget
-    return monthlyBudget * 0.05;
+    // Fallback: 5% of available cash
+    return availableCash * 0.05;
   }
 
   // Determine which bucket this signal falls into
   const bucket = getBucketForSize(bucketConfig, congressionalSize);
 
-  // Calculate total exposure for each bucket
-  const smallExposure =
-    bucketConfig.small.expected_monthly_count *
-    bucketConfig.small.avg_congressional_size;
-  const mediumExposure =
-    bucketConfig.medium.expected_monthly_count *
-    bucketConfig.medium.avg_congressional_size;
-  const largeExposure =
-    bucketConfig.large.expected_monthly_count *
-    bucketConfig.large.avg_congressional_size;
+  // Use provided monthly stats or fall back to config defaults
+  const stats = monthlyStats ?? {
+    small: {
+      count: bucketConfig.small.expected_monthly_count,
+      avgSize: bucketConfig.small.avg_congressional_size,
+    },
+    medium: {
+      count: bucketConfig.medium.expected_monthly_count,
+      avgSize: bucketConfig.medium.avg_congressional_size,
+    },
+    large: {
+      count: bucketConfig.large.expected_monthly_count,
+      avgSize: bucketConfig.large.avg_congressional_size,
+    },
+    totalCount:
+      bucketConfig.small.expected_monthly_count +
+      bucketConfig.medium.expected_monthly_count +
+      bucketConfig.large.expected_monthly_count,
+  };
 
+  // Calculate raw exposure per bucket: avgSize × count
+  // This ensures larger congressional positions get larger trade sizes
+  const smallExposure = stats.small.avgSize * stats.small.count;
+  const mediumExposure = stats.medium.avgSize * stats.medium.count;
+  const largeExposure = stats.large.avgSize * stats.large.count;
   const totalExposure = smallExposure + mediumExposure + largeExposure;
 
   if (totalExposure === 0) {
-    return monthlyBudget * 0.05;
+    return availableCash * 0.05;
   }
 
-  // Calculate this bucket's exposure and ratio
-  let bucketExposure: number;
-  let bucketCount: number;
+  // Calculate budget allocation for each bucket
+  const smallBudget = (smallExposure / totalExposure) * availableCash;
+  const mediumBudget = (mediumExposure / totalExposure) * availableCash;
+  const largeBudget = (largeExposure / totalExposure) * availableCash;
 
+  // Per-trade size = bucket_budget / expected_count
   switch (bucket) {
     case "small":
-      bucketExposure = smallExposure;
-      bucketCount = bucketConfig.small.expected_monthly_count;
-      break;
+      return stats.small.count > 0 ? smallBudget / stats.small.count : 0;
     case "medium":
-      bucketExposure = mediumExposure;
-      bucketCount = bucketConfig.medium.expected_monthly_count;
-      break;
+      return stats.medium.count > 0 ? mediumBudget / stats.medium.count : 0;
     case "large":
-      bucketExposure = largeExposure;
-      bucketCount = bucketConfig.large.expected_monthly_count;
-      break;
+      return stats.large.count > 0 ? largeBudget / stats.large.count : 0;
   }
-
-  // Budget ratio for this bucket
-  const ratio = bucketExposure / totalExposure;
-
-  // Budget allocated to this bucket
-  const bucketBudget = monthlyBudget * ratio;
-
-  // Per-trade amount for this bucket
-  const perTrade = bucketBudget / Math.max(bucketCount, 1);
-
-  return perTrade;
 }
 
 /**
@@ -263,6 +293,71 @@ export function getBucketForSize(
   }
 
   return "small";
+}
+
+/**
+ * Signal data needed to calculate bucket stats.
+ * Minimal interface - only needs position size and disclosure date.
+ */
+export interface SignalForBucketStats {
+  position_size_min: number;
+  disclosure_date: string;
+}
+
+/**
+ * Calculate bucket stats from actual signal data for a given month.
+ * This ensures position sizing is calibrated to the REAL signal distribution.
+ *
+ * @param signals - All buy signals for the filtered politician set
+ * @param month - Month to calculate stats for (YYYY-MM format)
+ * @param bucketConfig - Bucket thresholds from config
+ * @returns MonthlyBucketStats with actual counts and avg sizes
+ */
+export function calculateMonthlyBucketStats(
+  signals: SignalForBucketStats[],
+  month: string,
+  bucketConfig: SmartBudgetConfig
+): MonthlyBucketStats {
+  // Filter signals to this month (by disclosure_date - when we see them)
+  const monthSignals = signals.filter(s => s.disclosure_date.startsWith(month));
+
+  // Group by bucket
+  const buckets = {
+    small: { count: 0, totalSize: 0 },
+    medium: { count: 0, totalSize: 0 },
+    large: { count: 0, totalSize: 0 },
+  };
+
+  for (const signal of monthSignals) {
+    const size = signal.position_size_min || 1000;
+    const bucket = getBucketForSize(bucketConfig, size);
+    buckets[bucket].count++;
+    buckets[bucket].totalSize += size;
+  }
+
+  const totalCount = buckets.small.count + buckets.medium.count + buckets.large.count;
+
+  return {
+    small: {
+      count: buckets.small.count || 1, // Avoid division by zero
+      avgSize: buckets.small.count > 0
+        ? buckets.small.totalSize / buckets.small.count
+        : bucketConfig.small.avg_congressional_size,
+    },
+    medium: {
+      count: buckets.medium.count || 1,
+      avgSize: buckets.medium.count > 0
+        ? buckets.medium.totalSize / buckets.medium.count
+        : bucketConfig.medium.avg_congressional_size,
+    },
+    large: {
+      count: buckets.large.count || 1,
+      avgSize: buckets.large.count > 0
+        ? buckets.large.totalSize / buckets.large.count
+        : bucketConfig.large.avg_congressional_size,
+    },
+    totalCount: totalCount || 3, // Minimum to avoid division issues
+  };
 }
 
 /**
