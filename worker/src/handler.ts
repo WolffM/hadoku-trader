@@ -21,7 +21,6 @@ import {
   handleGetMarketPrices,
   handleGetMarketTickers,
   handleMarketBackfillTrigger,
-  handleRunSimulation,
 } from "./routes";
 import { jsonResponse, corsHeaders, withCors } from "./utils";
 
@@ -131,10 +130,6 @@ export function createTraderHandler(
 
         case route === "/market/backfill/trigger" && request.method === "POST":
           response = await handleMarketBackfillTrigger(request, env);
-          break;
-
-        case route === "/simulation/run" && request.method === "POST":
-          response = await handleRunSimulation(request, env);
           break;
 
         default:

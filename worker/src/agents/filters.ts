@@ -138,12 +138,14 @@ export interface RawSignalRow {
 
 /**
  * Enrich a raw signal with computed fields.
+ * @param evaluationDate - Optional date to evaluate from (defaults to today for production, use disclosure_date for simulation)
  */
 export function enrichSignal(
   rawSignal: RawSignalRow,
-  currentPrice: number
+  currentPrice: number,
+  evaluationDate?: string
 ): EnrichedSignal {
-  const today = getCurrentDate();
+  const evalDate = evaluationDate ?? getCurrentDate();
   const tradePrice = rawSignal.trade_price ?? currentPrice;
 
   return {
@@ -158,8 +160,8 @@ export function enrichSignal(
     position_size_min: rawSignal.position_size_min,
     politician_name: rawSignal.politician_name,
     source: rawSignal.source,
-    days_since_trade: daysBetween(rawSignal.trade_date, today),
-    days_since_filing: daysBetween(rawSignal.disclosure_date, today),
+    days_since_trade: daysBetween(rawSignal.trade_date, evalDate),
+    days_since_filing: daysBetween(rawSignal.disclosure_date, evalDate),
     price_change_pct: calculatePriceChangePct(tradePrice, currentPrice),
   };
 }

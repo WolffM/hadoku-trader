@@ -115,6 +115,97 @@ export async function calculateScore(
   };
 }
 
+/**
+ * Sync version of calculateScore for simulation/backtesting.
+ * Accepts pre-computed data instead of doing database lookups.
+ */
+export function calculateScoreSync(
+  config: ScoringConfig,
+  signal: EnrichedSignal,
+  politicianWinRate?: number,
+  confirmationCount?: number
+): ScoreResult {
+  const breakdown: Record<string, number> = {};
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  const components = config.components;
+
+  // 1. Time Decay
+  if (components.time_decay) {
+    const score = scoreTimeDecay(components.time_decay, signal);
+    breakdown.time_decay = score;
+    weightedSum += score * components.time_decay.weight;
+    totalWeight += components.time_decay.weight;
+  }
+
+  // 2. Price Movement
+  if (components.price_movement) {
+    const score = scorePriceMovement(components.price_movement, signal);
+    breakdown.price_movement = score;
+    weightedSum += score * components.price_movement.weight;
+    totalWeight += components.price_movement.weight;
+  }
+
+  // 3. Position Size
+  if (components.position_size) {
+    const score = scorePositionSize(components.position_size, signal);
+    breakdown.position_size = score;
+    weightedSum += score * components.position_size.weight;
+    totalWeight += components.position_size.weight;
+  }
+
+  // 4. Politician Skill (uses pre-computed win rate)
+  if (components.politician_skill) {
+    const score = politicianWinRate !== undefined
+      ? clamp(politicianWinRate, 0.4, 0.7)
+      : components.politician_skill.default_score;
+    breakdown.politician_skill = score;
+    weightedSum += score * components.politician_skill.weight;
+    totalWeight += components.politician_skill.weight;
+  }
+
+  // 5. Source Quality (uses pre-computed confirmation count)
+  if (components.source_quality) {
+    let score = components.source_quality.scores[signal.source]
+      ?? components.source_quality.scores["default"]
+      ?? 0.8;
+    if (confirmationCount && confirmationCount > 1) {
+      const bonus = (confirmationCount - 1) * components.source_quality.confirmation_bonus;
+      score += Math.min(bonus, components.source_quality.max_confirmation_bonus);
+    }
+    breakdown.source_quality = score;
+    weightedSum += score * components.source_quality.weight;
+    totalWeight += components.source_quality.weight;
+  }
+
+  // 6. Filing Speed
+  if (components.filing_speed) {
+    const score = scoreFilingSpeed(components.filing_speed, signal);
+    breakdown.filing_speed = score;
+    weightedSum += score * components.filing_speed.weight;
+    totalWeight += components.filing_speed.weight;
+  }
+
+  // 7. Cross Confirmation (uses pre-computed confirmation count)
+  if (components.cross_confirmation) {
+    const count = confirmationCount ?? 0;
+    let score = 0.5;
+    if (count >= 3) score = 1.0;
+    else if (count === 2) score = 0.75;
+    breakdown.cross_confirmation = score;
+    weightedSum += score * components.cross_confirmation.weight;
+    totalWeight += components.cross_confirmation.weight;
+  }
+
+  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+
+  return {
+    score: clamp(finalScore, 0, 1),
+    breakdown,
+  };
+}
+
 // =============================================================================
 // Component Scoring Functions
 // =============================================================================
@@ -123,7 +214,7 @@ export async function calculateScore(
  * Time Decay: Exponential decay based on days since trade.
  * Optionally uses filing date decay and takes minimum of both.
  */
-function scoreTimeDecay(
+export function scoreTimeDecay(
   config: TimeDecayConfig,
   signal: EnrichedSignal
 ): number {
@@ -146,7 +237,7 @@ function scoreTimeDecay(
 /**
  * Price Movement: 4-threshold interpolation with dip bonus for buys.
  */
-function scorePriceMovement(
+export function scorePriceMovement(
   config: PriceMovementConfig,
   signal: EnrichedSignal
 ): number {
@@ -179,7 +270,7 @@ function scorePriceMovement(
 /**
  * Position Size: Threshold-based mapping of disclosed position size.
  */
-function scorePositionSize(
+export function scorePositionSize(
   config: PositionSizeConfig,
   signal: EnrichedSignal
 ): number {

@@ -51,7 +51,6 @@ export {
   handleGetMarketPrices,
   handleGetMarketTickers,
   handleMarketBackfillTrigger,
-  handleRunSimulation,
 } from "./routes";
 
 // Export the agents module for direct access
