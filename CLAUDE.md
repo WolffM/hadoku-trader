@@ -86,7 +86,8 @@ hadoku-trader/
 ├── docs/
 │   ├── ENGINE_SPEC.md        # Full multi-agent engine specification
 │   ├── SCRAPER_INTEGRATION.md # How to integrate scrapers
-│   └── HADOKU_SITE_INTEGRATION.md # How to integrate with hadoku-site
+│   ├── HADOKU_SITE_INTEGRATION.md # How to integrate with hadoku-site
+│   └── SIMULATION_FINDINGS.md # Backtesting results and optimal configuration
 └── package.json
 ```
 
@@ -182,8 +183,10 @@ When a signal arrives:
 | `/api/trader/performance` | GET | Overall performance |
 | `/api/trader/trades` | GET | Trade history |
 | `/api/trader/execute` | POST | Execute trade via tunnel |
-| `/api/trader/simulation/run` | POST | Run backtest simulation |
 | `/api/trader/market/prices` | GET | Get market prices |
+| `/api/trader/market/tickers` | GET | Get tracked tickers |
+| `/api/trader/market/backfill` | POST | Backfill market prices |
+| `/api/trader/market/backfill/trigger` | POST | Trigger market backfill |
 
 ## Important Constraints
 

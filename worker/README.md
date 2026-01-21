@@ -94,12 +94,19 @@ wrangler d1 execute trader-db --file=./node_modules/hadoku-trader-worker/schema.
 |--------|------|------|-------------|
 | GET | /api/trader/signals | - | Get all signals |
 | POST | /api/trader/signals | SCRAPER_API_KEY | Submit new signal |
+| POST | /api/trader/signals/backfill | SCRAPER_API_KEY | Batch signal backfill |
+| POST | /api/trader/signals/process | TRADER_API_KEY | Process pending signals |
 | GET | /api/trader/performance | - | Get performance metrics |
-| GET | /api/trader/portfolio | - | Get current positions |
 | GET | /api/trader/trades | - | Get trade history |
 | GET | /api/trader/sources | - | Get source leaderboard |
+| GET | /api/trader/agents | - | Get all agents with budget info |
+| GET | /api/trader/agents/:id | - | Get agent details with positions |
 | POST | /api/trader/execute | TRADER_API_KEY | Execute a trade |
 | GET | /api/trader/health | - | Health check |
+| GET | /api/trader/market/prices | - | Get market prices |
+| GET | /api/trader/market/tickers | - | Get tracked tickers |
+| POST | /api/trader/market/backfill | TRADER_API_KEY | Backfill market prices |
+| POST | /api/trader/market/backfill/trigger | TRADER_API_KEY | Trigger market backfill |
 
 ## Local Development
 
@@ -125,12 +132,17 @@ import { createScheduledHandler } from 'hadoku-trader-worker';
 import {
   handleGetSignals,
   handlePostSignal,
+  handleBackfillBatch,
   handleGetPerformance,
-  handleGetPortfolio,
   handleGetTrades,
   handleGetSources,
+  handleGetAgents,
+  handleGetAgentById,
   handleExecuteTrade,
   handleHealth,
+  handleProcessSignals,
+  handleGetMarketPrices,
+  handleMarketPricesBackfill,
 } from 'hadoku-trader-worker';
 
 // Types
@@ -139,8 +151,6 @@ import type {
   Signal,
   ExecuteTradeRequest,
   ExecuteTradeResponse,
-  PerformanceResponse,
-  PortfolioResponse,
   // ... all types
 } from 'hadoku-trader-worker';
 

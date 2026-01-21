@@ -7,7 +7,7 @@ A trading dashboard and automation system that copies congressional stock trades
 This project has two main components:
 
 1. **Frontend Dashboard** - React app displaying signal performance, portfolio tracking, and comparisons with benchmarks (S&P500, NANC, KRUZ)
-2. **Trade Execution Backend** (planned) - FastAPI service that receives signals from hadoku-scraper and executes trades via Fidelity
+2. **Trade Execution Backend** - FastAPI service that receives signals from hadoku-scraper and executes trades via Fidelity
 
 ## Architecture
 
@@ -46,7 +46,7 @@ This project has two main components:
 3. **hadoku-trader (this repo)** - Dashboard UI + fidelity-api package
 4. **Local PM2 Service** - Runs fidelity-api via cloudflared tunnel for trade execution
 
-## Dashboard Features (Planned)
+## Dashboard Features
 
 1. **Overview** - Total value, MTD/YTD return, vs SPY
 2. **Live Portfolio** - Current positions with cost basis and P&L

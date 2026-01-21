@@ -23,10 +23,10 @@ interface Signal {
     ticker: string;                    // "NVDA"
     action: "buy" | "sell";
     asset_type: "stock" | "option" | "etf" | "bond" | "crypto";
-    disclosed_price: number | null;    // ⚠️ CRITICAL - price at trade time
-    price_at_filing: number | null;    // price when filing was disclosed
-    disclosed_date: string;            // "2024-06-15" - when trade happened
-    filing_date: string;               // "2024-07-01" - when publicly filed
+    trade_price: number | null;        // ⚠️ CRITICAL - price at trade time
+    disclosure_price: number | null;   // price when filing was disclosed
+    trade_date: string;                // "2024-06-15" - when trade happened
+    disclosure_date: string;           // "2024-07-01" - when publicly filed
     position_size: string;             // "$1,001 - $15,000"
     position_size_min: number;         // 1001
     position_size_max: number;         // 15000
@@ -45,34 +45,34 @@ interface Signal {
 
 ---
 
-## Critical: `disclosed_price`
+## Critical: `trade_price`
 
 **This field is essential for backtesting/simulation.**
 
-Without `disclosed_price`, we cannot:
+Without `trade_price`, we cannot:
 - Calculate entry prices for simulated trades
 - Measure P&L performance
 - Run meaningful backtests
 
-### How to Get `disclosed_price`
+### How to Get `trade_price`
 
 The scraper should:
 
-1. **Use the trade date** (`disclosed_date`) to look up historical price
+1. **Use the trade date** (`trade_date`) to look up historical price
 2. **Call a market data API** (Yahoo Finance, Alpha Vantage, etc.)
 3. **Get the closing price** on that date (or open if same-day)
 
 Example enrichment logic:
 ```python
 async def enrich_signal_with_price(signal: dict) -> dict:
-    """Add disclosed_price by looking up historical market data."""
+    """Add trade_price by looking up historical market data."""
     ticker = signal["trade"]["ticker"]
-    trade_date = signal["trade"]["disclosed_date"]
+    trade_date = signal["trade"]["trade_date"]
 
     # Get historical price for that date
     price = await get_historical_close(ticker, trade_date)
 
-    signal["trade"]["disclosed_price"] = price
+    signal["trade"]["trade_price"] = price
     return signal
 
 async def get_historical_close(ticker: str, date: str) -> float | None:
@@ -111,10 +111,10 @@ curl -X POST https://hadoku.me/api/trader/signals \
       "ticker": "NVDA",
       "action": "buy",
       "asset_type": "stock",
-      "disclosed_price": 125.50,
-      "price_at_filing": 142.30,
-      "disclosed_date": "2024-06-15",
-      "filing_date": "2024-07-01",
+      "trade_price": 125.50,
+      "disclosure_price": 142.30,
+      "trade_date": "2024-06-15",
+      "disclosure_date": "2024-07-01",
       "position_size": "$1,001 - $15,000",
       "position_size_min": 1001,
       "position_size_max": 15000,
@@ -288,8 +288,8 @@ class PriceEnricher:
         lookups = set()
         for s in signals:
             ticker = s["trade"]["ticker"]
-            date = s["trade"]["disclosed_date"]
-            if s["trade"]["disclosed_price"] is None:
+            date = s["trade"]["trade_date"]
+            if s["trade"]["trade_price"] is None:
                 lookups.add((ticker, date))
 
         # Batch fetch prices
@@ -297,9 +297,9 @@ class PriceEnricher:
 
         # Apply to signals
         for s in signals:
-            if s["trade"]["disclosed_price"] is None:
-                key = (s["trade"]["ticker"], s["trade"]["disclosed_date"])
-                s["trade"]["disclosed_price"] = self.cache.get(key)
+            if s["trade"]["trade_price"] is None:
+                key = (s["trade"]["ticker"], s["trade"]["trade_date"])
+                s["trade"]["trade_price"] = self.cache.get(key)
 
         return signals
 
@@ -372,7 +372,7 @@ def generate_source_id(source: str, signal: dict) -> str:
 
     # Option 2: Hash key fields
     import hashlib
-    key = f"{signal['politician']['name']}_{signal['trade']['ticker']}_{signal['trade']['disclosed_date']}_{signal['trade']['action']}"
+    key = f"{signal['politician']['name']}_{signal['trade']['ticker']}_{signal['trade']['trade_date']}_{signal['trade']['action']}"
     hash_suffix = hashlib.md5(key.encode()).hexdigest()[:8]
     return f"{source}_{hash_suffix}"
 ```
@@ -383,7 +383,7 @@ def generate_source_id(source: str, signal: dict) -> str:
 
 | Requirement | Priority | Notes |
 |-------------|----------|-------|
-| **disclosed_price** | 🔴 Critical | Fetch historical price for trade date |
+| **trade_price** | 🔴 Critical | Fetch historical price for trade date |
 | **2+ year history** | 🔴 Critical | Enable meaningful backtesting |
 | **Multiple sources** | 🟡 High | Cross-reference for higher conviction |
 | **Batch backfill** | 🟡 High | Efficient historical ingestion |

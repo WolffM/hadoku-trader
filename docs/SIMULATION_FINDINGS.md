@@ -198,7 +198,7 @@ Ensure all findings are properly integrated into the production trading flow:
 **Integration checklist:**
 
 - [ ] **Politician Filter**: Add Top 10 filter calculation to signal routing
-  - Location: `router.ts:processSignalForAgent()`
+  - Location: `router.ts:routeSignalToAgents()`
   - Need to fetch top politicians and filter before processing
 
 - [ ] **Position Sizing**: Change to bucket-based + Linear

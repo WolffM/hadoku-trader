@@ -69,12 +69,12 @@ interface Signal {
   asset_type: 'stock' | 'etf' | 'option';
 
   // Pricing
-  disclosed_price: number;
+  trade_price: number;      // Price at time of trade
   current_price: number;
 
   // Dates
-  trade_date: string;      // When politician traded
-  filing_date: string;     // When disclosure was filed
+  trade_date: string;       // When politician traded
+  disclosure_date: string;  // When disclosure was filed
 
   // Size (dollar amount, lower bound of range)
   position_size_min: number;
@@ -85,7 +85,7 @@ interface Signal {
 
   // Computed
   days_since_trade: number;
-  days_since_filing: number;
+  days_since_disclosure: number;
   price_change_pct: number;
 }
 ```
@@ -698,7 +698,7 @@ function calculateScore(config: ScoringConfig, signal: Signal): {
     let decay = Math.pow(0.5, signal.days_since_trade / c.half_life_days);
 
     if (c.use_filing_date && c.filing_half_life_days) {
-      const filingDecay = Math.pow(0.5, signal.days_since_filing / c.filing_half_life_days);
+      const filingDecay = Math.pow(0.5, signal.days_since_disclosure / c.filing_half_life_days);
       decay = Math.min(decay, filingDecay);
     }
 
@@ -985,8 +985,8 @@ A trade is **winning** if:
 
 | Action | Condition | Timeframe |
 |--------|-----------|-----------|
-| BUY | Price ≥ disclosed_price × 1.05 | Within 90 days of filing_date |
-| SELL | Price ≤ disclosed_price × 0.95 | Within 90 days of filing_date |
+| BUY | Price ≥ trade_price × 1.05 | Within 90 days of disclosure_date |
+| SELL | Price ≤ trade_price × 0.95 | Within 90 days of disclosure_date |
 
 ```typescript
 async function updatePoliticianStats(): Promise<void> {
@@ -1000,9 +1000,9 @@ async function updatePoliticianStats(): Promise<void> {
 
     for (const trade of trades) {
       const priceAt90Days = await getHistoricalPrice(trade.ticker,
-        addDays(trade.filing_date, 90));
+        addDays(trade.disclosure_date, 90));
 
-      const change = (priceAt90Days - trade.disclosed_price) / trade.disclosed_price;
+      const change = (priceAt90Days - trade.trade_price) / trade.trade_price;
 
       if (trade.action === 'buy' && change >= 0.05) wins++;
       if (trade.action === 'sell' && change <= -0.05) wins++;
