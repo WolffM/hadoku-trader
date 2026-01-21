@@ -175,11 +175,14 @@ interface ScoringConfig {
 
 ```typescript
 interface SizingConfig {
-  mode: 'score_squared' | 'score_linear' | 'equal_split';
+  mode: 'score_squared' | 'score_linear' | 'equal_split' | 'smart_budget';
 
   // For score-based modes
   base_multiplier?: number;  // e.g., 0.20 for score² × 20%
   base_amount?: number;      // e.g., $200 for $200 × score
+
+  // For smart_budget mode (bucket-based allocation)
+  bucket_config?: SmartBudgetConfig;
 
   // Constraints
   max_position_pct: number;
@@ -188,6 +191,69 @@ interface SizingConfig {
   max_open_positions: number;
   max_per_ticker: number;
 }
+
+// Smart budget uses bucket-based allocation based on congressional position size
+interface SmartBudgetConfig {
+  small: BucketStats;   // $1K-$15K congressional trades
+  medium: BucketStats;  // $15K-$50K congressional trades
+  large: BucketStats;   // $50K+ congressional trades
+}
+
+interface BucketStats {
+  min_position_size: number;      // Min congressional $ for this bucket
+  max_position_size: number;      // Max congressional $ (Infinity for unbounded)
+  expected_monthly_count: number; // Avg trades/month in this bucket
+  avg_congressional_size: number; // Avg congressional $ in this bucket
+}
+```
+
+**Smart Budget Sizing Algorithm:**
+1. Calculate total exposure per bucket: `count × avg_congressional_size`
+2. Calculate budget ratio: `bucket_exposure / total_exposure`
+3. Calculate per-trade amount: `(monthly_budget × ratio) / expected_count`
+
+This ensures larger congressional trades get proportionally larger positions.
+
+### Decision Reasons
+
+```typescript
+// Skip reasons for agent decisions (used in trades table 'decision' column)
+type SkipReason =
+  // Filter rejections
+  | "filter_politician"      // Politician not in whitelist
+  | "filter_ticker"          // Ticker not in whitelist
+  | "filter_asset_type"      // Asset type not allowed
+  | "filter_age"             // Signal too old
+  | "filter_price_move"      // Price moved too much
+  // Scoring rejections
+  | "skip_score"             // Score below threshold
+  // Budget/sizing rejections
+  | "skip_budget"            // No budget remaining
+  | "skip_size_zero"         // Position size calculated to $0
+  | "skip_max_positions"     // At max open positions
+  | "skip_max_ticker"        // At max positions per ticker
+  // Sell signal rejections
+  | "skip_no_position"       // No position to sell (no shorting)
+  | "skip_position_young";   // Position < 1 year old
+
+// Execute reasons
+type ExecuteReason = "execute" | "execute_half" | "execute_sell";
+
+// Display names for human-readable output (1-2 words)
+const SKIP_REASON_DISPLAY: Record<SkipReason, string> = {
+  filter_politician: "Wrong pol",
+  filter_ticker: "Wrong ticker",
+  filter_asset_type: "Wrong asset",
+  filter_age: "Too old",
+  filter_price_move: "Price moved",
+  skip_score: "Low score",
+  skip_budget: "No budget",
+  skip_size_zero: "Size zero",
+  skip_max_positions: "Max positions",
+  skip_max_ticker: "Max ticker",
+  skip_no_position: "No position",
+  skip_position_young: "Too young",
+};
 ```
 
 ### Exit Configuration
@@ -412,10 +478,15 @@ const geminiConfig: AgentConfig = {
   half_size_threshold: null,
 
   sizing: {
-    mode: 'equal_split',
+    mode: 'smart_budget',  // Budget allocation based on congressional position size
+    bucket_config: {
+      small:  { min: 1000,  max: 15000,    expected: 70, avg: 8000  },
+      medium: { min: 15001, max: 50000,    expected: 25, avg: 32500 },
+      large:  { min: 50001, max: Infinity, expected: 5,  avg: 100000 },
+    },
     max_position_pct: 0.30,
-    max_position_amount: 1000,  // Can use full budget on one signal
-    min_position_amount: 50,
+    max_position_amount: 1000,
+    min_position_amount: 5,
     max_open_positions: 20,
     max_per_ticker: 3,
   },
@@ -957,7 +1028,7 @@ async function updatePoliticianStats(): Promise<void> {
 | **Asset types** | Stock, ETF, Option | Stock, ETF, Option | Stock only |
 | **Scoring** | 5-component weighted | 6-component weighted | None (pass/fail) |
 | **Execute threshold** | 0.70 (0.55 half) | 0.55 | Any passing |
-| **Position sizing** | score² × 20% | $200 × score | Equal split |
+| **Position sizing** | score² × 20% | $200 × score | Smart budget (bucket-based) |
 | **Max position** | $200 (20%) | $250 (25%) | 30% |
 | **Stop-loss** | 18% fixed | 15% fixed | 20% trailing |
 | **Take-profit** | None | 25%→50%, 40%→100% | None |

@@ -16,7 +16,9 @@ import {
   getAgentBudget,
   countAgentPositions,
   countAgentTickerPositions,
+  getAgentTickerPosition,
 } from "./loader";
+import { closePosition } from "./monitor";
 import {
   shouldAgentProcessSignal,
   enrichSignal,
@@ -25,7 +27,7 @@ import {
 } from "./filters";
 import { calculateScore } from "./scoring";
 import { calculatePositionSize, calculateShares } from "./sizing";
-import { executeTrade, getPendingTradeId } from "./execution";
+import { executeTrade } from "./execution";
 
 // =============================================================================
 // Main Routing Functions
@@ -34,6 +36,9 @@ import { executeTrade, getPendingTradeId } from "./execution";
 /**
  * Route a signal to all applicable agents and record decisions.
  * Returns array of decisions made by each agent.
+ *
+ * For SELL signals: checks if agent has an open position and closes it.
+ * For BUY signals: applies filters, scoring, and executes if threshold met.
  */
 export async function routeSignalToAgents(
   env: TraderEnv,
@@ -46,6 +51,20 @@ export async function routeSignalToAgents(
   const decisions: AgentDecision[] = [];
 
   for (const agent of agents) {
+    // Handle SELL signals: close existing positions
+    if (signal.action === "sell") {
+      const sellDecision = await processSellSignalForAgent(
+        env,
+        agent,
+        signal,
+        currentPrice,
+        executeImmediately
+      );
+      decisions.push(sellDecision);
+      continue;
+    }
+
+    // Handle BUY signals: normal processing
     const decision = await processSignalForAgent(env, agent, signal);
 
     // Log the decision to database first
@@ -75,6 +94,103 @@ export async function routeSignalToAgents(
 }
 
 /**
+ * Process a SELL signal for a single agent.
+ * If agent has an open position for this ticker, close it.
+ * Otherwise skip (no short selling).
+ */
+// Minimum position age before we can sell (in days) - for long-term capital gains
+const MIN_POSITION_AGE_DAYS = 365;
+
+async function processSellSignalForAgent(
+  env: TraderEnv,
+  agent: AgentConfig,
+  signal: EnrichedSignal,
+  currentPrice: number,
+  executeImmediately: boolean
+): Promise<AgentDecision> {
+  // Check if agent has an open position for this ticker
+  const position = await getAgentTickerPosition(env, agent.id, signal.ticker);
+
+  if (!position) {
+    // No position to sell - skip (no shorting allowed)
+    return {
+      agent_id: agent.id,
+      signal_id: signal.id,
+      action: "skip",
+      decision_reason: "skip_no_position",
+      score: null,
+      score_breakdown: null,
+      position_size: null,
+    };
+  }
+
+  // Check if position is old enough to sell (>= 1 year for long-term capital gains)
+  const entryDate = new Date(position.entry_date);
+  const sellDate = new Date(signal.disclosure_date);
+  const ageMs = sellDate.getTime() - entryDate.getTime();
+  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+
+  if (ageDays < MIN_POSITION_AGE_DAYS) {
+    // Position is too young - don't sell yet
+    return {
+      agent_id: agent.id,
+      signal_id: signal.id,
+      action: "skip",
+      decision_reason: "skip_position_young",
+      score: null,
+      score_breakdown: null,
+      position_size: null,
+    };
+  }
+
+  // We have a position that's old enough - close it based on congress sell signal
+  if (executeImmediately) {
+    await closePosition(env, position.id, "sell_signal", currentPrice);
+  }
+
+  // Log the sell decision
+  const tradeId = generateId("trade");
+  const now = new Date().toISOString();
+
+  await env.TRADER_DB.prepare(
+    `
+    INSERT INTO trades (
+      id, agent_id, signal_id, ticker, action, decision,
+      score, score_breakdown_json, quantity, price, total,
+      status, created_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `
+  )
+    .bind(
+      tradeId,
+      agent.id,
+      signal.id,
+      signal.ticker,
+      "sell",
+      "execute_sell",
+      null,
+      null,
+      position.shares,
+      currentPrice,
+      position.shares * currentPrice,
+      executeImmediately ? "executed" : "pending",
+      now
+    )
+    .run();
+
+  return {
+    agent_id: agent.id,
+    signal_id: signal.id,
+    action: "execute",
+    decision_reason: "execute_sell",
+    score: null,
+    score_breakdown: null,
+    position_size: position.shares * currentPrice,
+  };
+}
+
+/**
  * Execute a decision by calculating position size and calling trade execution.
  */
 async function executeDecision(
@@ -93,14 +209,15 @@ async function executeDecision(
     decision.score,
     budget,
     1, // acceptedSignalsCount - for equal_split mode
-    decision.action === "execute_half"
+    decision.action === "execute_half",
+    signal.position_size_min // Congressional position size for smart_budget mode
   );
 
   // Check if position size is valid
   if (positionSize === 0) {
-    // Update trade record to reflect skip due to budget
+    // Update trade record to reflect skip due to size being zero
     await env.TRADER_DB.prepare(
-      `UPDATE trades SET decision = 'skip_budget', status = 'skipped' WHERE id = ?`
+      `UPDATE trades SET decision = 'skip_size_zero', status = 'skipped' WHERE id = ?`
     )
       .bind(tradeId)
       .run();
@@ -152,7 +269,7 @@ async function processSignalForAgent(
       agent_id: agent.id,
       signal_id: signal.id,
       action: "skip",
-      decision_reason: "skip_budget", // Using skip_budget for limit violations
+      decision_reason: positionCheck.reason!,
       score: null,
       score_breakdown: null,
       position_size: null,
@@ -237,13 +354,13 @@ async function checkPositionLimits(
   env: TraderEnv,
   agent: AgentConfig,
   ticker: string
-): Promise<{ allowed: boolean; reason?: string }> {
+): Promise<{ allowed: boolean; reason?: DecisionReason }> {
   // Check max open positions
   const totalPositions = await countAgentPositions(env, agent.id);
   if (totalPositions >= agent.sizing.max_open_positions) {
     return {
       allowed: false,
-      reason: `max_positions_${agent.sizing.max_open_positions}`,
+      reason: "skip_max_positions",
     };
   }
 
@@ -256,7 +373,7 @@ async function checkPositionLimits(
   if (tickerPositions >= agent.sizing.max_per_ticker) {
     return {
       allowed: false,
-      reason: `max_per_ticker_${agent.sizing.max_per_ticker}`,
+      reason: "skip_max_ticker",
     };
   }
 
@@ -471,9 +588,10 @@ export async function analyzeSignals(
           decision.score ?? 0,
           budget,
           1, // signalCount for equal_split mode
-          decision.action === "execute_half"
+          decision.action === "execute_half",
+          signal.position_size_min // Congressional position size for smart_budget mode
         );
-        quantity = calculateShares(positionSize, signal.current_price);
+        quantity = calculateShares(positionSize, signal.current_price, true); // Fractional shares
       }
 
       actions.push({

@@ -44,7 +44,11 @@ export type {
   // Signal processing types
   EnrichedSignal,
   FilterReason,
+  SkipReason,
+  ExecuteReason,
   DecisionReason,
+  SKIP_REASON_DISPLAY,
+  getReasonDisplay,
   AgentDecision,
   ScoreResult,
   // Trade action types (Phase 5)
@@ -137,6 +141,7 @@ export {
   countAgentPositions,
   countAgentTickerPositions,
   getAgentPositions,
+  getAgentTickerPosition,
 } from "./loader";
 
 // =============================================================================
@@ -240,6 +245,24 @@ export {
   calculateInformationRatio,
   calculateSortinoRatio,
 } from "./metrics";
+
+// =============================================================================
+// Smart Simulation Exports
+// =============================================================================
+
+export {
+  // Smart agent config
+  SMART_CONFIG,
+  ALL_SIM_AGENTS,
+  // Smart sizing
+  calculateSmartPositionSize,
+  getCapitolSizeBucket,
+  // Statistics
+  calculateDetailedStats,
+  printSimulationReport,
+  type DetailedStats,
+  type SimulationSummary,
+} from "./run-simulation";
 
 // Simulation-specific types
 export type {

@@ -43,11 +43,11 @@ export async function executeTrade(
 ): Promise<ExecutionResult> {
   const now = new Date().toISOString();
 
-  // Calculate shares from position size and current price
-  const shares = calculateShares(positionSize, signal.current_price);
+  // Calculate shares from position size and current price (fractional shares enabled)
+  const shares = calculateShares(positionSize, signal.current_price, true);
 
   if (shares === 0) {
-    // Can't buy even 1 share - mark trade as failed
+    // Position too small - mark trade as failed
     await updateTradeExecution(env, tradeId, {
       quantity: 0,
       price: signal.current_price,

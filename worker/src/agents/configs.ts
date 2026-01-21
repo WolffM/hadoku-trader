@@ -4,7 +4,47 @@
  * They can be overridden by database values
  */
 
-import type { AgentConfig } from "./types";
+import type { AgentConfig, SmartBudgetConfig } from "./types";
+
+/**
+ * Default bucket configuration for smart_budget sizing.
+ * Based on historical analysis of congressional trade sizes.
+ *
+ * Using example data from spec:
+ * - Small: 70 trades/month avg, $10K avg congressional size
+ * - Medium: 25 trades/month avg, $33K avg congressional size
+ * - Large: 5 trades/month avg, $100K avg congressional size
+ *
+ * This creates exposures:
+ * - Small: 70 × $10K = $700K (34.6%)
+ * - Medium: 25 × $33K = $825K (40.7%)
+ * - Large: 5 × $100K = $500K (24.7%)
+ *
+ * With $1000 budget:
+ * - Small: $346 / 70 = ~$5/trade
+ * - Medium: $407 / 25 = ~$16/trade
+ * - Large: $247 / 5 = ~$49/trade
+ */
+export const DEFAULT_BUCKET_CONFIG: SmartBudgetConfig = {
+  small: {
+    min_position_size: 1000,
+    max_position_size: 15000,
+    expected_monthly_count: 70,
+    avg_congressional_size: 10000,
+  },
+  medium: {
+    min_position_size: 15001,
+    max_position_size: 50000,
+    expected_monthly_count: 25,
+    avg_congressional_size: 33000,
+  },
+  large: {
+    min_position_size: 50001,
+    max_position_size: Infinity,
+    expected_monthly_count: 5,
+    avg_congressional_size: 100000,
+  },
+};
 
 /**
  * ChatGPT Agent: "Decay Edge"
@@ -64,17 +104,17 @@ export const CHATGPT_CONFIG: AgentConfig = {
     },
   },
 
-  execute_threshold: 0.7,
-  half_size_threshold: 0.55,
+  execute_threshold: 0.55,          // Lowered from 0.7 to execute more trades
+  half_size_threshold: 0.45,        // Lowered from 0.55
 
   sizing: {
     mode: "score_squared",
-    base_multiplier: 0.2,
-    max_position_pct: 0.2,
-    max_position_amount: 200,
-    min_position_amount: 50,
-    max_open_positions: 5,
-    max_per_ticker: 2,
+    base_multiplier: 0.15,
+    max_position_pct: 1.0,
+    max_position_amount: 1000,
+    min_position_amount: 0,
+    max_open_positions: 9999,
+    max_per_ticker: 9999,
   },
 
   exit: {
@@ -152,12 +192,12 @@ export const CLAUDE_CONFIG: AgentConfig = {
 
   sizing: {
     mode: "score_linear",
-    base_amount: 200,
-    max_position_pct: 0.25,
-    max_position_amount: 250,
-    min_position_amount: 50,
-    max_open_positions: 10,
-    max_per_ticker: 2,
+    base_amount: 15,
+    max_position_pct: 1.0,
+    max_position_amount: 1000,
+    min_position_amount: 0,
+    max_open_positions: 9999,
+    max_per_ticker: 9999,
   },
 
   exit: {
@@ -166,12 +206,12 @@ export const CLAUDE_CONFIG: AgentConfig = {
       threshold_pct: 15,
     },
     take_profit: {
-      first_threshold_pct: 25,
+      first_threshold_pct: 20,       // Lowered from 25% to take profits sooner
       first_sell_pct: 50,
-      second_threshold_pct: 40,
+      second_threshold_pct: 35,      // Lowered from 40%
       second_sell_pct: 100,
     },
-    max_hold_days: 120,
+    max_hold_days: 90,               // Shortened from 120 days
   },
 };
 
@@ -201,12 +241,13 @@ export const NAIVE_CONFIG: AgentConfig = {
   half_size_threshold: null,
 
   sizing: {
-    mode: "equal_split",
-    max_position_pct: 0.1,
-    max_position_amount: 100,
-    min_position_amount: 25,
-    max_open_positions: 20,
-    max_per_ticker: 1,
+    mode: "smart_budget",
+    bucket_config: DEFAULT_BUCKET_CONFIG,
+    max_position_pct: 1.0,
+    max_position_amount: 1000,
+    min_position_amount: 0,
+    max_open_positions: 9999,
+    max_per_ticker: 9999,
   },
 
   exit: {
@@ -267,7 +308,7 @@ export const SPY_BENCHMARK_CONFIG: AgentConfig = {
  * Gemini Agent: "Titan Conviction"
  * - 5 Titan politicians only
  * - No scoring (pass/fail filters only)
- * - Equal split sizing
+ * - Smart budget sizing based on congressional position size
  */
 export const GEMINI_CONFIG: AgentConfig = {
   id: "gemini",
@@ -292,12 +333,13 @@ export const GEMINI_CONFIG: AgentConfig = {
   half_size_threshold: null,
 
   sizing: {
-    mode: "equal_split",
-    max_position_pct: 0.3,
+    mode: "smart_budget",
+    bucket_config: DEFAULT_BUCKET_CONFIG,
+    max_position_pct: 1.0,
     max_position_amount: 1000,
-    min_position_amount: 50,
-    max_open_positions: 20,
-    max_per_ticker: 3,
+    min_position_amount: 0,
+    max_open_positions: 9999,
+    max_per_ticker: 9999,
   },
 
   exit: {

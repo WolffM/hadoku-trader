@@ -369,3 +369,41 @@ export async function getAgentPositions(
 
   return results.results;
 }
+
+/**
+ * Get an agent's open position for a specific ticker.
+ * Returns the oldest open position if multiple exist (FIFO), null if none.
+ */
+export async function getAgentTickerPosition(
+  env: TraderEnv,
+  agentId: string,
+  ticker: string
+): Promise<{
+  id: string;
+  agent_id: string;
+  ticker: string;
+  shares: number;
+  entry_price: number;
+  entry_date: string;
+} | null> {
+  const row = await env.TRADER_DB.prepare(`
+    SELECT id, agent_id, ticker, shares, entry_price, entry_date
+    FROM positions
+    WHERE agent_id = ? AND ticker = ? AND status = 'open'
+    ORDER BY entry_date ASC
+    LIMIT 1
+  `)
+    .bind(agentId, ticker)
+    .first();
+
+  if (!row) return null;
+
+  return {
+    id: row.id as string,
+    agent_id: row.agent_id as string,
+    ticker: row.ticker as string,
+    shares: row.shares as number,
+    entry_price: row.entry_price as number,
+    entry_date: row.entry_date as string,
+  };
+}

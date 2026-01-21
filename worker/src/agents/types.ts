@@ -71,7 +71,31 @@ export interface ScoringConfig {
 // Sizing Configuration Types
 // =============================================================================
 
-export type SizingMode = "score_squared" | "score_linear" | "equal_split";
+export type SizingMode = "score_squared" | "score_linear" | "equal_split" | "smart_budget";
+
+/**
+ * Configuration for a single position size bucket.
+ * Based on historical analysis of congressional trade sizes.
+ */
+export interface BucketStats {
+  min_position_size: number;      // Min congressional $ to be in this bucket
+  max_position_size: number;      // Max congressional $ (use Infinity for unbounded)
+  expected_monthly_count: number; // Avg number of trades per month in this bucket
+  avg_congressional_size: number; // Avg congressional $ in this bucket
+}
+
+/**
+ * Smart budget configuration with bucket-based allocation.
+ * Per-trade sizing is calculated using discrete math:
+ * 1. Total exposure per bucket = expected_count × avg_congressional_size
+ * 2. Budget ratio = bucket_exposure / total_exposure
+ * 3. Per-trade amount = (monthly_budget × ratio) / expected_count
+ */
+export interface SmartBudgetConfig {
+  small: BucketStats;
+  medium: BucketStats;
+  large: BucketStats;
+}
 
 export interface SizingConfig {
   mode: SizingMode;
@@ -82,6 +106,8 @@ export interface SizingConfig {
   min_position_amount: number;
   max_open_positions: number;
   max_per_ticker: number;
+  // Smart budget sizing (bucket-based allocation)
+  bucket_config?: SmartBudgetConfig;
 }
 
 // =============================================================================
@@ -223,19 +249,76 @@ export interface EnrichedSignal {
   price_change_pct: number;
 }
 
+/**
+ * Skip reasons for agent decisions.
+ * Each reason has a corresponding display name for human-readable output.
+ */
+export type SkipReason =
+  // Filter rejections
+  | "filter_politician"      // Politician not in whitelist
+  | "filter_ticker"          // Ticker not in whitelist
+  | "filter_asset_type"      // Asset type not allowed
+  | "filter_age"             // Signal too old
+  | "filter_price_move"      // Price moved too much
+  // Scoring rejections
+  | "skip_score"             // Score below threshold
+  // Budget/sizing rejections
+  | "skip_budget"            // No budget remaining
+  | "skip_size_zero"         // Position size calculated to $0
+  | "skip_max_positions"     // At max open positions
+  | "skip_max_ticker"        // At max positions per ticker
+  // Sell signal rejections
+  | "skip_no_position"       // No position to sell (no shorting)
+  | "skip_position_young";   // Position < 1 year old
+
+/**
+ * Execute reasons for agent decisions.
+ */
+export type ExecuteReason =
+  | "execute"
+  | "execute_half"
+  | "execute_sell";
+
+/**
+ * All possible decision reasons.
+ */
+export type DecisionReason = SkipReason | ExecuteReason;
+
+/**
+ * Display names for skip reasons (1-2 words, human-readable).
+ */
+export const SKIP_REASON_DISPLAY: Record<SkipReason, string> = {
+  filter_politician: "Wrong pol",
+  filter_ticker: "Wrong ticker",
+  filter_asset_type: "Wrong asset",
+  filter_age: "Too old",
+  filter_price_move: "Price moved",
+  skip_score: "Low score",
+  skip_budget: "No budget",
+  skip_size_zero: "Size zero",
+  skip_max_positions: "Max positions",
+  skip_max_ticker: "Max ticker",
+  skip_no_position: "No position",
+  skip_position_young: "Too young",
+};
+
+/**
+ * Get display name for a decision reason.
+ */
+export function getReasonDisplay(reason: DecisionReason): string {
+  if (reason === "execute") return "";
+  if (reason === "execute_half") return "Half size";
+  if (reason === "execute_sell") return "Sell";
+  return SKIP_REASON_DISPLAY[reason] ?? reason;
+}
+
+// Legacy alias for backward compatibility
 export type FilterReason =
   | "filter_politician"
   | "filter_ticker"
   | "filter_asset_type"
   | "filter_age"
   | "filter_price_move";
-
-export type DecisionReason =
-  | FilterReason
-  | "skip_score"
-  | "skip_budget"
-  | "execute"
-  | "execute_half";
 
 export interface AgentDecision {
   agent_id: string;

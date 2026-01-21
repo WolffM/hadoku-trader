@@ -120,11 +120,11 @@ describe("Trade Execution Engine", () => {
       expect(result.error).toBeNull();
     });
 
-    it("should return 0 shares when price too high", async () => {
+    it("should return 0 shares when position size too small for fractional", async () => {
       const env = createMockEnv();
-      const signal = createTestSignal({ current_price: 500 }); // Very expensive
+      const signal = createTestSignal({ current_price: 500 }); // Expensive stock
       const decision = createTestDecision();
-      const positionSize = 100; // Can't even buy 1 share
+      const positionSize = 0.01; // Position size so small even fractional shares round to 0
 
       const result = await executeTrade(
         env,
@@ -135,6 +135,7 @@ describe("Trade Execution Engine", () => {
         "trade_123"
       );
 
+      // With fractional shares: $0.01 / $500 = 0.00002 shares → rounds to 0
       expect(result.success).toBe(false);
       expect(result.shares).toBe(0);
       expect(result.error).toBe("Insufficient funds for 1 share");

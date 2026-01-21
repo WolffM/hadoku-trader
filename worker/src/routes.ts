@@ -1297,7 +1297,7 @@ export async function handleRunSimulation(
             );
 
             if (positionSize > 0) {
-              const shares = calculateShares(positionSize, currentPrice);
+              const shares = calculateShares(positionSize, currentPrice, true); // Fractional shares
               if (shares > 0) {
                 portfolioState.addPosition(agent.id, {
                   id: generateSimId("pos"),
