@@ -32,7 +32,15 @@ export * from "./types";
 
 // Export handlers
 export { createTraderHandler } from "./handler";
-export { createScheduledHandler, runFullSync, syncMarketPrices, backfillMarketPrices } from "./scheduled";
+export {
+  createScheduledHandler,
+  runFullSync,
+  syncMarketPrices,
+  backfillMarketPrices,
+  syncSignalsFromScraper,
+  ingestSignalBatch,
+  type SignalSyncResult,
+} from "./scheduled";
 
 // Export individual route handlers for fine-grained control
 export {

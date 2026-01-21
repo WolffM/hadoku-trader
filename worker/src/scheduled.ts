@@ -177,6 +177,126 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
   }
 }
 
+// =============================================================================
+// Public Signal Sync Functions
+// =============================================================================
+
+/**
+ * Result of syncing signals from the scraper.
+ */
+export interface SignalSyncResult {
+  inserted: number;
+  skipped: number;
+  errors: string[];
+}
+
+/**
+ * Fetch and sync signals from hadoku-scraper into D1.
+ *
+ * This is the canonical function for signal acquisition - call it from scheduled
+ * handlers or manually to sync new signals.
+ *
+ * @param env - Environment with SCRAPER_URL, SCRAPER_API_KEY, and TRADER_DB
+ * @returns Counts of inserted, skipped (duplicates), and any errors
+ */
+export async function syncSignalsFromScraper(
+  env: TraderEnv
+): Promise<SignalSyncResult> {
+  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] };
+
+  try {
+    console.log("Fetching signals from hadoku-scraper...");
+
+    const resp = await fetch(`${env.SCRAPER_URL}/data-package`, {
+      headers: {
+        "X-API-Key": env.SCRAPER_API_KEY,
+        Accept: "application/json",
+      },
+    });
+
+    if (!resp.ok) {
+      const errorText = await resp.text();
+      result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`);
+      return result;
+    }
+
+    const data: ScraperDataPackage = await resp.json();
+    console.log(`Received ${data.signals.length} signals from scraper`);
+
+    // Ingest all signals using the batch function
+    const batchResult = await ingestSignalBatch(env, data.signals);
+    result.inserted = batchResult.inserted;
+    result.skipped = batchResult.skipped;
+    result.errors.push(...batchResult.errors);
+
+    // Also update current prices and SP500 reference (from fetchFromScraper)
+    for (const quote of data.market_data.quotes) {
+      await env.TRADER_DB.prepare(`
+        UPDATE positions SET current_price = ?, updated_at = ? WHERE ticker = ?
+      `)
+        .bind(quote.price, new Date().toISOString(), quote.ticker)
+        .run();
+    }
+
+    await env.TRADER_DB.prepare(`
+      INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)
+    `)
+      .bind(
+        "sp500_price",
+        data.market_data.sp500.price.toString(),
+        new Date().toISOString()
+      )
+      .run();
+
+    console.log(
+      `Signal sync complete: ${result.inserted} inserted, ${result.skipped} skipped, ${result.errors.length} errors`
+    );
+  } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
+    result.errors.push(`Scraper sync error: ${errorMsg}`);
+    console.error("Scraper sync error:", error);
+  }
+
+  return result;
+}
+
+/**
+ * Ingest a batch of signals into D1, handling duplicates.
+ *
+ * Use this for webhook batches from scraper backfill, or any bulk signal import.
+ *
+ * @param env - Environment with TRADER_DB
+ * @param signals - Array of signals to insert
+ * @returns Counts of inserted, skipped (duplicates), and any errors
+ */
+export async function ingestSignalBatch(
+  env: TraderEnv,
+  signals: Signal[]
+): Promise<SignalSyncResult> {
+  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] };
+
+  for (const signal of signals) {
+    try {
+      const insertResult = await insertSignal(env, signal);
+
+      if (insertResult.duplicate) {
+        result.skipped++;
+      } else {
+        result.inserted++;
+        console.log(`Stored signal: ${signal.trade.ticker} from ${signal.source}`);
+      }
+    } catch (error) {
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      result.errors.push(
+        `Failed to insert signal ${signal.meta?.source_id ?? "unknown"}: ${errorMsg}`
+      );
+      console.error("Error inserting signal:", error);
+    }
+  }
+
+  return result;
+}
+
 /**
  * Update the performance history table with today's % returns.
  * Called daily at midnight.
