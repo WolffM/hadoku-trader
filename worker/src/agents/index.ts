@@ -214,17 +214,18 @@ export {
 // =============================================================================
 
 export {
-  // Core simulation classes
-  SimulationClock,
-  SignalReplayer,
-  PortfolioState,
-  EventLogger,
-  // Types
-  type SignalForSim,
-  // Utilities
-  daysBetween as simDaysBetween,
-  addDays as simAddDays,
-  generateSimId,
+  // Main simulation function
+  runSimulation,
+  // Bucket sizing utilities
+  calculateHistoricalBucketStats,
+  calculateBucketSizes,
+  getBucket,
+  // Types (SimPosition is in types.ts)
+  type SimSignal,
+  type ClosedTrade,
+  type MonthlySnapshot,
+  type SimulationResult,
+  type HistoricalBucketStats,
 } from "./simulation";
 
 export {
@@ -246,26 +247,6 @@ export {
   calculateSortinoRatio,
 } from "./metrics";
 
-// =============================================================================
-// Smart Simulation Exports
-// =============================================================================
-// Note: run-simulation.ts has been removed. These exports are disabled.
-// TODO: Re-enable if run-simulation.ts is recreated with these functions.
-/*
-export {
-  // Smart agent config
-  SMART_CONFIG,
-  ALL_SIM_AGENTS,
-  // Smart sizing
-  calculateSmartPositionSize,
-  getCapitolSizeBucket,
-  // Statistics
-  calculateDetailedStats,
-  printSimulationReport,
-  type DetailedStats,
-  type SimulationSummary,
-} from "./run-simulation";
-*/
 
 // Simulation-specific types
 export type {
