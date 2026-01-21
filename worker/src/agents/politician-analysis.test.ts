@@ -6,8 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
+import { loadSignalsFromExport, daysBetween, annualizeReturn } from "./test-utils";
 
 // =============================================================================
 // Types
@@ -30,9 +29,6 @@ interface Signal {
   disclosure_price: number | null;
 }
 
-interface DataExport {
-  signals: Signal[];
-}
 
 interface Position {
   ticker: string;
@@ -120,10 +116,7 @@ interface SPYBenchmark {
 // =============================================================================
 
 function loadSignals(): Signal[] {
-  const exportPath = path.join(__dirname, "../../../trader-db-export.json");
-  const data: DataExport = JSON.parse(fs.readFileSync(exportPath, "utf-8"));
-
-  return data.signals.filter(s =>
+  return loadSignalsFromExport().filter((s: Signal) =>
     s.ticker &&
     s.trade_date &&
     s.trade_price > 0 &&
@@ -131,7 +124,7 @@ function loadSignals(): Signal[] {
     s.politician_name &&
     s.politician_party &&
     s.politician_chamber
-  ) as Signal[];
+  );
 }
 
 // =============================================================================
@@ -221,26 +214,6 @@ function calculateSPYBenchmark(signals: Signal[]): SPYBenchmark {
 // =============================================================================
 // Calculate Politician Returns
 // =============================================================================
-
-function daysBetween(start: string, end: string): number {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-/**
- * Annualize a return percentage based on hold period.
- * Formula: (1 + r)^(365/days) - 1
- */
-function annualizeReturn(returnPct: number, holdDays: number): number {
-  if (holdDays <= 0) return 0;
-  const r = returnPct / 100;
-  const years = holdDays / 365;
-  // Avoid extreme annualization for very short holds
-  if (years < 0.1) return returnPct; // Return raw if < ~36 days
-  const annualized = Math.pow(1 + r, 1 / years) - 1;
-  return annualized * 100;
-}
 
 function calculatePoliticianStats(
   signals: Signal[],

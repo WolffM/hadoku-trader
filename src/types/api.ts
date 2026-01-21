@@ -88,46 +88,6 @@ export interface SourcePerformance {
   win_rate: number
 }
 
-// API Response types
-export interface SignalsResponse {
-  signals: Signal[]
-  last_updated: string
-}
-
-export interface TradesResponse {
-  trades: ExecutedTrade[]
-  last_updated: string
-}
-
-export interface SourcesResponse {
-  sources: SourcePerformance[]
-  last_updated: string
-}
-
-// Trade Execution types
-export interface ExecuteTradeRequest {
-  ticker: string
-  action: 'buy' | 'sell'
-  quantity: number
-  account?: string
-  dry_run?: boolean
-}
-
-export interface ExecuteTradeResponse {
-  success: boolean
-  message: string
-  order_id?: string
-  details?: Record<string, unknown>
-}
-
-// Health check
-export interface HealthResponse {
-  status: 'healthy' | 'degraded'
-  database: 'connected' | 'disconnected'
-  trader_worker: 'connected' | 'disconnected'
-  timestamp: string
-}
-
 // Agent types
 export interface AgentSummary {
   id: string
@@ -153,11 +113,6 @@ export interface AgentPosition {
 export interface AgentDetail {
   agent: AgentSummary
   positions: AgentPosition[]
-}
-
-export interface AgentsResponse {
-  agents: AgentSummary[]
-  last_updated: string
 }
 
 // API base URL (configure based on environment)

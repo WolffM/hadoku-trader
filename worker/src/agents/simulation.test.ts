@@ -5,11 +5,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG, NAIVE_CONFIG } from "./configs";
 import { runSimulation, type SimSignal, calculateHistoricalBucketStats, calculateBucketSizes, getBucket } from "./simulation";
 import { calculateScoreSync } from "./scoring";
+import { loadSignalsFromExport } from "./test-utils";
 
 // =============================================================================
 // Load Data
@@ -33,15 +32,11 @@ interface Signal {
 }
 
 function loadSignals(): SimSignal[] {
-  const dbPath = path.join(__dirname, "../../../trader-db-export.json");
-  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-  return db.signals;
+  return loadSignalsFromExport();
 }
 
 function loadSignalsTyped(): Signal[] {
-  const dbPath = path.join(__dirname, "../../../trader-db-export.json");
-  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-  return db.signals.filter((s: Signal) =>
+  return loadSignalsFromExport().filter((s: Signal) =>
     s.ticker &&
     s.trade_date &&
     s.trade_price > 0 &&

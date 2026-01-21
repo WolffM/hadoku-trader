@@ -8,10 +8,9 @@
  */
 
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import { CHATGPT_CONFIG } from "./configs";
 import { calculateScoreSync, scoreTimeDecay, scorePriceMovement, scorePositionSize } from "./scoring";
+import { loadSignalsFromExport, daysBetween } from "./test-utils";
 
 // =============================================================================
 // Load Data
@@ -33,20 +32,12 @@ interface Signal {
 }
 
 function loadSignals(): Signal[] {
-  const dbPath = path.join(__dirname, "../../../trader-db-export.json");
-  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-  return db.signals.filter((s: Signal) =>
+  return loadSignalsFromExport().filter((s: Signal) =>
     s.ticker &&
     s.disclosure_date &&
     s.disclosure_price &&
     s.disclosure_price > 0
   );
-}
-
-function daysBetween(date1: string, date2: string): number {
-  const d1 = new Date(date1);
-  const d2 = new Date(date2);
-  return Math.floor((d2.getTime() - d1.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // =============================================================================

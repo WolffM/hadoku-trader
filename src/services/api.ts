@@ -8,9 +8,6 @@ import {
   type PerformanceData,
   type ExecutedTrade,
   type SourcePerformance,
-  type ExecuteTradeRequest,
-  type ExecuteTradeResponse,
-  type HealthResponse,
   type AgentSummary,
   type AgentDetail,
 } from '../types/api'
@@ -68,29 +65,6 @@ export async function fetchTrades(): Promise<ExecutedTrade[]> {
 export async function fetchSources(): Promise<SourcePerformance[]> {
   const data = await fetchApi<{ sources: SourcePerformance[] }>('/sources')
   return data.sources
-}
-
-/**
- * Execute a trade via the Fidelity service.
- */
-export async function executeTrade(
-  request: ExecuteTradeRequest,
-  apiKey: string
-): Promise<ExecuteTradeResponse> {
-  return fetchApi<ExecuteTradeResponse>('/execute', {
-    method: 'POST',
-    headers: {
-      'X-API-Key': apiKey,
-    },
-    body: JSON.stringify(request),
-  })
-}
-
-/**
- * Health check endpoint.
- */
-export async function fetchHealth(): Promise<HealthResponse> {
-  return fetchApi<HealthResponse>('/health')
 }
 
 /**

@@ -18,12 +18,11 @@
  */
 
 import { describe, it, expect } from "vitest";
-import * as fs from "fs";
-import * as path from "path";
 import { CHATGPT_CONFIG } from "./configs";
 import type { AgentConfig, ScoringConfig } from "./types";
 import { calculateHistoricalBucketStats, calculateBucketSizes, getBucket, type SimSignal } from "./simulation";
 import { calculateScoreSync } from "./scoring";
+import { loadSignalsFromExport, daysBetween } from "./test-utils";
 
 // =============================================================================
 // Load Data
@@ -47,15 +46,11 @@ interface Signal {
 }
 
 function loadSignals(): SimSignal[] {
-  const dbPath = path.join(__dirname, "../../../trader-db-export.json");
-  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-  return db.signals;
+  return loadSignalsFromExport();
 }
 
 function loadSignalsTyped(): Signal[] {
-  const dbPath = path.join(__dirname, "../../../trader-db-export.json");
-  const db = JSON.parse(fs.readFileSync(dbPath, "utf-8"));
-  return db.signals.filter((s: Signal) =>
+  return loadSignalsFromExport().filter((s: Signal) =>
     s.ticker &&
     s.trade_date &&
     s.trade_price > 0 &&
@@ -64,12 +59,6 @@ function loadSignalsTyped(): Signal[] {
     s.politician_party &&
     s.politician_chamber
   );
-}
-
-function daysBetween(start: string, end: string): number {
-  const startDate = new Date(start);
-  const endDate = new Date(end);
-  return Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
 }
 
 // =============================================================================

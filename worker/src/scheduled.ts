@@ -3,7 +3,7 @@
  */
 
 import { TraderEnv, ScraperDataPackage, Signal } from "./types";
-import { generateId } from "./utils";
+import { insertSignal } from "./utils";
 import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from "./agents";
 
 // =============================================================================
@@ -171,64 +171,10 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
  * Store a signal in the database, handling duplicates.
  */
 async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
-  // Check for duplicate
-  const existing = await env.TRADER_DB.prepare(
-    "SELECT id FROM signals WHERE source = ? AND source_id = ?"
-  )
-    .bind(signal.source, signal.meta.source_id)
-    .first();
-
-  if (existing) {
-    return; // Already have this signal
+  const result = await insertSignal(env, signal);
+  if (!result.duplicate) {
+    console.log(`Stored new signal: ${signal.trade.ticker} from ${signal.source}`);
   }
-
-  const id = generateId("sig");
-
-  // Calculate disclosure lag in days
-  const tradeDate = new Date(signal.trade.trade_date);
-  const disclosureDate = new Date(signal.trade.disclosure_date);
-  const disclosureLagDays = Math.floor((disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24));
-
-  await env.TRADER_DB.prepare(`
-    INSERT INTO signals (
-      id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
-      disclosure_lag_days, current_price, current_price_at,
-      position_size, position_size_min, position_size_max,
-      option_type, strike_price, expiration_date,
-      source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-    .bind(
-      id,
-      signal.source,
-      signal.politician.name,
-      signal.politician.chamber,
-      signal.politician.party,
-      signal.politician.state,
-      signal.trade.ticker,
-      signal.trade.action,
-      signal.trade.asset_type,
-      signal.trade.trade_price,
-      signal.trade.disclosure_price,
-      signal.trade.trade_date,
-      signal.trade.disclosure_date,
-      disclosureLagDays,
-      signal.trade.current_price ?? null,
-      signal.trade.current_price_at ?? null,
-      signal.trade.position_size,
-      signal.trade.position_size_min,
-      signal.trade.position_size_max,
-      signal.trade.option_type,
-      signal.trade.strike_price,
-      signal.trade.expiration_date,
-      signal.meta.source_url,
-      signal.meta.source_id,
-      signal.meta.scraped_at
-    )
-    .run();
-
-  console.log(`Stored new signal: ${signal.trade.ticker} from ${signal.source}`);
 }
 
 /**
