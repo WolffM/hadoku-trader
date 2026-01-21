@@ -231,23 +231,24 @@ jobs:
         env:
           HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
-          packages=""
+          # Build packages as JSON array
+          packages="[]"
           if [ "${{ needs.publish-ui.outputs.published }}" == "true" ]; then
-            packages="$packages @wolffm/trader"
+            packages=$(echo "$packages" | jq '. + ["@wolffm/trader"]')
           fi
           if [ "${{ needs.publish-worker.outputs.published }}" == "true" ]; then
-            packages="$packages @wolffm/trader-worker"
+            packages=$(echo "$packages" | jq '. + ["@wolffm/trader-worker"]')
           fi
           if [ "${{ needs.publish-python.outputs.published }}" == "true" ]; then
-            packages="$packages hadoku-fidelity"
+            packages=$(echo "$packages" | jq '. + ["hadoku-fidelity"]')
           fi
 
-          echo "Notifying hadoku-site about:$packages"
+          echo "Notifying hadoku-site about: $packages"
 
           curl -sS -X POST "https://api.github.com/repos/WolffM/hadoku_site/dispatches" \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer $HADOKU_SITE_TOKEN" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
-            -d "{\"event_type\": \"packages_updated\", \"client_payload\": {\"packages\": \"$packages\", \"sha\": \"${{ github.sha }}\"}}"
+            -d "{\"event_type\": \"packages_updated\", \"client_payload\": {\"packages\": $packages, \"sha\": \"${{ github.sha }}\"}}"
 
           echo "✅ Notified hadoku-site"
