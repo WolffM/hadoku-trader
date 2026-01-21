@@ -86,9 +86,24 @@ hadoku-trader/
 ├── docs/
 │   ├── ENGINE_SPEC.md        # Full multi-agent engine specification
 │   ├── SCRAPER_INTEGRATION.md # How to integrate scrapers
-│   └── SITE_INTEGRATION.md   # How to integrate with hadoku-site
+│   └── HADOKU_SITE_INTEGRATION.md # How to integrate with hadoku-site
 └── package.json
 ```
+
+## Simulation & Analysis Test Files
+
+The following test files in `worker/src/agents/` are **critical analysis tools**, not just unit tests. They run backtests and strategy analysis against historical data. **Do not delete or refactor these files:**
+
+| File | Purpose |
+|------|---------|
+| `simulation.test.ts` | Portfolio simulation, strategy backtesting, tax analysis |
+| `politician-analysis.test.ts` | Individual politician performance analysis |
+| `scoring-retrospective.test.ts` | Scoring algorithm validation against actual returns |
+| `strategy-variations.test.ts` | A/B testing different strategy parameters |
+
+These files use `trader-db-export.json` (261MB, gitignored) which contains historical signal data. Shared utilities are in `test-utils.ts`.
+
+Run analysis: `cd worker && pnpm test <filename>`
 
 ## Multi-Agent Trading Engine
 
