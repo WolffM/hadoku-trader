@@ -28,6 +28,7 @@ import {
 import { calculateScore } from "./scoring";
 import { calculatePositionSize, calculateShares } from "./sizing";
 import { executeTrade } from "./execution";
+import { MIN_POSITION_AGE_DAYS } from "./tradingConfig";
 
 // =============================================================================
 // Main Routing Functions
@@ -98,9 +99,6 @@ export async function routeSignalToAgents(
  * If agent has an open position for this ticker, close it.
  * Otherwise skip (no short selling).
  */
-// Minimum position age before we can sell (in days) - for long-term capital gains
-const MIN_POSITION_AGE_DAYS = 365;
-
 async function processSellSignalForAgent(
   env: TraderEnv,
   agent: AgentConfig,

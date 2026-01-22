@@ -92,6 +92,31 @@ export {
 } from "./configs";
 
 // =============================================================================
+// Trading Config Exports (Central Settings)
+// =============================================================================
+
+export {
+  // Master switches
+  DRY_RUN,
+  ENABLE_TRADING,
+  // Execution settings
+  ENABLE_FRACTIONAL_SHARES,
+  MIN_POSITION_AGE_DAYS,
+  // Signal processing
+  PROCESS_SIGNALS_IMMEDIATELY,
+  MAX_SIGNALS_PER_BATCH,
+  // Budget
+  DEFAULT_MONTHLY_BUDGET,
+  BUDGET_RESET_DAY,
+  // Logging
+  ENABLE_DECISION_LOGGING,
+  LOG_API_CALLS,
+  // Helpers
+  isDryRun,
+  getTradingConfigSummary,
+} from "./tradingConfig";
+
+// =============================================================================
 // Filter & Utility Exports
 // =============================================================================
 

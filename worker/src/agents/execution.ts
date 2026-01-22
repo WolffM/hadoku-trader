@@ -17,6 +17,7 @@ import type {
 import { generateId, getCurrentDate } from "./filters";
 import { updateAgentBudget } from "./loader";
 import { calculateShares } from "./sizing";
+import { isDryRun, ENABLE_FRACTIONAL_SHARES } from "./tradingConfig";
 
 // =============================================================================
 // Trade Execution
@@ -44,7 +45,7 @@ export async function executeTrade(
   const now = new Date().toISOString();
 
   // Calculate shares from position size and current price (fractional shares enabled)
-  const shares = calculateShares(positionSize, signal.current_price, true);
+  const shares = calculateShares(positionSize, signal.current_price, ENABLE_FRACTIONAL_SHARES);
 
   if (shares === 0) {
     // Position too small - mark trade as failed
@@ -79,7 +80,7 @@ export async function executeTrade(
       quantity: shares,
       action: signal.action,
       account: undefined, // Use default account
-      dry_run: false, // Set to true for testing
+      dry_run: isDryRun(),
     });
 
     if (!apiResponse.success) {
@@ -339,7 +340,7 @@ export async function executeSellOrder(
       ticker,
       quantity: shares,
       action: "sell",
-      dry_run: false,
+      dry_run: isDryRun(),
     });
 
     if (!response.success) {
