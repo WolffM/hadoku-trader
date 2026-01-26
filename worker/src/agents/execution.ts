@@ -44,11 +44,21 @@ export async function executeTrade(
 ): Promise<ExecutionResult> {
   const now = new Date().toISOString();
 
+  console.log(`\n[EXECUTION] === Trade Execution Started ===`);
+  console.log(`[EXECUTION]   Agent: ${agent.id} (${agent.name})`);
+  console.log(`[EXECUTION]   Trade ID: ${tradeId}`);
+  console.log(`[EXECUTION]   Ticker: ${signal.ticker}, Action: ${signal.action}`);
+  console.log(`[EXECUTION]   Position Size: $${positionSize.toFixed(2)}`);
+  console.log(`[EXECUTION]   Current Price: $${signal.current_price.toFixed(2)}`);
+  console.log(`[EXECUTION]   DRY_RUN: ${isDryRun()}`);
+
   // Calculate shares from position size and current price (fractional shares enabled)
   const shares = calculateShares(positionSize, signal.current_price, ENABLE_FRACTIONAL_SHARES);
+  console.log(`[EXECUTION]   Calculated Shares: ${shares.toFixed(4)} (fractional: ${ENABLE_FRACTIONAL_SHARES})`);
 
   if (shares === 0) {
     // Position too small - mark trade as failed
+    console.log(`[EXECUTION]   ERROR: Shares = 0, insufficient funds for any shares`);
     await updateTradeExecution(env, tradeId, {
       quantity: 0,
       price: signal.current_price,
@@ -72,9 +82,13 @@ export async function executeTrade(
 
   // Calculate actual total (may differ from positionSize due to rounding)
   const actualTotal = shares * signal.current_price;
+  console.log(`[EXECUTION]   Actual Total: $${actualTotal.toFixed(2)}`);
 
   try {
     // Call Fidelity API
+    console.log(`[EXECUTION]   Calling Fidelity API via tunnel...`);
+    console.log(`[EXECUTION]   Request: { ticker: ${signal.ticker}, action: ${signal.action}, quantity: ${shares}, dry_run: ${isDryRun()} }`);
+
     const apiResponse = await callFidelityApi(env, {
       ticker: signal.ticker,
       quantity: shares,
@@ -82,6 +96,8 @@ export async function executeTrade(
       account: undefined, // Use default account
       dry_run: isDryRun(),
     });
+
+    console.log(`[EXECUTION]   Fidelity API Response: ${JSON.stringify(apiResponse)}`);
 
     if (!apiResponse.success) {
       // API call failed
@@ -289,8 +305,12 @@ export async function callFidelityApi(
   env: TraderEnv,
   request: FidelityTradeRequest
 ): Promise<FidelityTradeResponse> {
+  const tunnelUrl = `${env.TUNNEL_URL}/execute-trade`;
+  console.log(`[FIDELITY_API] Calling tunnel: ${tunnelUrl}`);
+  console.log(`[FIDELITY_API] Request payload: ${JSON.stringify(request)}`);
+
   try {
-    const response = await fetch(`${env.TUNNEL_URL}/execute-trade`, {
+    const response = await fetch(tunnelUrl, {
       method: "POST",
       headers: {
         "X-API-Key": env.TRADER_API_KEY,
@@ -299,8 +319,11 @@ export async function callFidelityApi(
       body: JSON.stringify(request),
     });
 
+    console.log(`[FIDELITY_API] Response status: ${response.status}`);
+
     if (!response.ok) {
       const text = await response.text();
+      console.log(`[FIDELITY_API] ERROR: ${response.status} - ${text}`);
       return {
         success: false,
         error: `API returned ${response.status}: ${text}`,
@@ -308,11 +331,21 @@ export async function callFidelityApi(
     }
 
     const data: FidelityTradeResponse = await response.json();
+    console.log(`[FIDELITY_API] Response data: ${JSON.stringify(data)}`);
+
+    if (data.success && request.dry_run) {
+      console.log(`[FIDELITY_API] *** DRY RUN - Trade was PREVIEWED but NOT executed ***`);
+    } else if (data.success) {
+      console.log(`[FIDELITY_API] *** LIVE TRADE - Order submitted! ***`);
+    }
+
     return data;
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : "Network error";
+    console.log(`[FIDELITY_API] EXCEPTION: ${errorMsg}`);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Network error",
+      error: errorMsg,
     };
   }
 }

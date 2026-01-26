@@ -47,13 +47,28 @@ export async function routeSignalToAgents(
   currentPrice: number,
   executeImmediately: boolean = true
 ): Promise<AgentDecision[]> {
+  console.log(`\n${"=".repeat(80)}`);
+  console.log(`[ROUTER] Processing signal: ${signalRow.id}`);
+  console.log(`[ROUTER]   Ticker: ${signalRow.ticker}, Action: ${signalRow.action}`);
+  console.log(`[ROUTER]   Politician: ${signalRow.politician_name}`);
+  console.log(`[ROUTER]   Trade Date: ${signalRow.trade_date}, Trade Price: $${signalRow.trade_price}`);
+  console.log(`[ROUTER]   Position Size: $${signalRow.position_size_min?.toLocaleString()}`);
+  console.log(`[ROUTER]   Current Price: $${currentPrice}`);
+  console.log(`[ROUTER]   Execute Immediately: ${executeImmediately}`);
+  console.log(`${"=".repeat(80)}`);
+
   const signal = enrichSignal(signalRow, currentPrice);
   const agents = await getActiveAgents(env);
   const decisions: AgentDecision[] = [];
 
+  console.log(`[ROUTER] Routing to ${agents.length} active agents: ${agents.map(a => a.id).join(", ")}`);
+
   for (const agent of agents) {
+    console.log(`\n[ROUTER] --- Agent: ${agent.id} (${agent.name}) ---`);
+
     // Handle SELL signals: close existing positions
     if (signal.action === "sell") {
+      console.log(`[ROUTER]   Processing SELL signal for ${agent.id}`);
       const sellDecision = await processSellSignalForAgent(
         env,
         agent,
@@ -61,21 +76,34 @@ export async function routeSignalToAgents(
         currentPrice,
         executeImmediately
       );
+      console.log(`[ROUTER]   SELL Decision: ${sellDecision.action} (${sellDecision.decision_reason})`);
       decisions.push(sellDecision);
       continue;
     }
 
     // Handle BUY signals: normal processing
+    console.log(`[ROUTER]   Processing BUY signal for ${agent.id}`);
     const decision = await processSignalForAgent(env, agent, signal);
+
+    console.log(`[ROUTER]   Decision: ${decision.action}`);
+    console.log(`[ROUTER]   Reason: ${decision.decision_reason}`);
+    if (decision.score !== null) {
+      console.log(`[ROUTER]   Score: ${decision.score.toFixed(3)}`);
+      if (decision.score_breakdown) {
+        console.log(`[ROUTER]   Score Breakdown: ${JSON.stringify(decision.score_breakdown)}`);
+      }
+    }
 
     // Log the decision to database first
     const tradeId = await logAgentDecision(env, decision, signal);
+    console.log(`[ROUTER]   Trade ID: ${tradeId}`);
 
     // If decision is to execute, calculate size and execute trade
     if (
       executeImmediately &&
       (decision.action === "execute" || decision.action === "execute_half")
     ) {
+      console.log(`[ROUTER]   Executing trade...`);
       const executionResult = await executeDecision(
         env,
         agent,
@@ -84,12 +112,18 @@ export async function routeSignalToAgents(
         tradeId
       );
 
+      console.log(`[ROUTER]   Execution Result: ${executionResult.success ? "SUCCESS" : "FAILED"}`);
+      console.log(`[ROUTER]   Position Size: $${executionResult.positionSize.toFixed(2)}`);
+
       // Update decision with position size from execution
       decision.position_size = executionResult.positionSize;
     }
 
     decisions.push(decision);
   }
+
+  console.log(`\n[ROUTER] Routing complete. Decisions: ${decisions.map(d => `${d.agent_id}:${d.action}`).join(", ")}`);
+  console.log(`${"=".repeat(80)}\n`);
 
   return decisions;
 }
