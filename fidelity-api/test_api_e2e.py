@@ -3,7 +3,7 @@
 End-to-end test for the fidelity-api HTTP endpoints.
 
 This tests the ACTUAL production flow that hadoku-site will use:
-  hadoku-site → POST /execute-trade → FastAPI → TraderService → FidelityClientAsync
+  hadoku-site -> POST /execute-trade -> FastAPI -> TraderService -> FidelityClientPatchright
 
 Usage:
     # Start the service first (in another terminal):
@@ -34,13 +34,13 @@ def test_health(base_url: str) -> bool:
         print(f"  Response: {data}")
 
         if response.status_code == 200 and data.get("status") == "ok":
-            print("  ✓ Health check passed")
+            print("  [OK] Health check passed")
             return True
         else:
-            print("  ✗ Health check failed")
+            print("  [FAIL] Health check failed")
             return False
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  [FAIL] Error: {e}")
         return False
 
 
@@ -78,14 +78,14 @@ def test_execute_trade_buy(base_url: str, api_key: str) -> dict:
 
         if data["success"]:
             assert data["alert"] == "SUCCESS", f"Expected SUCCESS alert, got {data['alert']}"
-            print("  ✓ Buy dry run passed")
+            print("  [OK] Buy dry run passed")
         else:
-            print(f"  ⚠ Buy failed with alert: {data['alert']}")
+            print(f"  [WARN] Buy failed with alert: {data['alert']}")
 
         return data
 
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  [FAIL] Error: {e}")
         return {"success": False, "alert": "UNKNOWN", "error": str(e)}
 
 
@@ -119,14 +119,14 @@ def test_execute_trade_sell_no_position(base_url: str, api_key: str) -> dict:
         # Should fail
         if not data["success"]:
             # Ideally should be NO_POSITION, but might be ORDER_REJECTED if error extraction fails
-            print(f"  ✓ Sell correctly failed with alert: {data['alert']}")
+            print(f"  [OK] Sell correctly failed with alert: {data['alert']}")
         else:
-            print("  ⚠ Sell unexpectedly succeeded (do you own AAPL?)")
+            print("  [WARN] Sell unexpectedly succeeded (do you own AAPL?)")
 
         return data
 
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  [FAIL] Error: {e}")
         return {"success": False, "alert": "UNKNOWN", "error": str(e)}
 
 
@@ -159,14 +159,14 @@ def test_execute_trade_sell_owned(base_url: str, api_key: str, ticker: str) -> d
 
         if data["success"]:
             assert data["alert"] == "SUCCESS", f"Expected SUCCESS alert, got {data['alert']}"
-            print("  ✓ Sell dry run passed")
+            print("  [OK] Sell dry run passed")
         else:
-            print(f"  ✗ Sell failed with alert: {data['alert']}")
+            print(f"  [FAIL] Sell failed with alert: {data['alert']}")
 
         return data
 
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  [FAIL] Error: {e}")
         return {"success": False, "alert": "UNKNOWN", "error": str(e)}
 
 
@@ -196,14 +196,14 @@ def test_invalid_api_key(base_url: str) -> bool:
         print(f"  Status: {response.status_code}")
 
         if response.status_code == 401:
-            print("  ✓ Correctly rejected invalid API key")
+            print("  [OK] Correctly rejected invalid API key")
             return True
         else:
-            print(f"  ✗ Expected 401, got {response.status_code}")
+            print(f"  [FAIL] Expected 401, got {response.status_code}")
             return False
 
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  [FAIL] Error: {e}")
         return False
 
 
@@ -260,7 +260,7 @@ def main():
 
     all_passed = True
     for test_name, passed in results.items():
-        status = "✓ PASS" if passed else "✗ FAIL"
+        status = "[PASS]" if passed else "[FAIL]"
         print(f"  {test_name}: {status}")
         if not passed:
             all_passed = False

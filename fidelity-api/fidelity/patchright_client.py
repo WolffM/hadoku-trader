@@ -1,20 +1,24 @@
 """
-Async Fidelity Client for use in async contexts (FastAPI, asyncio, etc).
+Patchright-based Fidelity Client for use in async contexts.
 
-This is a standalone async implementation that doesn't share code with
-the sync version to avoid complexity. Use this for FastAPI/uvicorn.
+Uses Patchright (patched Playwright) to avoid CDP detection that triggers
+Fidelity's bot detection. This is a drop-in replacement for FidelityClientAsync.
+
+Key differences:
+- Uses Chromium instead of Firefox
+- Patches CDP at protocol level to avoid detection
+- No need for playwright-stealth (Patchright handles it)
 """
 
 import traceback
 from typing import Optional
-from dataclasses import dataclass
 
 import pyotp
-from playwright.async_api import TimeoutError as PlaywrightTimeoutError
+from patchright.async_api import TimeoutError as PatchrightTimeoutError
 
-from .browser import FidelityBrowserAsync
+from .patchright_browser import PatchrightBrowserAsync
 from .selectors import URLs, Selectors, Timeouts
-from .models import LoginResult, Account, Stock, TradeAlert
+from .models import Account, Stock, TradeAlert
 from .trading import classify_error
 from .human import (
     human_type,
@@ -29,30 +33,28 @@ from .human import (
 )
 
 
-class FidelityClientAsync:
+class FidelityClientPatchright:
     """
-    Async Fidelity client for use with FastAPI/uvicorn.
+    Patchright-based Fidelity client with CDP-level stealth.
+
+    This client uses Patchright to avoid Fidelity's bot detection which
+    operates at the Chrome DevTools Protocol level.
 
     Usage:
-        client = FidelityClientAsync()
-        await client.initialize()
-        result = await client.login(username, password, totp_secret)
-        await client.close()
-
-    Or with async context manager:
-        async with FidelityClientAsync() as client:
-            await client.login(...)
+        async with FidelityClientPatchright() as client:
+            await client.login(username, password, totp_secret)
+            await client.transaction(...)
     """
 
     def __init__(
         self,
-        headless: bool = True,
+        headless: bool = False,  # Patchright works best headed
         save_state: bool = True,
         profile_path: str = ".",
         title: Optional[str] = None,
         debug: bool = False,
     ) -> None:
-        self._browser = FidelityBrowserAsync(
+        self._browser = PatchrightBrowserAsync(
             headless=headless,
             save_state=save_state,
             profile_path=profile_path,
@@ -61,7 +63,7 @@ class FidelityClientAsync:
         )
         self._initialized = False
 
-    async def initialize(self) -> "FidelityClientAsync":
+    async def initialize(self) -> "FidelityClientPatchright":
         """Initialize the browser. Must be called before other methods."""
         await self._browser.initialize()
         self._initialized = True
@@ -72,7 +74,7 @@ class FidelityClientAsync:
         await self._browser.close()
         self._initialized = False
 
-    async def __aenter__(self) -> "FidelityClientAsync":
+    async def __aenter__(self) -> "FidelityClientPatchright":
         await self.initialize()
         return self
 
@@ -91,7 +93,7 @@ class FidelityClientAsync:
         save_device: bool = False,
     ) -> tuple[bool, bool]:
         """
-        Log into Fidelity with human-like behavior to avoid bot detection.
+        Log into Fidelity with human-like behavior.
 
         Args:
             username: Fidelity username
@@ -152,7 +154,7 @@ class FidelityClientAsync:
 
             return (False, False)
 
-        except PlaywrightTimeoutError:
+        except PatchrightTimeoutError:
             traceback.print_exc()
             return (False, False)
         except Exception as e:
@@ -169,7 +171,7 @@ class FidelityClientAsync:
         page = self._browser.page
 
         await self._browser.wait_for_loading()
-        await think_delay()  # Human would pause to read the screen
+        await think_delay()
 
         # Debug: print current URL and page title
         print(f"[2FA] Current URL: {page.url}")
@@ -198,7 +200,6 @@ class FidelityClientAsync:
             print("[2FA] Found TOTP input, proceeding with TOTP login")
             if totp_secret:
                 return await self._complete_totp_login(totp_secret, save_device)
-            # TOTP input visible but no secret - can't proceed automatically
             return (True, False)
 
         # Also try placeholder-based detection
@@ -233,7 +234,7 @@ class FidelityClientAsync:
         # If we get here, we couldn't find any 2FA option
         print("[2FA] ERROR: Could not find TOTP or SMS option")
         print("[2FA] Taking screenshot for debugging...")
-        await page.screenshot(path="2fa_debug.png")
+        await page.screenshot(path="2fa_debug_patchright.png")
         return (False, False)
 
     async def _complete_totp_login(
@@ -244,13 +245,13 @@ class FidelityClientAsync:
         """Complete login with TOTP using human-like behavior."""
         page = self._browser.page
 
-        # Simulate getting code from authenticator app (human would look at phone)
+        # Simulate getting code from authenticator app
         await think_delay()
 
         code = pyotp.TOTP(totp_secret).now()
         totp_input = page.get_by_placeholder(Selectors.TOTP_INPUT)
 
-        # Type the code like a human (looking at phone, typing slowly)
+        # Type the code like a human
         await human_type(page, totp_input, code)
 
         if save_device:
@@ -276,6 +277,120 @@ class FidelityClientAsync:
     # Account Info
     # =========================================================================
 
+    async def get_accounts_from_trade_page(self) -> list[str]:
+        """
+        Get account numbers from the trade page dropdown.
+        More reliable than parsing the positions page.
+
+        Returns:
+            List of account numbers as strings.
+        """
+        try:
+            page = self._browser.page
+
+            # Navigate to trade page
+            print("[DEBUG] Navigating to trade page...")
+            await page.goto(URLs.TRADE)
+            await self._browser.wait_for_loading()
+            await page.wait_for_timeout(3000)  # Wait longer for trade page
+
+            print(f"[DEBUG] Trade page URL: {page.url}")
+
+            # Try multiple selectors for account dropdown
+            dropdown_selectors = [
+                "#dest-acct-dropdown",
+                "[data-testid='account-dropdown']",
+                ".account-dropdown",
+                "#account-selector",
+                "button[aria-label*='account']",
+                "button[aria-label*='Account']",
+            ]
+
+            account_dropdown = None
+            for selector in dropdown_selectors:
+                locator = page.locator(selector)
+                count = await locator.count()
+                print(f"[DEBUG] Selector '{selector}': {count} matches")
+                if count > 0:
+                    account_dropdown = locator.first
+                    break
+
+            if not account_dropdown:
+                print("[DEBUG] No dropdown found, trying to find any dropdown button...")
+                # Try looking for any dropdown that might contain account info
+                buttons = page.locator("button")
+                btn_count = await buttons.count()
+                print(f"[DEBUG] Found {btn_count} buttons on page")
+
+                # Look for a button with account-like text
+                for i in range(min(btn_count, 20)):  # Check first 20 buttons
+                    btn = buttons.nth(i)
+                    try:
+                        text = await btn.inner_text()
+                        if any(x in text.lower() for x in ['account', 'individual', 'ira', 'brokerage']):
+                            print(f"[DEBUG] Found potential account button: {text[:50]}")
+                            account_dropdown = btn
+                            break
+                    except:
+                        pass
+
+            if not account_dropdown:
+                print("[DEBUG] Could not find account dropdown")
+                # Take a screenshot for debugging
+                await page.screenshot(path="trade_page_debug.png")
+                print("[DEBUG] Screenshot saved to trade_page_debug.png")
+                return []
+
+            # Click the dropdown
+            print("[DEBUG] Clicking account dropdown...")
+            await account_dropdown.click()
+            await page.wait_for_timeout(1000)
+
+            # Try multiple selectors for dropdown options
+            option_selectors = [
+                "#dest-acct-dropdown-menu li",
+                "[role='option']",
+                "[role='menuitem']",
+                ".dropdown-item",
+                "ul li",
+            ]
+
+            accounts = []
+            for selector in option_selectors:
+                options = page.locator(selector)
+                count = await options.count()
+                print(f"[DEBUG] Option selector '{selector}': {count} matches")
+                if count > 0:
+                    for i in range(count):
+                        option = options.nth(i)
+                        try:
+                            text = await option.inner_text()
+                            text = text.strip()
+                            if text and len(text) > 3:
+                                print(f"[DEBUG] Option {i}: {text[:60]}")
+                                # Try to extract account number
+                                import re
+                                match = re.search(r'[A-Z]?\d{4,8}', text)
+                                if match:
+                                    accounts.append(match.group())
+                                elif text not in accounts:
+                                    accounts.append(text)
+                        except:
+                            pass
+                    if accounts:
+                        break
+
+            # Close dropdown
+            await page.keyboard.press("Escape")
+
+            print(f"[DEBUG] Found {len(accounts)} accounts from trade dropdown: {accounts}")
+            return accounts
+
+        except Exception as e:
+            print(f"Error getting accounts from trade page: {e}")
+            traceback.print_exc()
+            return []
+
     async def get_account_info(self) -> dict[str, Account]:
         """
         Get account information from positions page.
@@ -287,7 +402,7 @@ class FidelityClientAsync:
             page = self._browser.page
             await page.goto(URLs.POSITIONS)
             await self._browser.wait_for_loading()
-            await page.wait_for_timeout(2000)  # Wait for AG Grid to render
+            await page.wait_for_timeout(2000)
 
             accounts: dict[str, Account] = {}
 
@@ -298,7 +413,6 @@ class FidelityClientAsync:
             for i in range(acc_count):
                 acc_row = account_rows.nth(i)
 
-                # Get account number from the row
                 try:
                     acc_num_elem = acc_row.locator(Selectors.ACCOUNT_NUMBER).first
                     acc_num = await acc_num_elem.inner_text()
@@ -306,20 +420,15 @@ class FidelityClientAsync:
                 except Exception:
                     continue
 
-                # Get all positions for this account
-                # Positions appear after the account row until the next account row
                 stocks = []
                 total_value = 0.0
 
-                # Find position rows that belong to this account
-                # They appear as siblings after the account row
                 position_rows = page.locator(Selectors.POSITION_ROW)
                 pos_count = await position_rows.count()
 
                 for j in range(pos_count):
                     row = position_rows.nth(j)
                     try:
-                        # Get ticker
                         ticker_elem = row.locator(Selectors.POSITION_TICKER).first
                         ticker = await ticker_elem.inner_text()
                         ticker = ticker.strip()
@@ -327,17 +436,14 @@ class FidelityClientAsync:
                         if not ticker or ticker == "":
                             continue
 
-                        # Get quantity
                         qty_elem = row.locator(Selectors.POSITION_QUANTITY).first
                         qty_text = await qty_elem.inner_text()
                         qty = float(qty_text.replace(",", "").strip())
 
-                        # Get last price
                         price_elem = row.locator(Selectors.POSITION_PRICE).first
                         price_text = await price_elem.inner_text()
                         price = float(price_text.replace("$", "").replace(",", "").strip())
 
-                        # Get current value
                         value_elem = row.locator(Selectors.POSITION_VALUE).first
                         value_text = await value_elem.inner_text()
                         value = float(value_text.replace("$", "").replace(",", "").strip())
@@ -350,7 +456,7 @@ class FidelityClientAsync:
                         ))
                         total_value += value
 
-                    except Exception as e:
+                    except Exception:
                         continue
 
                 accounts[acc_num] = Account(
@@ -392,7 +498,6 @@ class FidelityClientAsync:
 
         Returns:
             Tuple of (success, error_message, alert_code)
-            alert_code is a TradeAlert enum value as string
         """
         try:
             page = self._browser.page
@@ -405,14 +510,14 @@ class FidelityClientAsync:
             # Random mouse movement
             await random_mouse_movement(page, count=1)
 
-            # Select account with human-like behavior
+            # Select account
             account_dropdown = page.locator(Selectors.ACCOUNT_DROPDOWN)
             await human_click(page, account_dropdown, wait_after=False)
             await minor_delay()
             account_option = page.get_by_text(account, exact=False).first
             await human_click(page, account_option)
 
-            # Enter symbol with human typing
+            # Enter symbol
             symbol_input = page.locator(Selectors.SYMBOL_INPUT)
             await human_fill(page, symbol_input, stock.upper())
             await action_delay()
@@ -461,7 +566,7 @@ class FidelityClientAsync:
             if dry:
                 return (True, None, TradeAlert.SUCCESS.value)
 
-            # Submit order - pause like human reviewing order details
+            # Submit order
             await submit_delay()
 
             submit_btn = page.get_by_role("button", name="Place order")
@@ -481,7 +586,7 @@ class FidelityClientAsync:
 
             return (False, "Order may not have been placed", TradeAlert.UNKNOWN.value)
 
-        except PlaywrightTimeoutError as e:
+        except PatchrightTimeoutError as e:
             print(f"Transaction timeout: {e}")
             traceback.print_exc()
             return (False, str(e), TradeAlert.TIMEOUT.value)

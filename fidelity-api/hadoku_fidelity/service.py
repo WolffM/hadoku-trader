@@ -1,12 +1,15 @@
 """
-Async trader service that wraps FidelityClientAsync for API use.
+Async trader service that wraps FidelityClientPatchright for API use.
+
+Uses Patchright (patched Playwright) to avoid CDP detection that triggers
+Fidelity's bot detection.
 """
 
 import os
 from typing import Optional
 from dataclasses import dataclass, field
 
-from fidelity.async_client import FidelityClientAsync
+from fidelity.patchright_client import FidelityClientPatchright
 
 
 @dataclass
@@ -32,6 +35,9 @@ class TraderService:
     """
     Async service layer for Fidelity trading operations.
 
+    Uses Patchright (patched Playwright) to avoid CDP detection that
+    triggers Fidelity's bot detection.
+
     Usage:
         service = TraderService()
         await service.initialize()
@@ -42,16 +48,16 @@ class TraderService:
 
     def __init__(self, config: Optional[TraderConfig] = None):
         self.config = config or TraderConfig()
-        self._client: Optional[FidelityClientAsync] = None
+        self._client: Optional[FidelityClientPatchright] = None
         self._authenticated: bool = False
         self._initialized: bool = False
 
     async def initialize(self) -> None:
-        """Initialize the async client. Must be called before other methods."""
+        """Initialize the Patchright client. Must be called before other methods."""
         if self._initialized:
             return
 
-        self._client = FidelityClientAsync(
+        self._client = FidelityClientPatchright(
             headless=self.config.headless,
             save_state=True,
             profile_path=self.config.profile_path,
@@ -61,7 +67,7 @@ class TraderService:
         self._initialized = True
 
     @property
-    def client(self) -> FidelityClientAsync:
+    def client(self) -> FidelityClientPatchright:
         """Get the Fidelity client."""
         if self._client is None:
             raise RuntimeError("Service not initialized. Call await service.initialize() first.")

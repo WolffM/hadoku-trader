@@ -46,6 +46,7 @@ class FidelityBrowser:
 
         # Enhanced stealth configuration to avoid bot detection
         self._stealth = Stealth(
+            # Navigator overrides
             navigator_languages=True,
             navigator_user_agent=True,
             navigator_vendor=True,
@@ -53,15 +54,18 @@ class FidelityBrowser:
             navigator_plugins=True,
             navigator_permissions=True,
             navigator_webdriver=True,  # Critical: hides webdriver flag
-            webgl_vendor=True,
-            webgl_renderer=True,
+            navigator_hardware_concurrency=True,
+            # Chrome-specific
             chrome_app=True,
             chrome_csi=True,
             chrome_load_times=True,
-            chrome_runtime=True,
+            chrome_runtime=False,  # Can cause issues
+            # Other stealth features
+            webgl_vendor=True,
             iframe_content_window=True,
             media_codecs=True,
             hairline=True,
+            sec_ch_ua=True,
         )
 
         self._initialize()
@@ -191,6 +195,7 @@ class FidelityBrowserAsync:
 
         # Enhanced stealth configuration to avoid bot detection
         self._stealth = Stealth(
+            # Navigator overrides
             navigator_languages=True,
             navigator_user_agent=True,
             navigator_vendor=True,
@@ -198,15 +203,18 @@ class FidelityBrowserAsync:
             navigator_plugins=True,
             navigator_permissions=True,
             navigator_webdriver=True,  # Critical: hides webdriver flag
-            webgl_vendor=True,
-            webgl_renderer=True,
+            navigator_hardware_concurrency=True,
+            # Chrome-specific
             chrome_app=True,
             chrome_csi=True,
             chrome_load_times=True,
-            chrome_runtime=True,
+            chrome_runtime=False,  # Can cause issues
+            # Other stealth features
+            webgl_vendor=True,
             iframe_content_window=True,
             media_codecs=True,
             hairline=True,
+            sec_ch_ua=True,
         )
 
     async def initialize(self) -> "FidelityBrowserAsync":

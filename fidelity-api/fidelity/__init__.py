@@ -24,6 +24,10 @@ For backward compatibility with the old API:
 # Main client
 from .client import FidelityClient, FidelityAutomation
 
+# Async clients
+from .async_client import FidelityClientAsync
+from .patchright_client import FidelityClientPatchright
+
 # Models
 from .models import Account, Stock, OrderResult, LoginResult, TradeAlert
 
@@ -116,6 +120,9 @@ __all__ = [
     # Main client
     "FidelityClient",
     "FidelityAutomation",  # Backward compat alias
+    # Async clients
+    "FidelityClientAsync",
+    "FidelityClientPatchright",
     # Models
     "Account",
     "Stock",

@@ -92,8 +92,12 @@ async def human_type(page: AsyncPage, selector_or_locator, text: str, clear: boo
     else:
         element = selector_or_locator
 
-    # Click to focus
-    await element.click()
+    # Click to focus - use force=True to bypass floating labels
+    try:
+        await element.click(force=True)
+    except Exception:
+        # If click still fails, try focusing directly
+        await element.focus()
     await minor_delay()
 
     # Clear if requested
@@ -152,8 +156,12 @@ async def human_fill(page: AsyncPage, selector_or_locator, text: str) -> None:
     else:
         element = selector_or_locator
 
-    # Click to focus
-    await element.click()
+    # Try to click to focus - use force=True to bypass floating labels
+    try:
+        await element.click(force=True)
+    except Exception:
+        # If click still fails, try focusing directly
+        await element.focus()
     await minor_delay()
 
     # Fill (instant but after human-like focus delay)
