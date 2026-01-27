@@ -267,7 +267,34 @@ class FidelityClientPatchright:
 
         await human_click(page, page.get_by_role("button", name="Continue"))
         await self._browser.wait_for_loading()
-        await page.wait_for_url(URLs.SUMMARY, timeout=Timeouts.LOGIN)
+
+        # Wait for navigation away from login page
+        # Don't wait for specific URL since Fidelity may redirect to servicemessages first
+        await page.wait_for_timeout(3000)
+        print(f"[LOGIN] Post-TOTP URL: {page.url}")
+
+        # Handle Fidelity's session refresh redirect
+        # Sometimes Fidelity redirects to servicemessages.fidelity.com after login
+        if "servicemessages.fidelity.com" in page.url:
+            print("[LOGIN] Detected session refresh page, waiting for redirect back...")
+            # Wait for redirect back to main domain (up to 30 seconds)
+            try:
+                await page.wait_for_url("**/digital.fidelity.com/**", timeout=30000)
+                print(f"[LOGIN] Redirected back to: {page.url}")
+            except Exception as e:
+                print(f"[LOGIN] Redirect wait failed: {e}, checking current URL...")
+                print(f"[LOGIN] Current URL: {page.url}")
+
+        # Verify we're no longer on login page
+        if "login" in page.url:
+            print("[LOGIN] Still on login page after TOTP - login may have failed")
+            return (False, False)
+
+        # Navigate to summary page if we're not already there
+        if "portfolio/summary" not in page.url:
+            print(f"[LOGIN] Not on summary page ({page.url}), navigating there...")
+            await page.goto(URLs.SUMMARY, wait_until="domcontentloaded")
+            await self._browser.wait_for_loading()
 
         # CRITICAL: Wait for page to stabilize after login
         # Fidelity's SPA can cause context issues if we navigate too quickly
