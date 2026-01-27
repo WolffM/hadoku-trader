@@ -44,10 +44,24 @@ class FidelityBrowser:
         self._page: Optional[Page] = None
         self._storage_path: Optional[str] = None
 
+        # Enhanced stealth configuration to avoid bot detection
         self._stealth = Stealth(
             navigator_languages=True,
             navigator_user_agent=True,
             navigator_vendor=True,
+            navigator_platform=True,
+            navigator_plugins=True,
+            navigator_permissions=True,
+            navigator_webdriver=True,  # Critical: hides webdriver flag
+            webgl_vendor=True,
+            webgl_renderer=True,
+            chrome_app=True,
+            chrome_csi=True,
+            chrome_load_times=True,
+            chrome_runtime=True,
+            iframe_content_window=True,
+            media_codecs=True,
+            hairline=True,
         )
 
         self._initialize()
@@ -175,10 +189,24 @@ class FidelityBrowserAsync:
         self._storage_path: Optional[str] = None
         self._initialized = False
 
+        # Enhanced stealth configuration to avoid bot detection
         self._stealth = Stealth(
             navigator_languages=True,
             navigator_user_agent=True,
             navigator_vendor=True,
+            navigator_platform=True,
+            navigator_plugins=True,
+            navigator_permissions=True,
+            navigator_webdriver=True,  # Critical: hides webdriver flag
+            webgl_vendor=True,
+            webgl_renderer=True,
+            chrome_app=True,
+            chrome_csi=True,
+            chrome_load_times=True,
+            chrome_runtime=True,
+            iframe_content_window=True,
+            media_codecs=True,
+            hairline=True,
         )
 
     async def initialize(self) -> "FidelityBrowserAsync":

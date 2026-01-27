@@ -16,6 +16,17 @@ from .browser import FidelityBrowserAsync
 from .selectors import URLs, Selectors, Timeouts
 from .models import LoginResult, Account, Stock, TradeAlert
 from .trading import classify_error
+from .human import (
+    human_type,
+    human_click,
+    human_fill,
+    action_delay,
+    minor_delay,
+    page_load_delay,
+    submit_delay,
+    think_delay,
+    random_mouse_movement,
+)
 
 
 class FidelityClientAsync:
@@ -80,7 +91,7 @@ class FidelityClientAsync:
         save_device: bool = False,
     ) -> tuple[bool, bool]:
         """
-        Log into Fidelity.
+        Log into Fidelity with human-like behavior to avoid bot detection.
 
         Args:
             username: Fidelity username
@@ -94,25 +105,37 @@ class FidelityClientAsync:
         try:
             page = self._browser.page
 
-            # Navigate to login page
+            # Navigate to login page with natural delay
             await page.goto(URLs.LOGIN)
-            await page.wait_for_timeout(5000)
-            await page.goto(URLs.LOGIN)
+            await page_load_delay()
 
-            # Fill credentials
+            # Sometimes do a refresh like a human would if page seems slow
+            await page.goto(URLs.LOGIN)
+            await page_load_delay()
+
+            # Random mouse movement to appear human
+            await random_mouse_movement(page, count=2)
+            await think_delay()
+
+            # Fill credentials with human-like typing
             username_field = page.get_by_label("Username", exact=True)
-            await username_field.click()
-            await username_field.fill(username)
+            await human_type(page, username_field, username)
+
+            # Pause between fields like a human
+            await action_delay()
 
             password_field = page.get_by_label("Password", exact=True)
-            await password_field.click()
-            await password_field.fill(password)
+            await human_type(page, password_field, password)
 
-            await page.get_by_role("button", name="Log in").click()
+            # Think before clicking login
+            await submit_delay()
 
-            # Wait for load
+            # Click login with human behavior
+            await human_click(page, page.get_by_role("button", name="Log in"))
+
+            # Wait for load with natural timing
             await self._browser.wait_for_loading()
-            await page.wait_for_timeout(1000)
+            await page_load_delay()
             await self._browser.wait_for_loading()
 
             # Check if already logged in
@@ -142,10 +165,12 @@ class FidelityClientAsync:
         totp_secret: Optional[str],
         save_device: bool,
     ) -> tuple[bool, bool]:
-        """Handle 2FA flow."""
+        """Handle 2FA flow with human-like behavior."""
         page = self._browser.page
 
         await self._browser.wait_for_loading()
+        await think_delay()  # Human would pause to read the screen
+
         widget = page.locator(Selectors.LOGIN_WIDGET).first
         await widget.wait_for(timeout=Timeouts.SHORT, state="visible")
 
@@ -162,10 +187,10 @@ class FidelityClientAsync:
         if await try_another.is_visible():
             if save_device:
                 await self._check_save_device_box()
-            await try_another.click()
+            await human_click(page, try_another)
 
-        await page.get_by_role("button", name="Text me the code").click()
-        await page.get_by_placeholder(Selectors.TOTP_INPUT).click()
+        await human_click(page, page.get_by_role("button", name="Text me the code"))
+        await human_click(page, page.get_by_placeholder(Selectors.TOTP_INPUT))
 
         return (True, False)
 
@@ -174,18 +199,26 @@ class FidelityClientAsync:
         totp_secret: str,
         save_device: bool,
     ) -> tuple[bool, bool]:
-        """Complete login with TOTP."""
+        """Complete login with TOTP using human-like behavior."""
         page = self._browser.page
+
+        # Simulate getting code from authenticator app (human would look at phone)
+        await think_delay()
 
         code = pyotp.TOTP(totp_secret).now()
         totp_input = page.get_by_placeholder(Selectors.TOTP_INPUT)
-        await totp_input.click()
-        await totp_input.fill(code)
+
+        # Type the code like a human (looking at phone, typing slowly)
+        await human_type(page, totp_input, code)
 
         if save_device:
+            await minor_delay()
             await self._check_save_device_box()
 
-        await page.get_by_role("button", name="Continue").click()
+        # Pause before submitting
+        await submit_delay()
+
+        await human_click(page, page.get_by_role("button", name="Continue"))
         await self._browser.wait_for_loading()
         await page.wait_for_url(URLs.SUMMARY, timeout=Timeouts.LOGIN)
 
@@ -305,7 +338,7 @@ class FidelityClientAsync:
         limit_price: Optional[float] = None,
     ) -> tuple[bool, Optional[str], str]:
         """
-        Execute a trade.
+        Execute a trade with human-like behavior.
 
         Args:
             stock: Ticker symbol
@@ -325,47 +358,56 @@ class FidelityClientAsync:
             # Navigate to trade page
             await page.goto(URLs.TRADE)
             await self._browser.wait_for_loading()
-            await page.wait_for_timeout(1000)
+            await page_load_delay()
 
-            # Select account
+            # Random mouse movement
+            await random_mouse_movement(page, count=1)
+
+            # Select account with human-like behavior
             account_dropdown = page.locator(Selectors.ACCOUNT_DROPDOWN)
-            await account_dropdown.click()
-            await page.wait_for_timeout(500)
+            await human_click(page, account_dropdown, wait_after=False)
+            await minor_delay()
             account_option = page.get_by_text(account, exact=False).first
-            await account_option.click()
-            await page.wait_for_timeout(500)
+            await human_click(page, account_option)
 
-            # Enter symbol
+            # Enter symbol with human typing
             symbol_input = page.locator(Selectors.SYMBOL_INPUT)
-            await symbol_input.fill(stock.upper())
-            await page.wait_for_timeout(1000)
+            await human_fill(page, symbol_input, stock.upper())
+            await action_delay()
+
             # Press Tab to confirm symbol and load quote
             await symbol_input.press("Tab")
             await self._browser.wait_for_loading()
+            await action_delay()
 
             # Select action (Buy/Sell)
             action_dropdown = page.locator(Selectors.ACTION_DROPDOWN)
-            await action_dropdown.click()
+            await human_click(page, action_dropdown, wait_after=False)
+            await minor_delay()
             action_text = "Buy" if action.lower() == "buy" else "Sell"
-            await page.get_by_text(action_text, exact=True).click()
+            await human_click(page, page.get_by_text(action_text, exact=True))
 
             # Enter quantity
             qty_input = page.locator(Selectors.QUANTITY_INPUT)
-            await qty_input.fill(str(int(quantity)))
+            await human_fill(page, qty_input, str(int(quantity)))
 
             # Set order type if limit
             if limit_price:
                 order_type_dropdown = page.locator(Selectors.ORDER_TYPE_DROPDOWN)
-                await order_type_dropdown.click()
-                await page.get_by_text("Limit", exact=True).click()
+                await human_click(page, order_type_dropdown, wait_after=False)
+                await minor_delay()
+                await human_click(page, page.get_by_text("Limit", exact=True))
                 limit_input = page.locator(Selectors.LIMIT_PRICE_INPUT)
-                await limit_input.fill(str(limit_price))
+                await human_fill(page, limit_input, str(limit_price))
+
+            # Think before previewing
+            await think_delay()
 
             # Preview order
             preview_btn = page.get_by_role("button", name="Preview order")
-            await preview_btn.click()
+            await human_click(page, preview_btn)
             await self._browser.wait_for_loading()
-            await page.wait_for_timeout(1000)
+            await page_load_delay()
 
             # Check for errors
             error_elem = page.locator(Selectors.ORDER_ERROR)
@@ -377,11 +419,13 @@ class FidelityClientAsync:
             if dry:
                 return (True, None, TradeAlert.SUCCESS.value)
 
-            # Submit order
+            # Submit order - pause like human reviewing order details
+            await submit_delay()
+
             submit_btn = page.get_by_role("button", name="Place order")
-            await submit_btn.click()
+            await human_click(page, submit_btn)
             await self._browser.wait_for_loading()
-            await page.wait_for_timeout(2000)
+            await page_load_delay()
 
             # Check for confirmation
             confirm = page.locator(Selectors.ORDER_CONFIRMATION)
