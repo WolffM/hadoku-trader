@@ -203,7 +203,39 @@ jobs:
 
       - name: Install build tools
         if: steps.python_changed.outputs.changed == 'true'
-        run: pip install build twine
+        run: pip install build twine toml
+
+      - name: Bump version if needed
+        if: steps.python_changed.outputs.changed == 'true'
+        working-directory: fidelity-api
+        run: |
+          current_version=$(python -c "import toml; print(toml.load('pyproject.toml')['project']['version'])")
+          package_name="hadoku-fidelity"
+
+          echo "Current version: $current_version"
+
+          # Check if version exists on PyPI using pip index
+          version="$current_version"
+          while pip index versions "$package_name" 2>/dev/null | grep -qF "$version"; do
+            echo "⚠️  Version $version already published, bumping..."
+
+            major=$(echo $version | cut -d. -f1)
+            minor=$(echo $version | cut -d. -f2)
+            patch=$(echo $version | cut -d. -f3)
+
+            if [ $patch -ge 20 ]; then
+              version="$major.$((minor + 1)).0"
+            else
+              version="$major.$minor.$((patch + 1))"
+            fi
+          done
+
+          if [ "$version" != "$current_version" ]; then
+            sed -i "s/version = \"$current_version\"/version = \"$version\"/" pyproject.toml
+            echo "✅ Version bumped: $current_version → $version"
+          else
+            echo "✓ Version $current_version not yet published, proceeding"
+          fi
 
       - name: Build Python package
         if: steps.python_changed.outputs.changed == 'true'
@@ -213,7 +245,7 @@ jobs:
       - name: Publish to PyPI
         if: steps.python_changed.outputs.changed == 'true'
         working-directory: fidelity-api
-        run: twine upload dist/*
+        run: twine upload dist/* --skip-existing
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
