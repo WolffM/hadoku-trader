@@ -75,6 +75,9 @@ CREATE TABLE IF NOT EXISTS trades (
   agent_id TEXT,                     -- Which agent made this trade
   ticker TEXT NOT NULL,
   action TEXT NOT NULL,
+  decision TEXT,                     -- Agent decision: 'execute', 'execute_half', 'skip', 'filter_*'
+  score REAL,                        -- Computed score (null for pass/fail agents)
+  score_breakdown_json TEXT,         -- JSON breakdown of score components
   quantity REAL NOT NULL,
   price REAL NOT NULL,
   total REAL NOT NULL,

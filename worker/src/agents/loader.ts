@@ -5,7 +5,7 @@
 
 import type { TraderEnv } from "../types";
 import type { AgentConfig, AgentRow, AgentBudgetRow } from "./types";
-import { AGENT_CONFIGS } from "./configs";
+import { AGENT_CONFIGS, TRADING_AGENTS } from "./configs";
 import { generateId, getCurrentMonth } from "./filters";
 
 // =============================================================================
@@ -32,11 +32,11 @@ export async function getActiveAgents(env: TraderEnv): Promise<AgentConfig[]> {
     }
   }
 
-  // If no agents in DB, seed from code constants
+  // If no agents in DB, seed from code constants (only production trading agents)
   if (agents.length === 0) {
-    console.log("No agents in DB, seeding from code constants...");
+    console.log("No agents in DB, seeding production trading agents from code...");
     await seedAgentsFromCode(env);
-    return Object.values(AGENT_CONFIGS);
+    return TRADING_AGENTS;
   }
 
   return agents;
@@ -181,9 +181,12 @@ export async function resetMonthlyBudgets(env: TraderEnv): Promise<void> {
 
 /**
  * Seed agents from code constants into database.
+ * Only seeds production trading agents (chatgpt, claude, gemini).
+ * Control/benchmark agents (naive, spy_benchmark) are NOT seeded.
  */
 export async function seedAgentsFromCode(env: TraderEnv): Promise<void> {
-  for (const config of Object.values(AGENT_CONFIGS)) {
+  // Only seed production trading agents, not control/benchmark agents
+  for (const config of TRADING_AGENTS) {
     // Check if already exists
     const existing = await env.TRADER_DB.prepare(`
       SELECT id FROM agents WHERE id = ?

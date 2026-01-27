@@ -147,6 +147,14 @@ export function enrichSignal(
 ): EnrichedSignal {
   const evalDate = evaluationDate ?? getCurrentDate();
   const tradePrice = rawSignal.trade_price ?? currentPrice;
+  const priceChangePct = calculatePriceChangePct(tradePrice, currentPrice);
+
+  // Debug logging for price change calculation
+  console.log(`[ENRICH] Signal ${rawSignal.id}:`);
+  console.log(`[ENRICH]   Raw trade_price: ${rawSignal.trade_price} (type: ${typeof rawSignal.trade_price})`);
+  console.log(`[ENRICH]   Used trade_price: $${tradePrice.toFixed(2)}`);
+  console.log(`[ENRICH]   Current price: $${currentPrice.toFixed(2)}`);
+  console.log(`[ENRICH]   Price change: ${priceChangePct.toFixed(2)}%`);
 
   return {
     id: rawSignal.id,
@@ -162,7 +170,7 @@ export function enrichSignal(
     source: rawSignal.source,
     days_since_trade: daysBetween(rawSignal.trade_date, evalDate),
     days_since_filing: daysBetween(rawSignal.disclosure_date, evalDate),
-    price_change_pct: calculatePriceChangePct(tradePrice, currentPrice),
+    price_change_pct: priceChangePct,
   };
 }
 
