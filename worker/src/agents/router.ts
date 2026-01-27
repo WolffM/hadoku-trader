@@ -486,7 +486,8 @@ export async function getUnprocessedSignals(
       disclosure_date,
       position_size_min,
       politician_name,
-      source
+      source,
+      current_price
     FROM signals
     WHERE processed_at IS NULL
     ORDER BY scraped_at ASC
@@ -553,14 +554,20 @@ export async function processAllPendingSignals(
   }> = [];
 
   for (const signal of unprocessed) {
-    // Get current price (from positions table or use trade price)
+    // Get current price: prefer signal's stored current_price, then positions table, then trade_price
     const currentPrice =
+      signal.current_price ??
       (await getCurrentPrice(env, signal.ticker)) ??
       signal.trade_price ??
       0;
 
+    console.log(`[PROCESS] Signal ${signal.id} (${signal.ticker}):`);
+    console.log(`[PROCESS]   signal.current_price: ${signal.current_price}`);
+    console.log(`[PROCESS]   signal.trade_price: ${signal.trade_price}`);
+    console.log(`[PROCESS]   Using currentPrice: $${currentPrice}`);
+
     if (currentPrice === 0) {
-      console.warn(`No price available for ${signal.ticker}, skipping signal`);
+      console.warn(`[PROCESS] No price available for ${signal.ticker}, skipping signal`);
       await markSignalProcessed(env, signal.id);
       continue;
     }

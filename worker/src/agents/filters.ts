@@ -134,6 +134,7 @@ export interface RawSignalRow {
   position_size_min: number;
   politician_name: string;
   source: string;
+  current_price: number | null;  // Price at time of signal ingestion
 }
 
 /**
