@@ -45,6 +45,8 @@ function createMockEnv(overrides: {
           run: vi.fn().mockResolvedValue({ meta: { changes: 1 } }),
           first: vi.fn().mockResolvedValue(overrides.dbResults?.first ?? null),
         }),
+        // Support direct first() without bind() - used by getDefaultAccount
+        first: vi.fn().mockResolvedValue(overrides.dbResults?.config ?? null),
       }),
     },
     TUNNEL_URL: "https://tunnel.example.com",

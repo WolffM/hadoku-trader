@@ -20,6 +20,21 @@ import { calculateShares } from "./sizing";
 import { isDryRun, ENABLE_FRACTIONAL_SHARES } from "./tradingConfig";
 
 // =============================================================================
+// D1 Config Helpers
+// =============================================================================
+
+/**
+ * Get default account from D1 config table.
+ * Returns undefined if not configured.
+ */
+async function getDefaultAccount(env: TraderEnv): Promise<string | undefined> {
+  const result = await env.TRADER_DB.prepare(
+    "SELECT value FROM config WHERE key = 'default_account'"
+  ).first<{ value: string }>();
+  return result?.value || undefined;
+}
+
+// =============================================================================
 // Trade Execution
 // =============================================================================
 
@@ -86,14 +101,16 @@ export async function executeTrade(
 
   try {
     // Call Fidelity API
+    const defaultAccount = await getDefaultAccount(env);
     console.log(`[EXECUTION]   Calling Fidelity API via tunnel...`);
-    console.log(`[EXECUTION]   Request: { ticker: ${signal.ticker}, action: ${signal.action}, quantity: ${shares}, dry_run: ${isDryRun()} }`);
+    console.log(`[EXECUTION]   Default Account: ${defaultAccount ?? '(not configured)'}`);
+    console.log(`[EXECUTION]   Request: { ticker: ${signal.ticker}, action: ${signal.action}, quantity: ${shares}, account: ${defaultAccount}, dry_run: ${isDryRun()} }`);
 
     const apiResponse = await callFidelityApi(env, {
       ticker: signal.ticker,
       quantity: shares,
       action: signal.action,
-      account: undefined, // Use default account
+      account: defaultAccount, // Read from D1 config
       dry_run: isDryRun(),
     });
 
@@ -367,12 +384,20 @@ export async function executeSellOrder(
   error?: string;
 }> {
   const total = shares * currentPrice;
+  const defaultAccount = await getDefaultAccount(env);
+
+  console.log(`[EXECUTION] === Sell Order Execution ===`);
+  console.log(`[EXECUTION]   Agent: ${agentId}`);
+  console.log(`[EXECUTION]   Ticker: ${ticker}, Shares: ${shares}`);
+  console.log(`[EXECUTION]   Reason: ${reason}`);
+  console.log(`[EXECUTION]   Default Account: ${defaultAccount ?? '(not configured)'}`);
 
   try {
     const response = await callFidelityApi(env, {
       ticker,
       quantity: shares,
       action: "sell",
+      account: defaultAccount, // Read from D1 config
       dry_run: isDryRun(),
     });
 
