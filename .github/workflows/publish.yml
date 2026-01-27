@@ -255,15 +255,16 @@ jobs:
 
   notify-hadoku-site:
     name: Notify hadoku-site
-    needs: [publish-ui, publish-worker, publish-python]
-    if: needs.publish-ui.outputs.published == 'true' || needs.publish-worker.outputs.published == 'true' || needs.publish-python.outputs.published == 'true'
+    needs: [publish-ui, publish-worker]
+    # Only notify for npm packages - Python package is a separate PM2 service
+    if: needs.publish-ui.outputs.published == 'true' || needs.publish-worker.outputs.published == 'true'
     runs-on: ubuntu-latest
     steps:
       - name: Trigger hadoku-site rebuild
         env:
           HADOKU_SITE_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
         run: |
-          # Build packages as JSON array
+          # Build packages as JSON array (only npm packages starting with @wolffm/)
           packages="[]"
           if [ "${{ needs.publish-ui.outputs.published }}" == "true" ]; then
             packages=$(echo "$packages" | jq '. + ["@wolffm/trader"]')
@@ -271,9 +272,8 @@ jobs:
           if [ "${{ needs.publish-worker.outputs.published }}" == "true" ]; then
             packages=$(echo "$packages" | jq '. + ["@wolffm/trader-worker"]')
           fi
-          if [ "${{ needs.publish-python.outputs.published }}" == "true" ]; then
-            packages=$(echo "$packages" | jq '. + ["hadoku-fidelity"]')
-          fi
+          # Note: hadoku-fidelity is NOT included - it's a PyPI package, not npm
+          # It runs as a separate PM2 service and isn't a hadoku-site dependency
 
           echo "Notifying hadoku-site about: $packages"
 
