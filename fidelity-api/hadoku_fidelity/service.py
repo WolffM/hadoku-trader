@@ -20,7 +20,7 @@ class TraderConfig:
     default_account: Optional[str] = field(
         default_factory=lambda: os.environ.get("FIDELITY_DEFAULT_ACCOUNT")
     )
-    headless: bool = True
+    headless: bool = False  # Headed mode by default - headless unreliable with Fidelity
     profile_path: str = "."
 
     @property
