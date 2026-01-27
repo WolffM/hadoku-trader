@@ -140,8 +140,12 @@ class FidelityClientPatchright:
             await page_load_delay()
             await self._browser.wait_for_loading()
 
-            # Check if already logged in
+            # Check if already logged in (session restored from storage)
             if "summary" in page.url:
+                print("[LOGIN] Already logged in (session restored)")
+                # Still need to wait for page to stabilize
+                await page.wait_for_timeout(2000)
+                await self._verify_page_connection()
                 return (True, True)
 
             # Normalize TOTP
@@ -265,7 +269,30 @@ class FidelityClientPatchright:
         await self._browser.wait_for_loading()
         await page.wait_for_url(URLs.SUMMARY, timeout=Timeouts.LOGIN)
 
+        # CRITICAL: Wait for page to stabilize after login
+        # Fidelity's SPA can cause context issues if we navigate too quickly
+        print("[LOGIN] Waiting for page to stabilize after login...")
+        await page.wait_for_timeout(3000)
+        await self._browser.wait_for_loading()
+
+        # Verify page is still connected
+        await self._verify_page_connection()
+
+        print(f"[LOGIN] Login complete. Current URL: {page.url}")
         return (True, True)
+
+    async def _verify_page_connection(self) -> bool:
+        """Verify the page connection is still valid."""
+        try:
+            page = self._browser.page
+            # Try to access page properties to verify connection
+            url = page.url
+            await page.title()
+            print(f"[VERIFY] Page connection OK. URL: {url}")
+            return True
+        except Exception as e:
+            print(f"[VERIFY] Page connection FAILED: {e}")
+            raise RuntimeError(f"Page connection lost: {e}")
 
     async def _check_save_device_box(self) -> None:
         """Check the save device checkbox."""
@@ -286,11 +313,14 @@ class FidelityClientPatchright:
             List of account numbers as strings.
         """
         try:
+            # Verify page connection before navigation
+            await self._verify_page_connection()
+
             page = self._browser.page
 
             # Navigate to trade page
             print("[DEBUG] Navigating to trade page...")
-            await page.goto(URLs.TRADE)
+            await page.goto(URLs.TRADE, wait_until="domcontentloaded")
             await self._browser.wait_for_loading()
             await page.wait_for_timeout(3000)  # Wait longer for trade page
 
@@ -399,8 +429,12 @@ class FidelityClientPatchright:
             Dict mapping account numbers to Account objects.
         """
         try:
+            # Verify page connection before navigation
+            await self._verify_page_connection()
+
             page = self._browser.page
-            await page.goto(URLs.POSITIONS)
+            print("[ACCOUNT] Navigating to positions page...")
+            await page.goto(URLs.POSITIONS, wait_until="domcontentloaded")
             await self._browser.wait_for_loading()
             await page.wait_for_timeout(2000)
 
@@ -500,10 +534,14 @@ class FidelityClientPatchright:
             Tuple of (success, error_message, alert_code)
         """
         try:
+            # Verify page connection before navigation
+            await self._verify_page_connection()
+
             page = self._browser.page
 
             # Navigate to trade page
-            await page.goto(URLs.TRADE)
+            print(f"[TRADE] Navigating to trade page for {action} {quantity} {stock}...")
+            await page.goto(URLs.TRADE, wait_until="domcontentloaded")
             await self._browser.wait_for_loading()
             await page_load_delay()
 
