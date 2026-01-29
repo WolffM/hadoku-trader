@@ -113,15 +113,24 @@ export async function runFullSync(env: TraderEnv): Promise<void> {
 }
 
 /**
+ * Response format from /api/v1/politrades/signals/pull endpoint.
+ */
+interface ScraperPullResponse {
+  success: boolean;
+  data: Signal[];
+  count: number;
+}
+
+/**
  * Fetch signals and market data from hadoku-scraper.
  */
 export async function fetchFromScraper(env: TraderEnv): Promise<void> {
   try {
     console.log("Fetching data from hadoku-scraper...");
 
-    const resp = await fetch(`${env.SCRAPER_URL}/data-package`, {
+    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals/pull?limit=500`, {
       headers: {
-        "X-API-Key": env.SCRAPER_API_KEY,
+        Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
         Accept: "application/json",
       },
     });
@@ -131,35 +140,19 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
       return;
     }
 
-    const data: ScraperDataPackage = await resp.json();
-    console.log(
-      `Received ${data.signals.length} signals, SP500: ${data.market_data.sp500.price}`
-    );
+    const data: ScraperPullResponse = await resp.json();
+
+    if (!data.success) {
+      console.error("Scraper returned unsuccessful response");
+      return;
+    }
+
+    console.log(`Received ${data.count} signals from scraper`);
 
     // Store new signals
-    for (const signal of data.signals) {
+    for (const signal of data.data) {
       await storeSignal(env, signal);
     }
-
-    // Update current prices for tracked tickers
-    for (const quote of data.market_data.quotes) {
-      await env.TRADER_DB.prepare(`
-        UPDATE positions SET current_price = ?, updated_at = ? WHERE ticker = ?
-      `)
-        .bind(quote.price, new Date().toISOString(), quote.ticker)
-        .run();
-    }
-
-    // Store S&P 500 reference price
-    await env.TRADER_DB.prepare(`
-      INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)
-    `)
-      .bind(
-        "sp500_price",
-        data.market_data.sp500.price.toString(),
-        new Date().toISOString()
-      )
-      .run();
 
     console.log("Scraper data sync completed");
   } catch (error) {
@@ -207,9 +200,9 @@ export async function syncSignalsFromScraper(
   try {
     console.log("Fetching signals from hadoku-scraper...");
 
-    const resp = await fetch(`${env.SCRAPER_URL}/data-package`, {
+    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals/pull?limit=500`, {
       headers: {
-        "X-API-Key": env.SCRAPER_API_KEY,
+        Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
         Accept: "application/json",
       },
     });
@@ -220,33 +213,20 @@ export async function syncSignalsFromScraper(
       return result;
     }
 
-    const data: ScraperDataPackage = await resp.json();
-    console.log(`Received ${data.signals.length} signals from scraper`);
+    const data: ScraperPullResponse = await resp.json();
+
+    if (!data.success) {
+      result.errors.push("Scraper returned unsuccessful response");
+      return result;
+    }
+
+    console.log(`Received ${data.count} signals from scraper`);
 
     // Ingest all signals using the batch function
-    const batchResult = await ingestSignalBatch(env, data.signals);
+    const batchResult = await ingestSignalBatch(env, data.data);
     result.inserted = batchResult.inserted;
     result.skipped = batchResult.skipped;
     result.errors.push(...batchResult.errors);
-
-    // Also update current prices and SP500 reference (from fetchFromScraper)
-    for (const quote of data.market_data.quotes) {
-      await env.TRADER_DB.prepare(`
-        UPDATE positions SET current_price = ?, updated_at = ? WHERE ticker = ?
-      `)
-        .bind(quote.price, new Date().toISOString(), quote.ticker)
-        .run();
-    }
-
-    await env.TRADER_DB.prepare(`
-      INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)
-    `)
-      .bind(
-        "sp500_price",
-        data.market_data.sp500.price.toString(),
-        new Date().toISOString()
-      )
-      .run();
 
     console.log(
       `Signal sync complete: ${result.inserted} inserted, ${result.skipped} skipped, ${result.errors.length} errors`
