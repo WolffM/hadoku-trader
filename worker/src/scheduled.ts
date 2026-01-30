@@ -128,7 +128,7 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
   try {
     console.log("Fetching data from hadoku-scraper...");
 
-    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals/pull?limit=500`, {
+    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
       headers: {
         Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
         Accept: "application/json",
@@ -200,7 +200,7 @@ export async function syncSignalsFromScraper(
   try {
     console.log("Fetching signals from hadoku-scraper...");
 
-    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals/pull?limit=500`, {
+    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
       headers: {
         Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
         Accept: "application/json",
