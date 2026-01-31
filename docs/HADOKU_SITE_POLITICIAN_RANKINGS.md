@@ -43,14 +43,16 @@ CREATE INDEX IF NOT EXISTS idx_politician_rankings_annualized
 Computes politician rankings from signal history and stores in D1.
 
 **Request:**
+
 ```json
 {
-  "window_months": 24,    // Optional, default 24
-  "min_trades": 15        // Optional, minimum trades to qualify for ranking
+  "window_months": 24, // Optional, default 24
+  "min_trades": 15 // Optional, minimum trades to qualify for ranking
 }
 ```
 
 **Response:**
+
 ```json
 {
   "success": true,
@@ -75,10 +77,12 @@ Computes politician rankings from signal history and stores in D1.
 Returns current rankings from the table.
 
 **Query params:**
+
 - `limit` - Number of results (default 10)
 - `min_trades` - Filter by minimum trades
 
 **Response:**
+
 ```json
 {
   "rankings": [
@@ -104,16 +108,14 @@ Returns current rankings from the table.
 Convenience endpoint returning just politician names for agent filtering.
 
 **Query params:**
+
 - `n` - Number of politicians (default 10)
 
 **Response:**
+
 ```json
 {
-  "politicians": [
-    "Nancy Pelosi",
-    "Pete Sessions",
-    "Cleo Fields"
-  ],
+  "politicians": ["Nancy Pelosi", "Pete Sessions", "Cleo Fields"],
   "computed_at": "2026-01-31T12:00:00Z"
 }
 ```
@@ -125,68 +127,64 @@ Convenience endpoint returning just politician names for agent filtering.
 Import the computation function from `@wolffm/trader-worker`:
 
 ```typescript
-import {
-  computePoliticianRankings,
-  type PoliticianRanking
-} from "@wolffm/trader-worker";
+import { computePoliticianRankings, type PoliticianRanking } from '@wolffm/trader-worker'
 
 // POST /api/trader/politicians/compute-rankings
-export async function handleComputeRankings(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
-  const body = await request.json();
-  const windowMonths = body.window_months ?? 24;
-  const minTrades = body.min_trades ?? 15;
+export async function handleComputeRankings(request: Request, env: TraderEnv): Promise<Response> {
+  const body = await request.json()
+  const windowMonths = body.window_months ?? 24
+  const minTrades = body.min_trades ?? 15
 
   // Compute rankings (function exported from trader-worker)
   const result = await computePoliticianRankings(env, {
     windowMonths,
-    minTrades,
-  });
+    minTrades
+  })
 
-  return jsonResponse(result);
+  return jsonResponse(result)
 }
 
 // GET /api/trader/politicians/rankings
-export async function handleGetRankings(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
-  const url = new URL(request.url);
-  const limit = parseInt(url.searchParams.get("limit") ?? "10");
+export async function handleGetRankings(request: Request, env: TraderEnv): Promise<Response> {
+  const url = new URL(request.url)
+  const limit = parseInt(url.searchParams.get('limit') ?? '10')
 
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM politician_rankings
     WHERE rank IS NOT NULL
     ORDER BY rank ASC
     LIMIT ?
-  `).bind(limit).all();
+  `
+  )
+    .bind(limit)
+    .all()
 
   return jsonResponse({
     rankings: results.results,
     computed_at: results.results[0]?.computed_at ?? null
-  });
+  })
 }
 
 // GET /api/trader/politicians/top
-export async function handleGetTopPoliticians(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
-  const url = new URL(request.url);
-  const n = parseInt(url.searchParams.get("n") ?? "10");
+export async function handleGetTopPoliticians(request: Request, env: TraderEnv): Promise<Response> {
+  const url = new URL(request.url)
+  const n = parseInt(url.searchParams.get('n') ?? '10')
 
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT politician_name, computed_at FROM politician_rankings
     WHERE rank IS NOT NULL AND rank <= ?
     ORDER BY rank ASC
-  `).bind(n).all();
+  `
+  )
+    .bind(n)
+    .all()
 
   return jsonResponse({
     politicians: results.results.map(r => r.politician_name),
     computed_at: results.results[0]?.computed_at ?? null
-  });
+  })
 }
 ```
 
@@ -198,14 +196,14 @@ In your main request handler:
 
 ```typescript
 // Politicians
-if (path === "/api/trader/politicians/compute-rankings" && method === "POST") {
-  return handleComputeRankings(request, env);
+if (path === '/api/trader/politicians/compute-rankings' && method === 'POST') {
+  return handleComputeRankings(request, env)
 }
-if (path === "/api/trader/politicians/rankings" && method === "GET") {
-  return handleGetRankings(request, env);
+if (path === '/api/trader/politicians/rankings' && method === 'GET') {
+  return handleGetRankings(request, env)
 }
-if (path === "/api/trader/politicians/top" && method === "GET") {
-  return handleGetTopPoliticians(request, env);
+if (path === '/api/trader/politicians/top' && method === 'GET') {
+  return handleGetTopPoliticians(request, env)
 }
 ```
 
@@ -220,12 +218,13 @@ Add a daily cron to refresh rankings:
 export async function refreshPoliticianRankings(env: TraderEnv) {
   await computePoliticianRankings(env, {
     windowMonths: 24,
-    minTrades: 15,
-  });
+    minTrades: 15
+  })
 }
 ```
 
 In `wrangler.toml`:
+
 ```toml
 [triggers]
 crons = [
@@ -240,6 +239,7 @@ crons = [
 After implementing, bump `@wolffm/trader-worker` version in hadoku-trader and publish.
 
 Then update in hadoku-site:
+
 ```bash
 pnpm update @wolffm/trader-worker
 ```

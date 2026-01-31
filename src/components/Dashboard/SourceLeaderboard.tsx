@@ -26,9 +26,7 @@ export function SourceLeaderboard({ sources }: SourceLeaderboardProps) {
               <div className="source-card__rank">#{index + 1}</div>
 
               <div className="source-card__main">
-                <div className="source-card__name">
-                  {SOURCE_LABELS[source.name] || source.name}
-                </div>
+                <div className="source-card__name">{SOURCE_LABELS[source.name] || source.name}</div>
                 <div className="source-card__stats">
                   <span className="source-card__stat">
                     <span className="source-card__stat-value">

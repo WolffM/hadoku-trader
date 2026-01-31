@@ -12,34 +12,34 @@ Every signal must conform to this structure:
 
 ```typescript
 interface Signal {
-  source: string;  // e.g., "capitol_trades", "unusual_whales", "quiver_quant"
+  source: string // e.g., "capitol_trades", "unusual_whales", "quiver_quant"
   politician: {
-    name: string;           // "Nancy Pelosi"
-    chamber: "house" | "senate";
-    party: "D" | "R" | "I";
-    state: string;          // "CA"
-  };
+    name: string // "Nancy Pelosi"
+    chamber: 'house' | 'senate'
+    party: 'D' | 'R' | 'I'
+    state: string // "CA"
+  }
   trade: {
-    ticker: string;                    // "NVDA"
-    action: "buy" | "sell";
-    asset_type: "stock" | "option" | "etf" | "bond" | "crypto";
-    trade_price: number | null;        // ⚠️ CRITICAL - price at trade time
-    disclosure_price: number | null;   // price when filing was disclosed
-    trade_date: string;                // "2024-06-15" - when trade happened
-    disclosure_date: string;           // "2024-07-01" - when publicly filed
-    position_size: string;             // "$1,001 - $15,000"
-    position_size_min: number;         // 1001
-    position_size_max: number;         // 15000
+    ticker: string // "NVDA"
+    action: 'buy' | 'sell'
+    asset_type: 'stock' | 'option' | 'etf' | 'bond' | 'crypto'
+    trade_price: number | null // ⚠️ CRITICAL - price at trade time
+    disclosure_price: number | null // price when filing was disclosed
+    trade_date: string // "2024-06-15" - when trade happened
+    disclosure_date: string // "2024-07-01" - when publicly filed
+    position_size: string // "$1,001 - $15,000"
+    position_size_min: number // 1001
+    position_size_max: number // 15000
     // Option-specific (null for stocks)
-    option_type: "call" | "put" | null;
-    strike_price: number | null;
-    expiration_date: string | null;    // "2024-12-20"
-  };
+    option_type: 'call' | 'put' | null
+    strike_price: number | null
+    expiration_date: string | null // "2024-12-20"
+  }
   meta: {
-    source_url: string;     // URL to the original filing/page
-    source_id: string;      // Unique ID from source (for deduplication)
-    scraped_at: string;     // ISO8601 timestamp
-  };
+    source_url: string // URL to the original filing/page
+    source_id: string // Unique ID from source (for deduplication)
+    scraped_at: string // ISO8601 timestamp
+  }
 }
 ```
 
@@ -50,6 +50,7 @@ interface Signal {
 **This field is essential for backtesting/simulation.**
 
 Without `trade_price`, we cannot:
+
 - Calculate entry prices for simulated trades
 - Measure P&L performance
 - Run meaningful backtests
@@ -63,6 +64,7 @@ The scraper should:
 3. **Get the closing price** on that date (or open if same-day)
 
 Example enrichment logic:
+
 ```python
 async def enrich_signal_with_price(signal: dict) -> dict:
     """Add trade_price by looking up historical market data."""
@@ -131,6 +133,7 @@ curl -X POST https://hadoku.me/api/trader/signals \
 ```
 
 Response:
+
 ```json
 {
   "success": true,
@@ -162,6 +165,7 @@ curl -X POST https://hadoku.me/api/trader/signals/backfill \
 ```
 
 Send `"event": "backfill.completed"` when done:
+
 ```json
 {
   "event": "backfill.completed",
@@ -190,6 +194,7 @@ SOURCES = [
 ```
 
 No trader-side changes needed. Just ensure:
+
 1. `source` field is consistent (same string for same source)
 2. `source_id` is unique within that source (for deduplication)
 
@@ -381,14 +386,14 @@ def generate_source_id(source: str, signal: dict) -> str:
 
 ## Summary: Scraper Requirements
 
-| Requirement | Priority | Notes |
-|-------------|----------|-------|
-| **trade_price** | 🔴 Critical | Fetch historical price for trade date |
-| **2+ year history** | 🔴 Critical | Enable meaningful backtesting |
-| **Multiple sources** | 🟡 High | Cross-reference for higher conviction |
-| **Batch backfill** | 🟡 High | Efficient historical ingestion |
-| **Stable source_id** | 🟢 Medium | For deduplication |
-| **Option details** | 🟢 Medium | strike_price, expiration_date |
+| Requirement          | Priority    | Notes                                 |
+| -------------------- | ----------- | ------------------------------------- |
+| **trade_price**      | 🔴 Critical | Fetch historical price for trade date |
+| **2+ year history**  | 🔴 Critical | Enable meaningful backtesting         |
+| **Multiple sources** | 🟡 High     | Cross-reference for higher conviction |
+| **Batch backfill**   | 🟡 High     | Efficient historical ingestion        |
+| **Stable source_id** | 🟢 Medium   | For deduplication                     |
+| **Option details**   | 🟢 Medium   | strike_price, expiration_date         |
 
 ### Quick Start Checklist
 
@@ -421,6 +426,7 @@ pnpm test simulation.test.ts
 ```
 
 Expected simulation results:
+
 - `signals_processed` > 100 (many signals with prices)
 - `closedPositions` > 0 (positions that exited)
 - Meaningful return/drawdown metrics

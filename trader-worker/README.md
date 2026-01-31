@@ -5,6 +5,7 @@ Local PM2 service that executes trades via the Fidelity API.
 ## Overview
 
 This service:
+
 - Runs on your local machine
 - Exposes HTTP endpoints via cloudflared tunnel
 - Uses fidelity-api to execute actual trades on your Fidelity account
@@ -70,12 +71,12 @@ cloudflared tunnel create trader-worker
 
 ## API Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | /health | Health check, returns auth status |
-| POST | /execute-trade | Execute a trade |
-| GET | /accounts | Get all accounts and balances |
-| POST | /refresh-session | Force re-authentication |
+| Method | Path             | Description                       |
+| ------ | ---------------- | --------------------------------- |
+| GET    | /health          | Health check, returns auth status |
+| POST   | /execute-trade   | Execute a trade                   |
+| GET    | /accounts        | Get all accounts and balances     |
+| POST   | /refresh-session | Force re-authentication           |
 
 ## Security
 

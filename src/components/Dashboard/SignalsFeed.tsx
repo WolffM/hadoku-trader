@@ -57,7 +57,8 @@ function SignalCard({ signal }: SignalCardProps) {
 export function SignalsFeed({ signals }: SignalsFeedProps) {
   // Sort by disclosure date, most recent first
   const sortedSignals = [...signals].sort(
-    (a, b) => new Date(b.trade.disclosure_date).getTime() - new Date(a.trade.disclosure_date).getTime()
+    (a, b) =>
+      new Date(b.trade.disclosure_date).getTime() - new Date(a.trade.disclosure_date).getTime()
   )
 
   return (

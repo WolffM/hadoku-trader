@@ -8,28 +8,25 @@
  * - strategy-variations.test.ts
  */
 
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs'
+import * as path from 'path'
 
 // Re-export helpers from simulation.ts and filters.ts to avoid duplication
 // Tests should use these instead of reimplementing
-export {
-  computePoliticianWinRates,
-  generateMonths,
-} from "./simulation";
+export { computePoliticianWinRates, generateMonths } from './simulation'
 
 // Import daysBetween from filters.ts for local use, and re-export it
-import { daysBetween } from "./filters";
-export { daysBetween };
+import { daysBetween } from './filters'
+export { daysBetween }
 
 // =============================================================================
 // Data Loading
 // =============================================================================
 
-const DB_PATH = path.join(__dirname, "../../../trader-db-export.json");
+const DB_PATH = path.join(__dirname, '../../../trader-db-export.json')
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let cachedData: { signals: any[] } | null = null;
+let cachedData: { signals: any[] } | null = null
 
 /**
  * Load raw signals from the exported database file.
@@ -40,9 +37,9 @@ let cachedData: { signals: any[] } | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function loadSignalsFromExport(): any[] {
   if (!cachedData) {
-    cachedData = JSON.parse(fs.readFileSync(DB_PATH, "utf-8"));
+    cachedData = JSON.parse(fs.readFileSync(DB_PATH, 'utf-8'))
   }
-  return cachedData!.signals;
+  return cachedData!.signals
 }
 
 /**
@@ -54,12 +51,12 @@ export function loadSignalsFromExport(): any[] {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function loadSignalsFromFile(filename: string): any[] {
-  const filePath = path.join(__dirname, "../../../", filename);
+  const filePath = path.join(__dirname, '../../../', filename)
   if (!fs.existsSync(filePath)) {
-    throw new Error(`Signal file not found: ${filePath}`);
+    throw new Error(`Signal file not found: ${filePath}`)
   }
-  const data = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  return data.signals;
+  const data = JSON.parse(fs.readFileSync(filePath, 'utf-8'))
+  return data.signals
 }
 
 // daysBetween is re-exported from filters.ts above
@@ -68,12 +65,12 @@ export function loadSignalsFromFile(filename: string): any[] {
  * Annualize a return percentage based on hold period.
  */
 export function annualizeReturn(returnPct: number, holdDays: number): number {
-  if (holdDays <= 0) return 0;
-  const r = returnPct / 100;
-  const years = holdDays / 365;
-  if (years < 0.1) return returnPct;
-  const annualized = Math.pow(1 + r, 1 / years) - 1;
-  return annualized * 100;
+  if (holdDays <= 0) return 0
+  const r = returnPct / 100
+  const years = holdDays / 365
+  if (years < 0.1) return returnPct
+  const annualized = Math.pow(1 + r, 1 / years) - 1
+  return annualized * 100
 }
 
 // =============================================================================
@@ -81,19 +78,19 @@ export function annualizeReturn(returnPct: number, holdDays: number): number {
 // =============================================================================
 
 export function pad(str: string, len: number, right = false): string {
-  if (right) return str.padEnd(len);
-  return str.padStart(len);
+  if (right) return str.padEnd(len)
+  return str.padStart(len)
 }
 
 export function formatPct(n: number): string {
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(1)}%`;
+  const sign = n >= 0 ? '+' : ''
+  return `${sign}${n.toFixed(1)}%`
 }
 
 export function formatMoney(n: number): string {
-  if (Math.abs(n) >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
+  if (Math.abs(n) >= 1000000) return `$${(n / 1000000).toFixed(1)}M`
+  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(0)}K`
+  return `$${n.toFixed(0)}`
 }
 
 // =============================================================================
@@ -105,16 +102,16 @@ export type {
   TestPosition,
   TestClosedTrade,
   TestPoliticianStats,
-  PoliticianFilter,
-} from "./types";
+  PoliticianFilter
+} from './types'
 
 import type {
   RawSignal,
   TestPosition,
   TestClosedTrade,
   TestPoliticianStats,
-  PoliticianFilter,
-} from "./types";
+  PoliticianFilter
+} from './types'
 
 // =============================================================================
 // Price Map Building
@@ -125,19 +122,19 @@ import type {
  * Used for calculating unrealized gains on open positions.
  */
 export function buildPriceMap(signals: RawSignal[]): Map<string, { price: number; date: string }> {
-  const priceMap = new Map<string, { price: number; date: string }>();
+  const priceMap = new Map<string, { price: number; date: string }>()
   for (const signal of signals) {
-    const ticker = signal.ticker;
-    const existing = priceMap.get(ticker);
-    const price = signal.disclosure_price ?? signal.trade_price;
-    const date = signal.disclosure_date;
+    const ticker = signal.ticker
+    const existing = priceMap.get(ticker)
+    const price = signal.disclosure_price ?? signal.trade_price
+    const date = signal.disclosure_date
     if (!existing || date > existing.date) {
       if (price > 0) {
-        priceMap.set(ticker, { price, date });
+        priceMap.set(ticker, { price, date })
       }
     }
   }
-  return priceMap;
+  return priceMap
 }
 
 // =============================================================================
@@ -153,44 +150,44 @@ export function calculatePoliticianStats(
   politicianName: string,
   priceMap: Map<string, { price: number; date: string }>
 ): TestPoliticianStats | null {
-  const politicianSignals = signals.filter(s => s.politician_name === politicianName);
-  if (politicianSignals.length === 0) return null;
+  const politicianSignals = signals.filter(s => s.politician_name === politicianName)
+  if (politicianSignals.length === 0) return null
 
-  const first = politicianSignals[0];
+  const first = politicianSignals[0]
 
   // Group by ticker
-  const tickerSignals = new Map<string, RawSignal[]>();
+  const tickerSignals = new Map<string, RawSignal[]>()
   for (const signal of politicianSignals) {
     if (!tickerSignals.has(signal.ticker)) {
-      tickerSignals.set(signal.ticker, []);
+      tickerSignals.set(signal.ticker, [])
     }
-    tickerSignals.get(signal.ticker)!.push(signal);
+    tickerSignals.get(signal.ticker)!.push(signal)
   }
 
-  const closedTrades: TestClosedTrade[] = [];
-  const openPositions: TestPosition[] = [];
+  const closedTrades: TestClosedTrade[] = []
+  const openPositions: TestPosition[] = []
 
   for (const [ticker, tickerSigs] of tickerSignals) {
-    const sorted = tickerSigs.sort((a, b) => a.trade_date.localeCompare(b.trade_date));
-    const positionQueue: TestPosition[] = [];
+    const sorted = tickerSigs.sort((a, b) => a.trade_date.localeCompare(b.trade_date))
+    const positionQueue: TestPosition[] = []
 
     for (const signal of sorted) {
-      if (signal.action === "buy") {
-        const shares = signal.position_size_min / signal.trade_price;
+      if (signal.action === 'buy') {
+        const shares = signal.position_size_min / signal.trade_price
         positionQueue.push({
           ticker,
           shares,
           entryPrice: signal.trade_price,
           entryDate: signal.trade_date,
-          cost: signal.position_size_min,
-        });
-      } else if (signal.action === "sell") {
+          cost: signal.position_size_min
+        })
+      } else if (signal.action === 'sell') {
         if (positionQueue.length > 0) {
-          const position = positionQueue.shift()!;
-          const exitPrice = signal.trade_price;
-          const profit = (exitPrice - position.entryPrice) * position.shares;
-          const returnPct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100;
-          const holdDays = daysBetween(position.entryDate, signal.trade_date);
+          const position = positionQueue.shift()!
+          const exitPrice = signal.trade_price
+          const profit = (exitPrice - position.entryPrice) * position.shares
+          const returnPct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100
+          const holdDays = daysBetween(position.entryDate, signal.trade_date)
 
           closedTrades.push({
             ticker,
@@ -201,46 +198,46 @@ export function calculatePoliticianStats(
             exitDate: signal.trade_date,
             returnPct,
             holdDays: Math.max(0, holdDays),
-            profit,
-          });
+            profit
+          })
         }
       }
     }
 
     for (const position of positionQueue) {
-      const latestPrice = priceMap.get(position.ticker);
+      const latestPrice = priceMap.get(position.ticker)
       if (latestPrice) {
-        position.currentPrice = latestPrice.price;
-        position.currentValue = position.shares * latestPrice.price;
-        position.unrealizedPnL = position.currentValue - position.cost;
+        position.currentPrice = latestPrice.price
+        position.currentValue = position.shares * latestPrice.price
+        position.unrealizedPnL = position.currentValue - position.cost
       }
     }
-    openPositions.push(...positionQueue);
+    openPositions.push(...positionQueue)
   }
 
   if (closedTrades.length === 0 && openPositions.length === 0) {
-    return null;
+    return null
   }
 
-  const totalCostOfClosed = closedTrades.reduce((sum, t) => sum + (t.shares * t.entryPrice), 0);
-  const realizedPnL = closedTrades.reduce((sum, t) => sum + t.profit, 0);
+  const totalCostOfClosed = closedTrades.reduce((sum, t) => sum + t.shares * t.entryPrice, 0)
+  const realizedPnL = closedTrades.reduce((sum, t) => sum + t.profit, 0)
 
-  const openWithPrices = openPositions.filter(p => p.currentPrice !== undefined);
-  const unrealizedCost = openWithPrices.reduce((sum, p) => sum + p.cost, 0);
-  const unrealizedPnL = openWithPrices.reduce((sum, p) => sum + (p.unrealizedPnL ?? 0), 0);
+  const openWithPrices = openPositions.filter(p => p.currentPrice !== undefined)
+  const unrealizedCost = openWithPrices.reduce((sum, p) => sum + p.cost, 0)
+  const unrealizedPnL = openWithPrices.reduce((sum, p) => sum + (p.unrealizedPnL ?? 0), 0)
 
-  const totalCostWithPrices = totalCostOfClosed + unrealizedCost;
-  const totalPnL = realizedPnL + unrealizedPnL;
-  const totalReturnPct = totalCostWithPrices > 0 ? (totalPnL / totalCostWithPrices) * 100 : 0;
+  const totalCostWithPrices = totalCostOfClosed + unrealizedCost
+  const totalPnL = realizedPnL + unrealizedPnL
+  const totalReturnPct = totalCostWithPrices > 0 ? (totalPnL / totalCostWithPrices) * 100 : 0
 
-  const avgHoldDays = closedTrades.length > 0
-    ? closedTrades.reduce((sum, t) => sum + t.holdDays, 0) / closedTrades.length
-    : 0;
+  const avgHoldDays =
+    closedTrades.length > 0
+      ? closedTrades.reduce((sum, t) => sum + t.holdDays, 0) / closedTrades.length
+      : 0
 
-  const buySignals = politicianSignals.filter(s => s.action === "buy");
-  const annualizedReturnPct = avgHoldDays > 0
-    ? annualizeReturn(totalReturnPct, avgHoldDays)
-    : totalReturnPct;
+  const buySignals = politicianSignals.filter(s => s.action === 'buy')
+  const annualizedReturnPct =
+    avgHoldDays > 0 ? annualizeReturn(totalReturnPct, avgHoldDays) : totalReturnPct
 
   return {
     name: politicianName,
@@ -249,8 +246,8 @@ export function calculatePoliticianStats(
     closedTrades: closedTrades.length,
     totalReturnPct,
     annualizedReturnPct,
-    avgHoldDays,
-  };
+    avgHoldDays
+  }
 }
 
 // =============================================================================
@@ -262,60 +259,70 @@ export function calculatePoliticianStats(
  * Returns filters for: Top 5, Ann>=50%, Top 10, Ann>=40%, Top 15
  */
 export function buildPoliticianFilters(signals: RawSignal[]): PoliticianFilter[] {
-  const priceMap = buildPriceMap(signals);
-  const politicianNames = [...new Set(signals.map(s => s.politician_name))];
+  const priceMap = buildPriceMap(signals)
+  const politicianNames = [...new Set(signals.map(s => s.politician_name))]
 
   // Calculate stats for all politicians
-  const allStats: TestPoliticianStats[] = [];
+  const allStats: TestPoliticianStats[] = []
   for (const name of politicianNames) {
-    const stats = calculatePoliticianStats(signals, name, priceMap);
+    const stats = calculatePoliticianStats(signals, name, priceMap)
     if (stats && (stats.closedTrades > 0 || stats.trades > 0)) {
-      allStats.push(stats);
+      allStats.push(stats)
     }
   }
 
   // Get qualified politicians (min 15 trades) sorted by annualized return
-  const MIN_TRADES = 15;
+  const MIN_TRADES = 15
   const qualified = [...allStats]
     .filter(p => p.trades >= MIN_TRADES)
-    .sort((a, b) => b.annualizedReturnPct - a.annualizedReturnPct);
+    .sort((a, b) => b.annualizedReturnPct - a.annualizedReturnPct)
 
   // Calculate date range for signals/month
-  const buySignals = signals.filter(s => s.action === "buy" && s.trade_price > 0);
-  const dates = buySignals.map(s => new Date(s.disclosure_date).getTime());
-  const minDate = new Date(Math.min(...dates));
-  const maxDate = new Date(Math.max(...dates));
-  const totalMonths = (maxDate.getFullYear() - minDate.getFullYear()) * 12 +
-                      (maxDate.getMonth() - minDate.getMonth()) + 1;
+  const buySignals = signals.filter(s => s.action === 'buy' && s.trade_price > 0)
+  const dates = buySignals.map(s => new Date(s.disclosure_date).getTime())
+  const minDate = new Date(Math.min(...dates))
+  const maxDate = new Date(Math.max(...dates))
+  const totalMonths =
+    (maxDate.getFullYear() - minDate.getFullYear()) * 12 +
+    (maxDate.getMonth() - minDate.getMonth()) +
+    1
 
   // Helper to count signals per month for a filter
   const calcSignalsPerMonth = (politicianSet: Set<string>): number => {
-    const filteredSignals = buySignals.filter(s => politicianSet.has(s.politician_name));
-    return filteredSignals.length / totalMonths;
-  };
+    const filteredSignals = buySignals.filter(s => politicianSet.has(s.politician_name))
+    return filteredSignals.length / totalMonths
+  }
 
   // Build the 5 filters
-  const filters: PoliticianFilter[] = [];
+  const filters: PoliticianFilter[] = []
 
   // 1. Top 5 (min 15 trades)
-  const top5 = new Set(qualified.slice(0, 5).map(p => p.name));
-  filters.push({ name: "Top 5", politicians: top5, signalsPerMonth: calcSignalsPerMonth(top5) });
+  const top5 = new Set(qualified.slice(0, 5).map(p => p.name))
+  filters.push({ name: 'Top 5', politicians: top5, signalsPerMonth: calcSignalsPerMonth(top5) })
 
   // 2. Ann% >= 50%
-  const ann50 = new Set(allStats.filter(p => p.annualizedReturnPct >= 50).map(p => p.name));
-  filters.push({ name: "Ann>=50%", politicians: ann50, signalsPerMonth: calcSignalsPerMonth(ann50) });
+  const ann50 = new Set(allStats.filter(p => p.annualizedReturnPct >= 50).map(p => p.name))
+  filters.push({
+    name: 'Ann>=50%',
+    politicians: ann50,
+    signalsPerMonth: calcSignalsPerMonth(ann50)
+  })
 
   // 3. Top 10 (min 15 trades)
-  const top10 = new Set(qualified.slice(0, 10).map(p => p.name));
-  filters.push({ name: "Top 10", politicians: top10, signalsPerMonth: calcSignalsPerMonth(top10) });
+  const top10 = new Set(qualified.slice(0, 10).map(p => p.name))
+  filters.push({ name: 'Top 10', politicians: top10, signalsPerMonth: calcSignalsPerMonth(top10) })
 
   // 4. Ann% >= 40%
-  const ann40 = new Set(allStats.filter(p => p.annualizedReturnPct >= 40).map(p => p.name));
-  filters.push({ name: "Ann>=40%", politicians: ann40, signalsPerMonth: calcSignalsPerMonth(ann40) });
+  const ann40 = new Set(allStats.filter(p => p.annualizedReturnPct >= 40).map(p => p.name))
+  filters.push({
+    name: 'Ann>=40%',
+    politicians: ann40,
+    signalsPerMonth: calcSignalsPerMonth(ann40)
+  })
 
   // 5. Top 15 (min 15 trades)
-  const top15 = new Set(qualified.slice(0, 15).map(p => p.name));
-  filters.push({ name: "Top 15", politicians: top15, signalsPerMonth: calcSignalsPerMonth(top15) });
+  const top15 = new Set(qualified.slice(0, 15).map(p => p.name))
+  filters.push({ name: 'Top 15', politicians: top15, signalsPerMonth: calcSignalsPerMonth(top15) })
 
-  return filters;
+  return filters
 }

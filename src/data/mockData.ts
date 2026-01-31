@@ -1,12 +1,7 @@
 // Mock data for development
 // This simulates what we'd receive from the hadoku-site API
 
-import type {
-  Signal,
-  PerformanceData,
-  ExecutedTrade,
-  SourcePerformance
-} from '../types/api'
+import type { Signal, PerformanceData, ExecutedTrade, SourcePerformance } from '../types/api'
 
 // Generate date strings for the past N days
 function generateDates(days: number): string[] {
@@ -21,11 +16,7 @@ function generateDates(days: number): string[] {
 }
 
 // Generate performance history with cumulative % returns
-function generateReturnHistory(
-  totalReturn: number,
-  variance: number,
-  dates: string[]
-) {
+function generateReturnHistory(totalReturn: number, variance: number, dates: string[]) {
   // Distribute the total return across all dates with some randomness
   const dailyAvgReturn = totalReturn / dates.length
   let cumulative = 0

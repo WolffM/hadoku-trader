@@ -59,8 +59,8 @@ import {
   analyzeSignals,
   type TradeAction,
   type EnrichedSignal,
-  type TraderEnv,
-} from '@wolffm/trader-worker';
+  type TraderEnv
+} from '@wolffm/trader-worker'
 ```
 
 ## 3. Signal Enrichment
@@ -69,25 +69,25 @@ Scraper provides most fields. You only compute 3 trivial derived fields:
 
 ```typescript
 interface ScraperSignal {
-  id: string;
-  ticker: string;
-  action: 'buy' | 'sell';
-  asset_type: 'stock' | 'etf' | 'option';
-  trade_price: number;
-  current_price: number;      // Already provided by scraper!
-  trade_date: string;
-  disclosure_date: string;
-  position_size_min: number;
-  politician_name: string;
-  source: string;
+  id: string
+  ticker: string
+  action: 'buy' | 'sell'
+  asset_type: 'stock' | 'etf' | 'option'
+  trade_price: number
+  current_price: number // Already provided by scraper!
+  trade_date: string
+  disclosure_date: string
+  position_size_min: number
+  politician_name: string
+  source: string
 }
 
 function enrichSignals(rawSignals: ScraperSignal[]): EnrichedSignal[] {
-  const today = new Date();
+  const today = new Date()
 
   return rawSignals.map(signal => {
-    const tradeDate = new Date(signal.trade_date);
-    const disclosureDate = new Date(signal.disclosure_date);
+    const tradeDate = new Date(signal.trade_date)
+    const disclosureDate = new Date(signal.disclosure_date)
 
     return {
       // Pass through from scraper (no changes)
@@ -104,16 +104,13 @@ function enrichSignals(rawSignals: ScraperSignal[]): EnrichedSignal[] {
       source: signal.source,
 
       // Compute these 3 fields
-      days_since_trade: Math.floor(
-        (today.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24)
-      ),
+      days_since_trade: Math.floor((today.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24)),
       days_since_filing: Math.floor(
         (today.getTime() - disclosureDate.getTime()) / (1000 * 60 * 60 * 24)
       ),
-      price_change_pct:
-        ((signal.current_price - signal.trade_price) / signal.trade_price) * 100,
-    };
-  });
+      price_change_pct: ((signal.current_price - signal.trade_price) / signal.trade_price) * 100
+    }
+  })
 }
 ```
 
@@ -121,39 +118,37 @@ function enrichSignals(rawSignals: ScraperSignal[]): EnrichedSignal[] {
 
 ```typescript
 export async function handleScheduled(env: Env): Promise<{
-  signals_fetched: number;
-  actions_analyzed: number;
-  trades_queued: number;
-  trades_dispatched: number;
-  trades_succeeded: number;
-  trades_failed: number;
+  signals_fetched: number
+  actions_analyzed: number
+  trades_queued: number
+  trades_dispatched: number
+  trades_succeeded: number
+  trades_failed: number
 }> {
   // Step 1: Fetch signals from scraper
-  const rawSignals = await fetchFromScraper(env);
+  const rawSignals = await fetchFromScraper(env)
 
   // Step 2: Enrich with computed fields
-  const enrichedSignals = enrichSignals(rawSignals);
+  const enrichedSignals = enrichSignals(rawSignals)
 
   // Step 3: Analyze signals (get trade decisions)
-  const actions = await analyzeSignals(env, enrichedSignals);
+  const actions = await analyzeSignals(env, enrichedSignals)
 
   // Step 4: Filter to only execute actions
-  const toExecute = actions.filter(a =>
-    a.decision === 'execute' || a.decision === 'execute_half'
-  );
+  const toExecute = actions.filter(a => a.decision === 'execute' || a.decision === 'execute_half')
 
   // Step 5: Queue trades in D1
-  await queueTrades(env, toExecute);
+  await queueTrades(env, toExecute)
 
   // Step 6: Dispatch pending trades
-  const dispatchResult = await dispatchPendingTrades(env);
+  const dispatchResult = await dispatchPendingTrades(env)
 
   return {
     signals_fetched: rawSignals.length,
     actions_analyzed: actions.length,
     trades_queued: toExecute.length,
-    ...dispatchResult,
-  };
+    ...dispatchResult
+  }
 }
 ```
 
@@ -163,16 +158,16 @@ export async function handleScheduled(env: Env): Promise<{
 async function fetchFromScraper(env: Env): Promise<ScraperSignal[]> {
   const response = await fetch(`${env.SCRAPER_URL}/data-package`, {
     headers: {
-      'X-API-Key': env.SCRAPER_API_KEY,
-    },
-  });
+      'X-API-Key': env.SCRAPER_API_KEY
+    }
+  })
 
   if (!response.ok) {
-    throw new Error(`Scraper error: ${response.status}`);
+    throw new Error(`Scraper error: ${response.status}`)
   }
 
-  const data = await response.json();
-  return data.signals;
+  const data = await response.json()
+  return data.signals
 }
 ```
 
@@ -180,33 +175,37 @@ async function fetchFromScraper(env: Env): Promise<ScraperSignal[]> {
 
 ```typescript
 function generateId(prefix: string): string {
-  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
+  return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`
 }
 
 async function queueTrades(env: Env, actions: TradeAction[]): Promise<void> {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString()
 
   for (const action of actions) {
-    await env.TRADER_DB.prepare(`
+    await env.TRADER_DB.prepare(
+      `
       INSERT INTO trades (
         id, agent_id, signal_id, ticker, action, decision,
         score, score_breakdown_json, quantity, price, total,
         status, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?)
-    `).bind(
-      generateId('trade'),
-      action.agent_id,
-      action.signal_id,
-      action.ticker,
-      action.action,
-      action.decision,
-      action.score,
-      action.score_breakdown ? JSON.stringify(action.score_breakdown) : null,
-      action.quantity,
-      action.current_price,
-      action.position_size,
-      now
-    ).run();
+    `
+    )
+      .bind(
+        generateId('trade'),
+        action.agent_id,
+        action.signal_id,
+        action.ticker,
+        action.action,
+        action.decision,
+        action.score,
+        action.score_breakdown ? JSON.stringify(action.score_breakdown) : null,
+        action.quantity,
+        action.current_price,
+        action.position_size,
+        now
+      )
+      .run()
   }
 }
 ```
@@ -215,22 +214,24 @@ async function queueTrades(env: Env, actions: TradeAction[]): Promise<void> {
 
 ```typescript
 interface DispatchResult {
-  trades_dispatched: number;
-  trades_succeeded: number;
-  trades_failed: number;
+  trades_dispatched: number
+  trades_succeeded: number
+  trades_failed: number
 }
 
 async function dispatchPendingTrades(env: Env): Promise<DispatchResult> {
   // Get pending trades
-  const pending = await env.TRADER_DB.prepare(`
+  const pending = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM trades
     WHERE status = 'pending'
     ORDER BY created_at ASC
     LIMIT 20
-  `).all();
+  `
+  ).all()
 
-  let succeeded = 0;
-  let failed = 0;
+  let succeeded = 0
+  let failed = 0
 
   for (const trade of pending.results as any[]) {
     try {
@@ -239,50 +240,62 @@ async function dispatchPendingTrades(env: Env): Promise<DispatchResult> {
         ticker: trade.ticker,
         action: trade.action,
         quantity: trade.quantity,
-        dry_run: false,  // Set true for testing!
-      });
+        dry_run: false // Set true for testing!
+      })
 
       if (result.success) {
         // Update trade as executed
-        await env.TRADER_DB.prepare(`
+        await env.TRADER_DB.prepare(
+          `
           UPDATE trades
           SET status = 'executed', executed_at = ?
           WHERE id = ?
-        `).bind(new Date().toISOString(), trade.id).run();
+        `
+        )
+          .bind(new Date().toISOString(), trade.id)
+          .run()
 
         // Create position record
-        await createPosition(env, trade, result);
+        await createPosition(env, trade, result)
 
         // Update agent budget
-        await updateAgentBudget(env, trade.agent_id, trade.total);
+        await updateAgentBudget(env, trade.agent_id, trade.total)
 
-        succeeded++;
+        succeeded++
       } else {
         // Mark as failed
-        await env.TRADER_DB.prepare(`
+        await env.TRADER_DB.prepare(
+          `
           UPDATE trades
           SET status = 'failed', error_message = ?
           WHERE id = ?
-        `).bind(result.error || 'Unknown error', trade.id).run();
+        `
+        )
+          .bind(result.error || 'Unknown error', trade.id)
+          .run()
 
-        failed++;
+        failed++
       }
     } catch (error) {
-      await env.TRADER_DB.prepare(`
+      await env.TRADER_DB.prepare(
+        `
         UPDATE trades
         SET status = 'failed', error_message = ?
         WHERE id = ?
-      `).bind(String(error), trade.id).run();
+      `
+      )
+        .bind(String(error), trade.id)
+        .run()
 
-      failed++;
+      failed++
     }
   }
 
   return {
     trades_dispatched: pending.results.length,
     trades_succeeded: succeeded,
-    trades_failed: failed,
-  };
+    trades_failed: failed
+  }
 }
 ```
 
@@ -290,90 +303,87 @@ async function dispatchPendingTrades(env: Env): Promise<DispatchResult> {
 
 ```typescript
 interface MgmtApiRequest {
-  ticker: string;
-  action: 'buy' | 'sell';
-  quantity: number;
-  dry_run: boolean;
+  ticker: string
+  action: 'buy' | 'sell'
+  quantity: number
+  dry_run: boolean
 }
 
 interface MgmtApiResponse {
-  success: boolean;
-  order_id?: string;
-  executed_price?: number;
-  error?: string;
+  success: boolean
+  order_id?: string
+  executed_price?: number
+  error?: string
 }
 
-async function callMgmtApi(
-  env: Env,
-  request: MgmtApiRequest
-): Promise<MgmtApiResponse> {
+async function callMgmtApi(env: Env, request: MgmtApiRequest): Promise<MgmtApiResponse> {
   const response = await fetch(`${env.MGMT_API_URL}/fidelity/execute-trade`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-API-Key': env.MGMT_API_KEY,
+      'X-API-Key': env.MGMT_API_KEY
     },
-    body: JSON.stringify(request),
-  });
+    body: JSON.stringify(request)
+  })
 
   if (!response.ok) {
     return {
       success: false,
-      error: `HTTP ${response.status}: ${await response.text()}`,
-    };
+      error: `HTTP ${response.status}: ${await response.text()}`
+    }
   }
 
-  return response.json();
+  return response.json()
 }
 ```
 
 ## 9. Create Position on Success
 
 ```typescript
-async function createPosition(
-  env: Env,
-  trade: any,
-  result: MgmtApiResponse
-): Promise<void> {
-  const now = new Date().toISOString();
-  const price = result.executed_price || trade.price;
+async function createPosition(env: Env, trade: any, result: MgmtApiResponse): Promise<void> {
+  const now = new Date().toISOString()
+  const price = result.executed_price || trade.price
 
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     INSERT INTO positions (
       id, agent_id, ticker, shares, entry_price, entry_date,
       cost_basis, highest_price, asset_type, status, signal_id,
       partial_sold, created_at
     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'stock', 'open', ?, 0, ?)
-  `).bind(
-    generateId('pos'),
-    trade.agent_id,
-    trade.ticker,
-    trade.quantity,
-    price,
-    now.split('T')[0],
-    trade.quantity * price,
-    price,
-    trade.signal_id,
-    now
-  ).run();
+  `
+  )
+    .bind(
+      generateId('pos'),
+      trade.agent_id,
+      trade.ticker,
+      trade.quantity,
+      price,
+      now.split('T')[0],
+      trade.quantity * price,
+      price,
+      trade.signal_id,
+      now
+    )
+    .run()
 }
 ```
 
 ## 10. Update Agent Budget
 
 ```typescript
-async function updateAgentBudget(
-  env: Env,
-  agentId: string,
-  amount: number
-): Promise<void> {
-  const month = new Date().toISOString().slice(0, 7); // "2026-01"
+async function updateAgentBudget(env: Env, agentId: string, amount: number): Promise<void> {
+  const month = new Date().toISOString().slice(0, 7) // "2026-01"
 
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     UPDATE agent_budgets
     SET spent = spent + ?
     WHERE agent_id = ? AND month = ?
-  `).bind(amount, agentId, month).run();
+  `
+  )
+    .bind(amount, agentId, month)
+    .run()
 }
 ```
 
@@ -405,14 +415,14 @@ app.post('/fidelity/execute-trade', async (req, res) => {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'X-API-Key': FIDELITY_API_KEY,
+      'X-API-Key': FIDELITY_API_KEY
     },
-    body: JSON.stringify(req.body),
-  });
+    body: JSON.stringify(req.body)
+  })
 
-  const result = await response.json();
-  res.json(result);
-});
+  const result = await response.json()
+  res.json(result)
+})
 ```
 
 ---
@@ -429,12 +439,12 @@ app.post('/fidelity/execute-trade', async (req, res) => {
 
 ## Data Flow Summary
 
-| Step | Component | Input | Output |
-|------|-----------|-------|--------|
-| 1 | hadoku-scraper | - | signals with current_price |
-| 2 | enrichSignals() | ScraperSignal[] | EnrichedSignal[] |
-| 3 | analyzeSignals() | EnrichedSignal[] | TradeAction[] |
-| 4 | queueTrades() | TradeAction[] | trades in D1 |
-| 5 | dispatchPendingTrades() | pending trades | executed/failed trades |
-| 6 | mgmt-api | trade request | fidelity result |
-| 7 | fidelity-api | trade request | order confirmation |
+| Step | Component               | Input            | Output                     |
+| ---- | ----------------------- | ---------------- | -------------------------- |
+| 1    | hadoku-scraper          | -                | signals with current_price |
+| 2    | enrichSignals()         | ScraperSignal[]  | EnrichedSignal[]           |
+| 3    | analyzeSignals()        | EnrichedSignal[] | TradeAction[]              |
+| 4    | queueTrades()           | TradeAction[]    | trades in D1               |
+| 5    | dispatchPendingTrades() | pending trades   | executed/failed trades     |
+| 6    | mgmt-api                | trade request    | fidelity result            |
+| 7    | fidelity-api            | trade request    | order confirmation         |

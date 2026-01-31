@@ -15,6 +15,7 @@
 ## Project Context
 
 This is a congressional trade copying system with a multi-agent trading engine. The goal is to:
+
 1. Receive signals from hadoku-scraper about congressional stock trades
 2. Score and process signals through 3 independent trading agents (ChatGPT, Claude, Gemini)
 3. Display a dashboard showing agent/portfolio performance vs benchmarks
@@ -32,6 +33,7 @@ hadoku-scraper ──► hadoku-site (CF Worker + D1) ──► hadoku-trader (D
 ```
 
 Data flow:
+
 1. hadoku-site fetches data from hadoku-scraper every 8 hours
 2. Signals are processed through the multi-agent engine (scoring, sizing, execution decisions)
 3. Data stored in D1 (Cloudflare's SQLite)
@@ -95,12 +97,12 @@ hadoku-trader/
 
 The following test files in `worker/src/agents/` are **critical analysis tools**, not just unit tests. They run backtests and strategy analysis against historical data. **Do not delete or refactor these files:**
 
-| File | Purpose |
-|------|---------|
-| `simulation.test.ts` | Portfolio simulation, strategy backtesting, tax analysis |
-| `politician-analysis.test.ts` | Individual politician performance analysis |
-| `scoring-retrospective.test.ts` | Scoring algorithm validation against actual returns |
-| `strategy-variations.test.ts` | A/B testing different strategy parameters |
+| File                            | Purpose                                                  |
+| ------------------------------- | -------------------------------------------------------- |
+| `simulation.test.ts`            | Portfolio simulation, strategy backtesting, tax analysis |
+| `politician-analysis.test.ts`   | Individual politician performance analysis               |
+| `scoring-retrospective.test.ts` | Scoring algorithm validation against actual returns      |
+| `strategy-variations.test.ts`   | A/B testing different strategy parameters                |
 
 These files use `trader-db-export.json` (261MB, gitignored) which contains historical signal data. Shared utilities are in `test-utils.ts`.
 
@@ -110,23 +112,25 @@ Run analysis: `cd worker && pnpm test <filename>`
 
 Three agents run independently with $1,000/month budget each:
 
-| Agent | Strategy | Signals | Sizing |
-|-------|----------|---------|--------|
-| ChatGPT ("Decay Edge") | Score-based, soft stops | All politicians | score² × 20% |
-| Claude ("Decay Alpha") | Score-based, take-profits | All politicians | $200 × score |
-| Gemini ("Titan Conviction") | Pass/fail on 5 Titans | Pelosi, Green, McCaul, Khanna, Larsen | Equal split |
+| Agent                       | Strategy                  | Signals                               | Sizing       |
+| --------------------------- | ------------------------- | ------------------------------------- | ------------ |
+| ChatGPT ("Decay Edge")      | Score-based, soft stops   | All politicians                       | score² × 20% |
+| Claude ("Decay Alpha")      | Score-based, take-profits | All politicians                       | $200 × score |
+| Gemini ("Titan Conviction") | Pass/fail on 5 Titans     | Pelosi, Green, McCaul, Khanna, Larsen | Equal split  |
 
 See [docs/ENGINE_SPEC.md](docs/ENGINE_SPEC.md) for full specification.
 
 ## Worker Package (@wolffm/trader-worker)
 
 Published to GitHub Packages, imported by hadoku-site. Key exports:
+
 - `createTraderHandler(env)` - Main request handler
 - `createScheduledHandler(env)` - Cron job handler
 - `runFullSync(env)` - Full sync (signals, prices, processing, performance)
 - `backfillMarketPrices(env, start, end)` - Historical price backfill
 
 Cron jobs (configured in hadoku-site's wrangler.toml):
+
 - `0 */8 * * *` - Full sync every 8 hours
 - `*/15 14-21 * * 1-5` - Position monitoring during market hours
 
@@ -161,6 +165,7 @@ python main.py
 ## Signal Processing Flow
 
 When a signal arrives:
+
 1. Check for duplicates (by source_id)
 2. Route to applicable agents (based on politician whitelist, asset types)
 3. Each agent independently:
@@ -173,23 +178,23 @@ When a signal arrives:
 
 ## API Routes
 
-| Route | Method | Description |
-|-------|--------|-------------|
-| `/api/trader/signals` | GET | List signals |
-| `/api/trader/signals` | POST | Ingest signal from scraper |
-| `/api/trader/signals/backfill` | POST | Batch signal backfill |
-| `/api/trader/signals/process` | POST | Process pending signals |
-| `/api/trader/agents` | GET | List agents + performance |
-| `/api/trader/agents/:id` | GET | Agent details |
-| `/api/trader/performance` | GET | Overall performance |
-| `/api/trader/trades` | GET | Trade history |
-| `/api/trader/sources` | GET | Source leaderboard |
-| `/api/trader/execute` | POST | Execute trade via tunnel |
-| `/api/trader/market/prices` | GET | Get market prices |
-| `/api/trader/market/tickers` | GET | Get tracked tickers |
-| `/api/trader/market/backfill` | POST | Backfill market prices |
-| `/api/trader/market/backfill/trigger` | POST | Trigger market backfill |
-| `/api/trader/health` | GET | Health check |
+| Route                                 | Method | Description                |
+| ------------------------------------- | ------ | -------------------------- |
+| `/api/trader/signals`                 | GET    | List signals               |
+| `/api/trader/signals`                 | POST   | Ingest signal from scraper |
+| `/api/trader/signals/backfill`        | POST   | Batch signal backfill      |
+| `/api/trader/signals/process`         | POST   | Process pending signals    |
+| `/api/trader/agents`                  | GET    | List agents + performance  |
+| `/api/trader/agents/:id`              | GET    | Agent details              |
+| `/api/trader/performance`             | GET    | Overall performance        |
+| `/api/trader/trades`                  | GET    | Trade history              |
+| `/api/trader/sources`                 | GET    | Source leaderboard         |
+| `/api/trader/execute`                 | POST   | Execute trade via tunnel   |
+| `/api/trader/market/prices`           | GET    | Get market prices          |
+| `/api/trader/market/tickers`          | GET    | Get tracked tickers        |
+| `/api/trader/market/backfill`         | POST   | Backfill market prices     |
+| `/api/trader/market/backfill/trigger` | POST   | Trigger market backfill    |
+| `/api/trader/health`                  | GET    | Health check               |
 
 ## Important Constraints
 
@@ -205,25 +210,25 @@ When a signal arrives:
 
 ### Type Definitions - Where to Find Them
 
-| Type Category | Canonical Location | Notes |
-|---------------|-------------------|-------|
-| Signal, Trade, Politician | `worker/src/types.ts` | Source of truth for API types |
-| Agent configs, scoring, sizing | `worker/src/agents/types.ts` | All trading engine types |
-| Frontend types | `src/types/api.ts` | Mirrors worker types (don't duplicate, reference worker) |
-| Test utilities | `worker/src/agents/types.ts` | `RawSignal`, `TestPosition`, `TestClosedTrade`, `TestPoliticianStats` |
+| Type Category                  | Canonical Location           | Notes                                                                 |
+| ------------------------------ | ---------------------------- | --------------------------------------------------------------------- |
+| Signal, Trade, Politician      | `worker/src/types.ts`        | Source of truth for API types                                         |
+| Agent configs, scoring, sizing | `worker/src/agents/types.ts` | All trading engine types                                              |
+| Frontend types                 | `src/types/api.ts`           | Mirrors worker types (don't duplicate, reference worker)              |
+| Test utilities                 | `worker/src/agents/types.ts` | `RawSignal`, `TestPosition`, `TestClosedTrade`, `TestPoliticianStats` |
 
 ### Utility Functions - Where to Find Them
 
-| Function | Location | Usage |
-|----------|----------|-------|
-| `daysBetween(start, end)` | `worker/src/agents/filters.ts` | Date math - **DO NOT REDEFINE** |
-| `generateId(prefix)` | `worker/src/agents/filters.ts` | ID generation |
-| `calculateDisclosureLagDays()` | `worker/src/utils.ts` | Trade-to-disclosure lag |
-| `insertSignalRow()` | `worker/src/utils.ts` | DB signal insertion (use `lenient: true` for backfill) |
-| `buildPriceMap()` | `worker/src/agents/test-utils.ts` | Latest prices from signals |
-| `calculatePoliticianStats()` | `worker/src/agents/test-utils.ts` | Politician performance |
-| `buildPoliticianFilters()` | `worker/src/agents/test-utils.ts` | Top N politician filters |
-| `annualizeReturn()` | `worker/src/agents/test-utils.ts` | Return annualization |
+| Function                       | Location                          | Usage                                                  |
+| ------------------------------ | --------------------------------- | ------------------------------------------------------ |
+| `daysBetween(start, end)`      | `worker/src/agents/filters.ts`    | Date math - **DO NOT REDEFINE**                        |
+| `generateId(prefix)`           | `worker/src/agents/filters.ts`    | ID generation                                          |
+| `calculateDisclosureLagDays()` | `worker/src/utils.ts`             | Trade-to-disclosure lag                                |
+| `insertSignalRow()`            | `worker/src/utils.ts`             | DB signal insertion (use `lenient: true` for backfill) |
+| `buildPriceMap()`              | `worker/src/agents/test-utils.ts` | Latest prices from signals                             |
+| `calculatePoliticianStats()`   | `worker/src/agents/test-utils.ts` | Politician performance                                 |
+| `buildPoliticianFilters()`     | `worker/src/agents/test-utils.ts` | Top N politician filters                               |
+| `annualizeReturn()`            | `worker/src/agents/test-utils.ts` | Return annualization                                   |
 
 ### Common Duplication Mistakes to Avoid
 
@@ -243,16 +248,16 @@ When a signal arrives:
 
 ```typescript
 // For route handlers - import from ./agents index
-import { daysBetween, calculateScoreSync } from "./agents";
-import type { ScoringBreakdown, EnrichedSignal } from "./agents";
+import { daysBetween, calculateScoreSync } from './agents'
+import type { ScoringBreakdown, EnrichedSignal } from './agents'
 
 // For test files - import from test-utils
-import { daysBetween, buildPriceMap, loadSignalsFromExport } from "./test-utils";
-import type { RawSignal, TestPosition } from "./test-utils";
+import { daysBetween, buildPriceMap, loadSignalsFromExport } from './test-utils'
+import type { RawSignal, TestPosition } from './test-utils'
 
 // For utils that need internal use AND re-export
-import { daysBetween } from "./filters";
-export { daysBetween };  // Re-export for consumers
+import { daysBetween } from './filters'
+export { daysBetween } // Re-export for consumers
 ```
 
 ### Export Structure

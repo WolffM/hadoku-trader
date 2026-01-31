@@ -3,6 +3,7 @@
 This document contains test signals for validating the full trading pipeline in production.
 
 **IMPORTANT**: Before running these tests:
+
 1. Verify `DRY_RUN = true` in `worker/src/agents/tradingConfig.ts` (line 19)
 2. Redeploy the trader-worker package if changed
 3. Ensure cloudflared tunnel is active
@@ -40,9 +41,9 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_01_buy_passes_all",
       "description": "BUY signal that passes all filters - should execute for all 3 agents (DRY RUN)",
       "expected": {
-        "chatgpt": {"action": "execute", "reason": "High score ~0.75+"},
-        "claude": {"action": "execute", "reason": "High score ~0.75+"},
-        "gemini": {"action": "execute", "reason": "Nancy Pelosi is Titan, passes filters"}
+        "chatgpt": { "action": "execute", "reason": "High score ~0.75+" },
+        "claude": { "action": "execute", "reason": "High score ~0.75+" },
+        "gemini": { "action": "execute", "reason": "Nancy Pelosi is Titan, passes filters" }
       },
       "signal": {
         "source": "capitol_trades",
@@ -57,10 +58,10 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "stock",
           "trade_date": "2026-01-24",
-          "trade_price": 140.00,
+          "trade_price": 140.0,
           "disclosure_date": "2026-01-25",
-          "disclosure_price": 142.00,
-          "current_price": 143.50,
+          "disclosure_price": 142.0,
+          "current_price": 143.5,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$250,001-$500,000",
           "position_size_min": 250001,
@@ -80,9 +81,12 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_02_skip_low_score",
       "description": "BUY signal with low score - ChatGPT/Claude SKIP on score, Gemini SKIP on politician filter",
       "expected": {
-        "chatgpt": {"action": "skip", "reason": "Score below 0.55 threshold (stale, large price move, small position)"},
-        "claude": {"action": "skip", "reason": "Score below 0.55 threshold"},
-        "gemini": {"action": "skip", "reason": "Politician not in Titan whitelist"}
+        "chatgpt": {
+          "action": "skip",
+          "reason": "Score below 0.55 threshold (stale, large price move, small position)"
+        },
+        "claude": { "action": "skip", "reason": "Score below 0.55 threshold" },
+        "gemini": { "action": "skip", "reason": "Politician not in Titan whitelist" }
       },
       "signal": {
         "source": "house_stock_watcher",
@@ -97,10 +101,10 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "stock",
           "trade_date": "2026-01-01",
-          "trade_price": 50.00,
+          "trade_price": 50.0,
           "disclosure_date": "2026-01-20",
-          "disclosure_price": 62.50,
-          "current_price": 65.00,
+          "disclosure_price": 62.5,
+          "current_price": 65.0,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$1,001-$15,000",
           "position_size_min": 1001,
@@ -120,9 +124,9 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_03_skip_too_old",
       "description": "BUY signal that is too old - all agents SKIP on max_signal_age filter",
       "expected": {
-        "chatgpt": {"action": "skip", "reason": "filter_max_age (signal > 45 days old)"},
-        "claude": {"action": "skip", "reason": "filter_max_age (signal > 45 days old)"},
-        "gemini": {"action": "skip", "reason": "filter_max_age (signal > 45 days old)"}
+        "chatgpt": { "action": "skip", "reason": "filter_max_age (signal > 45 days old)" },
+        "claude": { "action": "skip", "reason": "filter_max_age (signal > 45 days old)" },
+        "gemini": { "action": "skip", "reason": "filter_max_age (signal > 45 days old)" }
       },
       "signal": {
         "source": "capitol_trades",
@@ -137,10 +141,10 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "stock",
           "trade_date": "2025-11-01",
-          "trade_price": 180.00,
+          "trade_price": 180.0,
           "disclosure_date": "2025-11-15",
-          "disclosure_price": 185.00,
-          "current_price": 225.00,
+          "disclosure_price": 185.0,
+          "current_price": 225.0,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$100,001-$250,000",
           "position_size_min": 100001,
@@ -160,9 +164,9 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_04_filter_politician",
       "description": "BUY signal from non-Titan politician - Gemini SKIP on politician filter, others may execute",
       "expected": {
-        "chatgpt": {"action": "execute", "reason": "Accepts all politicians, score should pass"},
-        "claude": {"action": "execute", "reason": "Accepts all politicians, score should pass"},
-        "gemini": {"action": "skip", "reason": "filter_politician (not in Titan whitelist)"}
+        "chatgpt": { "action": "execute", "reason": "Accepts all politicians, score should pass" },
+        "claude": { "action": "execute", "reason": "Accepts all politicians, score should pass" },
+        "gemini": { "action": "skip", "reason": "filter_politician (not in Titan whitelist)" }
       },
       "signal": {
         "source": "capitol_trades",
@@ -177,10 +181,10 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "stock",
           "trade_date": "2026-01-23",
-          "trade_price": 420.00,
+          "trade_price": 420.0,
           "disclosure_date": "2026-01-25",
-          "disclosure_price": 422.00,
-          "current_price": 425.00,
+          "disclosure_price": 422.0,
+          "current_price": 425.0,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$50,001-$100,000",
           "position_size_min": 50001,
@@ -200,9 +204,9 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_05_filter_asset_type",
       "description": "OPTION signal - Gemini SKIP on asset type filter (only accepts stock)",
       "expected": {
-        "chatgpt": {"action": "execute_or_skip", "reason": "Accepts options, depends on score"},
-        "claude": {"action": "execute_or_skip", "reason": "Accepts options, depends on score"},
-        "gemini": {"action": "skip", "reason": "filter_asset_type (only accepts stock)"}
+        "chatgpt": { "action": "execute_or_skip", "reason": "Accepts options, depends on score" },
+        "claude": { "action": "execute_or_skip", "reason": "Accepts options, depends on score" },
+        "gemini": { "action": "skip", "reason": "filter_asset_type (only accepts stock)" }
       },
       "signal": {
         "source": "unusual_whales",
@@ -217,16 +221,16 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "option",
           "trade_date": "2026-01-24",
-          "trade_price": 15.50,
+          "trade_price": 15.5,
           "disclosure_date": "2026-01-25",
-          "disclosure_price": 16.00,
-          "current_price": 16.50,
+          "disclosure_price": 16.0,
+          "current_price": 16.5,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$100,001-$250,000",
           "position_size_min": 100001,
           "position_size_max": 250000,
           "option_type": "call",
-          "strike_price": 175.00,
+          "strike_price": 175.0,
           "expiration_date": "2026-06-20"
         },
         "meta": {
@@ -240,9 +244,9 @@ Use this complete JSON file to send all test signals in sequence:
       "test_id": "test_06_price_move_too_large",
       "description": "BUY signal with price moved too much - SKIP on max_price_move filter",
       "expected": {
-        "chatgpt": {"action": "skip", "reason": "filter_max_price_move (>25% move)"},
-        "claude": {"action": "skip", "reason": "filter_max_price_move (>30% move)"},
-        "gemini": {"action": "skip", "reason": "filter_max_price_move (>15% move for Gemini)"}
+        "chatgpt": { "action": "skip", "reason": "filter_max_price_move (>25% move)" },
+        "claude": { "action": "skip", "reason": "filter_max_price_move (>30% move)" },
+        "gemini": { "action": "skip", "reason": "filter_max_price_move (>15% move for Gemini)" }
       },
       "signal": {
         "source": "capitol_trades",
@@ -257,10 +261,10 @@ Use this complete JSON file to send all test signals in sequence:
           "action": "buy",
           "asset_type": "stock",
           "trade_date": "2026-01-15",
-          "trade_price": 40.00,
+          "trade_price": 40.0,
           "disclosure_date": "2026-01-20",
-          "disclosure_price": 55.00,
-          "current_price": 60.00,
+          "disclosure_price": 55.0,
+          "current_price": 60.0,
           "current_price_at": "2026-01-26T16:00:00Z",
           "position_size": "$250,001-$500,000",
           "position_size_min": 250001,
@@ -372,6 +376,7 @@ pm2 logs trader-worker
 ```
 
 Expected output for DRY RUN:
+
 ```
 Received trade request: BUY 1.23 shares of NVDA
 Trade previewed successfully (DRY RUN - no order submitted)
@@ -381,14 +386,14 @@ Trade previewed successfully (DRY RUN - no order submitted)
 
 ## Expected Results Summary
 
-| Test | Signal | ChatGPT | Claude | Gemini | Notes |
-|------|--------|---------|--------|--------|-------|
-| 1 | Nancy Pelosi NVDA buy | EXECUTE | EXECUTE | EXECUTE | All agents buy (dry run) |
-| 2 | John Smith XYZ buy | SKIP (score) | SKIP (score) | SKIP (politician) | Low score + not Titan |
-| 3 | Nancy Pelosi AAPL buy (old) | SKIP (age) | SKIP (age) | SKIP (age) | Signal > 45 days old |
-| 4 | Josh Gottheimer MSFT buy | EXECUTE | EXECUTE | SKIP (politician) | Not in Gemini's Titan list |
-| 5 | Nancy Pelosi GOOGL option | EXECUTE/SKIP | EXECUTE/SKIP | SKIP (asset) | Gemini only accepts stock |
-| 6 | Mark Green SMCI buy | SKIP (price) | SKIP (price) | SKIP (price) | Price moved > thresholds |
+| Test | Signal                      | ChatGPT      | Claude       | Gemini            | Notes                      |
+| ---- | --------------------------- | ------------ | ------------ | ----------------- | -------------------------- |
+| 1    | Nancy Pelosi NVDA buy       | EXECUTE      | EXECUTE      | EXECUTE           | All agents buy (dry run)   |
+| 2    | John Smith XYZ buy          | SKIP (score) | SKIP (score) | SKIP (politician) | Low score + not Titan      |
+| 3    | Nancy Pelosi AAPL buy (old) | SKIP (age)   | SKIP (age)   | SKIP (age)        | Signal > 45 days old       |
+| 4    | Josh Gottheimer MSFT buy    | EXECUTE      | EXECUTE      | SKIP (politician) | Not in Gemini's Titan list |
+| 5    | Nancy Pelosi GOOGL option   | EXECUTE/SKIP | EXECUTE/SKIP | SKIP (asset)      | Gemini only accepts stock  |
+| 6    | Mark Green SMCI buy         | SKIP (price) | SKIP (price) | SKIP (price)      | Price moved > thresholds   |
 
 ---
 

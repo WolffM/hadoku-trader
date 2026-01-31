@@ -5,6 +5,7 @@ Cloudflare Worker API for the hadoku-trader system. Designed as an importable pa
 ## Overview
 
 This worker provides:
+
 - **Signal Ingestion**: POST endpoint for hadoku-scraper to submit congressional trade signals
 - **REST API**: Endpoints for the dashboard to fetch data
 - **Trade Execution Proxy**: Forwards trade requests to local trader-worker via cloudflared tunnel
@@ -26,22 +27,22 @@ pnpm add git+https://github.com/hadoku/hadoku-trader.git#main:worker
 
 ```typescript
 // hadoku-site/src/worker.ts
-import { createTraderHandler, type TraderEnv, isTraderRoute } from '@wolffm/trader-worker';
+import { createTraderHandler, type TraderEnv, isTraderRoute } from '@wolffm/trader-worker'
 
 // Extend your env to include TraderEnv
 interface Env extends TraderEnv {
   // Your other bindings...
-  KV: KVNamespace;
+  KV: KVNamespace
 }
 
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
-    const url = new URL(request.url);
+    const url = new URL(request.url)
 
     // Mount trader routes at /api/trader/*
     if (isTraderRoute(url.pathname)) {
-      const traderHandler = createTraderHandler(env);
-      return traderHandler(request);
+      const traderHandler = createTraderHandler(env)
+      return traderHandler(request)
     }
 
     // ... your other routes
@@ -49,9 +50,9 @@ export default {
 
   async scheduled(event: ScheduledEvent, env: Env): Promise<void> {
     // Import scheduled handler if you need cron jobs
-    const { createScheduledHandler } = await import('@wolffm/trader-worker');
-    const handler = createScheduledHandler(env);
-    await handler(event.cron);
+    const { createScheduledHandler } = await import('@wolffm/trader-worker')
+    const handler = createScheduledHandler(env)
+    await handler(event.cron)
   }
 }
 ```
@@ -90,23 +91,23 @@ wrangler d1 execute trader-db --file=./node_modules/@wolffm/trader-worker/schema
 
 ## API Endpoints
 
-| Method | Path | Auth | Description |
-|--------|------|------|-------------|
-| GET | /api/trader/signals | - | Get all signals |
-| POST | /api/trader/signals | SCRAPER_API_KEY | Submit new signal |
-| POST | /api/trader/signals/backfill | SCRAPER_API_KEY | Batch signal backfill |
-| POST | /api/trader/signals/process | TRADER_API_KEY | Process pending signals |
-| GET | /api/trader/performance | - | Get performance metrics |
-| GET | /api/trader/trades | - | Get trade history |
-| GET | /api/trader/sources | - | Get source leaderboard |
-| GET | /api/trader/agents | - | Get all agents with budget info |
-| GET | /api/trader/agents/:id | - | Get agent details with positions |
-| POST | /api/trader/execute | TRADER_API_KEY | Execute a trade |
-| GET | /api/trader/health | - | Health check |
-| GET | /api/trader/market/prices | - | Get market prices |
-| GET | /api/trader/market/tickers | - | Get tracked tickers |
-| POST | /api/trader/market/backfill | TRADER_API_KEY | Backfill market prices |
-| POST | /api/trader/market/backfill/trigger | TRADER_API_KEY | Trigger market backfill |
+| Method | Path                                | Auth            | Description                      |
+| ------ | ----------------------------------- | --------------- | -------------------------------- |
+| GET    | /api/trader/signals                 | -               | Get all signals                  |
+| POST   | /api/trader/signals                 | SCRAPER_API_KEY | Submit new signal                |
+| POST   | /api/trader/signals/backfill        | SCRAPER_API_KEY | Batch signal backfill            |
+| POST   | /api/trader/signals/process         | TRADER_API_KEY  | Process pending signals          |
+| GET    | /api/trader/performance             | -               | Get performance metrics          |
+| GET    | /api/trader/trades                  | -               | Get trade history                |
+| GET    | /api/trader/sources                 | -               | Get source leaderboard           |
+| GET    | /api/trader/agents                  | -               | Get all agents with budget info  |
+| GET    | /api/trader/agents/:id              | -               | Get agent details with positions |
+| POST   | /api/trader/execute                 | TRADER_API_KEY  | Execute a trade                  |
+| GET    | /api/trader/health                  | -               | Health check                     |
+| GET    | /api/trader/market/prices           | -               | Get market prices                |
+| GET    | /api/trader/market/tickers          | -               | Get tracked tickers              |
+| POST   | /api/trader/market/backfill         | TRADER_API_KEY  | Backfill market prices           |
+| POST   | /api/trader/market/backfill/trigger | TRADER_API_KEY  | Trigger market backfill          |
 
 ## Local Development
 
@@ -123,10 +124,10 @@ pnpm dev
 
 ```typescript
 // Main handler factory
-import { createTraderHandler, isTraderRoute } from '@wolffm/trader-worker';
+import { createTraderHandler, isTraderRoute } from '@wolffm/trader-worker'
 
 // Scheduled tasks
-import { createScheduledHandler } from '@wolffm/trader-worker';
+import { createScheduledHandler } from '@wolffm/trader-worker'
 
 // Individual route handlers (for custom routing)
 import {
@@ -142,20 +143,20 @@ import {
   handleHealth,
   handleProcessSignals,
   handleGetMarketPrices,
-  handleMarketPricesBackfill,
-} from '@wolffm/trader-worker';
+  handleMarketPricesBackfill
+} from '@wolffm/trader-worker'
 
 // Types
 import type {
   TraderEnv,
   Signal,
   ExecuteTradeRequest,
-  ExecuteTradeResponse,
+  ExecuteTradeResponse
   // ... all types
-} from '@wolffm/trader-worker';
+} from '@wolffm/trader-worker'
 
 // Or import types separately
-import type { Signal } from '@wolffm/trader-worker/types';
+import type { Signal } from '@wolffm/trader-worker/types'
 ```
 
 ## Building

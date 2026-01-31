@@ -33,7 +33,7 @@ export function formatDate(dateString: string, includeTime = false): string {
   const date = new Date(dateString)
   const options: Intl.DateTimeFormatOptions = {
     month: 'short',
-    day: 'numeric',
+    day: 'numeric'
   }
   if (includeTime) {
     options.hour = '2-digit'
