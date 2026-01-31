@@ -113,12 +113,14 @@ export async function runFullSync(env: TraderEnv): Promise<void> {
 }
 
 /**
- * Response format from /api/v1/politrades/signals/pull endpoint.
+ * Response format from /api/v1/politrades/signals endpoint.
  */
-interface ScraperPullResponse {
-  success: boolean;
-  data: Signal[];
-  count: number;
+interface ScraperSignalsResponse {
+  signals: Signal[];
+  sources_fetched: string[];
+  sources_failed: Record<string, string>;
+  total_signals: number;
+  fetched_at: string;
 }
 
 /**
@@ -140,17 +142,18 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
       return;
     }
 
-    const data: ScraperPullResponse = await resp.json();
+    const data: ScraperSignalsResponse = await resp.json();
 
-    if (!data.success) {
-      console.error("Scraper returned unsuccessful response");
-      return;
+    console.log(`Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(", ")})`);
+
+    // Log any failed sources
+    const failedSources = Object.keys(data.sources_failed);
+    if (failedSources.length > 0) {
+      console.warn(`Failed to fetch from sources: ${failedSources.join(", ")}`);
     }
 
-    console.log(`Received ${data.count} signals from scraper`);
-
     // Store new signals
-    for (const signal of data.data) {
+    for (const signal of data.signals) {
       await storeSignal(env, signal);
     }
 
@@ -213,17 +216,21 @@ export async function syncSignalsFromScraper(
       return result;
     }
 
-    const data: ScraperPullResponse = await resp.json();
+    const data: ScraperSignalsResponse = await resp.json();
 
-    if (!data.success) {
-      result.errors.push("Scraper returned unsuccessful response");
-      return result;
+    console.log(`Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(", ")})`);
+
+    // Log any failed sources as warnings
+    const failedSources = Object.keys(data.sources_failed);
+    if (failedSources.length > 0) {
+      console.warn(`Failed to fetch from sources: ${failedSources.join(", ")}`);
+      for (const [source, error] of Object.entries(data.sources_failed)) {
+        result.errors.push(`Source ${source} failed: ${error}`);
+      }
     }
 
-    console.log(`Received ${data.count} signals from scraper`);
-
     // Ingest all signals using the batch function
-    const batchResult = await ingestSignalBatch(env, data.data);
+    const batchResult = await ingestSignalBatch(env, data.signals);
     result.inserted = batchResult.inserted;
     result.skipped = batchResult.skipped;
     result.errors.push(...batchResult.errors);
