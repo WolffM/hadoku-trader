@@ -13,6 +13,7 @@ import type {
 } from './types'
 import {
   getActiveAgents,
+  getActiveAgentsWithTopPoliticians,
   getAgentBudget,
   countAgentPositions,
   countAgentTickerPositions,
@@ -35,13 +36,20 @@ import { MIN_POSITION_AGE_DAYS } from './tradingConfig'
  *
  * For SELL signals: checks if agent has an open position and closes it.
  * For BUY signals: applies filters, scoring, and executes if threshold met.
+ *
+ * @param evaluationDate - Optional date to evaluate signal from. Use disclosure_date for replay/simulation,
+ *                         or omit for live processing (defaults to today).
  */
 export async function routeSignalToAgents(
   env: TraderEnv,
   signalRow: RawSignalRow,
   currentPrice: number,
-  executeImmediately = true
+  executeImmediately = true,
+  evaluationDate?: string
 ): Promise<AgentDecision[]> {
+  // For replay scenarios, use disclosure_date; for live processing, use today
+  const evalDate = evaluationDate ?? signalRow.disclosure_date
+
   console.log(`\n${'='.repeat(80)}`)
   console.log(`[ROUTER] Processing signal: ${signalRow.id}`)
   console.log(`[ROUTER]   Ticker: ${signalRow.ticker}, Action: ${signalRow.action}`)
@@ -49,13 +57,17 @@ export async function routeSignalToAgents(
   console.log(
     `[ROUTER]   Trade Date: ${signalRow.trade_date}, Trade Price: $${signalRow.trade_price}`
   )
+  console.log(`[ROUTER]   Disclosure Date: ${signalRow.disclosure_date}`)
+  console.log(`[ROUTER]   Evaluation Date: ${evalDate}`)
   console.log(`[ROUTER]   Position Size: $${signalRow.position_size_min?.toLocaleString()}`)
   console.log(`[ROUTER]   Current Price: $${currentPrice}`)
   console.log(`[ROUTER]   Execute Immediately: ${executeImmediately}`)
   console.log(`${'='.repeat(80)}`)
 
-  const signal = enrichSignal(signalRow, currentPrice)
-  const agents = await getActiveAgents(env)
+  const signal = enrichSignal(signalRow, currentPrice, evalDate)
+
+  // Use dynamic Top 10 filter for production (applies rankings to agents with null whitelist)
+  const agents = await getActiveAgentsWithTopPoliticians(env, 10)
   const decisions: AgentDecision[] = []
 
   console.log(

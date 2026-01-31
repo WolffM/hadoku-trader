@@ -115,6 +115,7 @@ export {
   LOG_API_CALLS,
   // Helpers
   isDryRun,
+  isLiveTradingEnabled,
   getTradingConfigSummary
 } from './tradingConfig'
 
@@ -150,6 +151,7 @@ export {
 export {
   // Agent loading
   getActiveAgents,
+  getActiveAgentsWithTopPoliticians,
   getAgent,
   agentExists,
   // Budget management

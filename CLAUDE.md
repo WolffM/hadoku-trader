@@ -275,3 +275,34 @@ worker/src/agents/test-utils.ts → Test-specific utilities (re-exports from fil
 2. **Check indexes**: Look at `worker/src/agents/index.ts` for available exports
 3. **Check types.ts**: Both `worker/src/types.ts` and `worker/src/agents/types.ts`
 4. **Check test-utils.ts**: For any analysis/test utility functions
+
+## Critical Rules for Tests
+
+### NO HARDCODED LISTS IN PRODUCTION TESTS
+
+**NEVER hardcode politician lists, Top 10 rankings, or other derived data in test files.**
+
+Tests MUST compute dynamic values (like Top 10 politicians) using the same algorithm as production:
+
+- Use `computePoliticianRankings()` from `rankings.ts` or equivalent logic
+- Apply the same rolling window (e.g., 24 months) to available historical data
+- Tests should match production behavior exactly
+
+**Wrong:**
+
+```typescript
+const PRODUCTION_TOP_10 = ['Nancy Pelosi', 'Lisa McClain', ...] // NEVER DO THIS
+```
+
+**Right:**
+
+```typescript
+// Compute Top 10 dynamically from the last 24 months of available data
+const top10 = computeTop10FromSignals(signals, { windowMonths: 24, minTrades: 15 })
+```
+
+This ensures:
+
+1. Tests use the same algorithm as production
+2. Rankings update automatically as data changes
+3. No manual synchronization required between test and production

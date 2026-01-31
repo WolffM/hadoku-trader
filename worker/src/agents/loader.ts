@@ -435,3 +435,48 @@ export async function getAgentTickerPosition(
     entry_date: row.entry_date as string
   }
 }
+
+// =============================================================================
+// Dynamic Politician Filter
+// =============================================================================
+
+/**
+ * Get active agents with dynamic Top N politician filter applied.
+ *
+ * This replaces null politician_whitelist with the current Top N from rankings table.
+ * Use this for production processing to ensure agents use current rankings.
+ *
+ * @param env - Trader environment
+ * @param topN - Number of top politicians to include (default 10)
+ * @returns Agents with politician_whitelist populated from rankings
+ */
+export async function getActiveAgentsWithTopPoliticians(
+  env: TraderEnv,
+  topN = 10
+): Promise<AgentConfig[]> {
+  // Import dynamically to avoid circular dependency
+  const { getTopPoliticians } = await import('./rankings')
+
+  // Get base agents
+  const agents = await getActiveAgents(env)
+
+  // Get current top N politicians from rankings
+  const topPoliticians = await getTopPoliticians(env, topN)
+
+  console.log(`[LOADER] Top ${topN} politicians from rankings: ${topPoliticians.join(', ')}`)
+
+  // Apply Top N filter to agents that have null whitelist (all politicians)
+  // This is specifically for agents like ChatGPT that should use dynamic rankings
+  return agents.map(agent => {
+    // Only apply to agents with null whitelist (configured for "all politicians")
+    // Agents with explicit whitelist (like Gemini's 5 Titans) keep their config
+    if (agent.politician_whitelist === null && topPoliticians.length > 0) {
+      console.log(`[LOADER] Applying Top ${topN} filter to agent: ${agent.id}`)
+      return {
+        ...agent,
+        politician_whitelist: topPoliticians
+      }
+    }
+    return agent
+  })
+}

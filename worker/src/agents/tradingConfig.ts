@@ -14,9 +14,21 @@
  * - true: All trades are simulated, no real orders placed
  * - false: Live trading enabled, real orders will execute
  *
- * ⚠️ SET TO TRUE FOR TESTING, FALSE FOR PRODUCTION
+ * Can be overridden via environment variable ENABLE_LIVE_TRADING=true
+ * ⚠️ Default is TRUE for safety - must explicitly enable live trading
  */
 export const DRY_RUN = true
+
+/**
+ * Check if live trading is enabled via environment.
+ * This allows runtime control without rebuilding the package.
+ */
+export function isLiveTradingEnabled(env?: { ENABLE_LIVE_TRADING?: string }): boolean {
+  if (env?.ENABLE_LIVE_TRADING === 'true') {
+    return true
+  }
+  return false
+}
 
 /**
  * ENABLE TRADING
@@ -96,9 +108,14 @@ export const LOG_API_CALLS = false
 
 /**
  * Get effective dry_run setting
- * Returns true if either DRY_RUN is enabled or trading is disabled
+ * Returns true if either DRY_RUN is enabled or trading is disabled.
+ * Can be overridden by passing env with ENABLE_LIVE_TRADING=true
  */
-export function isDryRun(): boolean {
+export function isDryRun(env?: { ENABLE_LIVE_TRADING?: string }): boolean {
+  // If live trading is explicitly enabled in env, not a dry run
+  if (isLiveTradingEnabled(env)) {
+    return false
+  }
   return DRY_RUN || !ENABLE_TRADING
 }
 

@@ -254,31 +254,64 @@ export function calculatePoliticianStats(
 // Politician Filters
 // =============================================================================
 
+export interface BuildPoliticianFiltersOptions {
+  /**
+   * Rolling window in months to consider for ranking.
+   * Matches production's computePoliticianRankings windowMonths parameter.
+   * Default: 24 (2 years) - same as production default.
+   */
+  windowMonths?: number
+  /**
+   * Minimum trades required to qualify for ranking.
+   * Default: 15 - same as production default.
+   */
+  minTrades?: number
+}
+
 /**
  * Build standard politician filters for strategy testing.
  * Returns filters for: Top 5, Ann>=50%, Top 10, Ann>=40%, Top 15
+ *
+ * IMPORTANT: Uses a rolling window to match production behavior.
+ * Production uses computePoliticianRankings with 24-month window by default.
  */
-export function buildPoliticianFilters(signals: RawSignal[]): PoliticianFilter[] {
-  const priceMap = buildPriceMap(signals)
-  const politicianNames = [...new Set(signals.map(s => s.politician_name))]
+export function buildPoliticianFilters(
+  signals: RawSignal[],
+  options: BuildPoliticianFiltersOptions = {}
+): PoliticianFilter[] {
+  const windowMonths = options.windowMonths ?? 24
+  const minTrades = options.minTrades ?? 15
+
+  // Apply rolling window - only consider signals within the last N months
+  // Window is calculated from the LATEST signal date in the dataset (not today)
+  const signalDates = signals.map(s => new Date(s.trade_date).getTime())
+  const latestSignalDate = new Date(Math.max(...signalDates))
+  const windowStart = new Date(latestSignalDate)
+  windowStart.setMonth(windowStart.getMonth() - windowMonths)
+  const windowStartStr = windowStart.toISOString().split('T')[0]
+
+  // Filter signals to rolling window
+  const windowedSignals = signals.filter(s => s.trade_date >= windowStartStr)
+
+  const priceMap = buildPriceMap(windowedSignals)
+  const politicianNames = [...new Set(windowedSignals.map(s => s.politician_name))]
 
   // Calculate stats for all politicians
   const allStats: TestPoliticianStats[] = []
   for (const name of politicianNames) {
-    const stats = calculatePoliticianStats(signals, name, priceMap)
+    const stats = calculatePoliticianStats(windowedSignals, name, priceMap)
     if (stats && (stats.closedTrades > 0 || stats.trades > 0)) {
       allStats.push(stats)
     }
   }
 
-  // Get qualified politicians (min 15 trades) sorted by annualized return
-  const MIN_TRADES = 15
+  // Get qualified politicians (min trades) sorted by annualized return
   const qualified = [...allStats]
-    .filter(p => p.trades >= MIN_TRADES)
+    .filter(p => p.trades >= minTrades)
     .sort((a, b) => b.annualizedReturnPct - a.annualizedReturnPct)
 
-  // Calculate date range for signals/month
-  const buySignals = signals.filter(s => s.action === 'buy' && s.trade_price > 0)
+  // Calculate date range for signals/month (use windowed signals)
+  const buySignals = windowedSignals.filter(s => s.action === 'buy' && s.trade_price > 0)
   const dates = buySignals.map(s => new Date(s.disclosure_date).getTime())
   const minDate = new Date(Math.min(...dates))
   const maxDate = new Date(Math.max(...dates))
@@ -296,7 +329,7 @@ export function buildPoliticianFilters(signals: RawSignal[]): PoliticianFilter[]
   // Build the 5 filters
   const filters: PoliticianFilter[] = []
 
-  // 1. Top 5 (min 15 trades)
+  // 1. Top 5 (min minTrades trades)
   const top5 = new Set(qualified.slice(0, 5).map(p => p.name))
   filters.push({ name: 'Top 5', politicians: top5, signalsPerMonth: calcSignalsPerMonth(top5) })
 
@@ -308,7 +341,7 @@ export function buildPoliticianFilters(signals: RawSignal[]): PoliticianFilter[]
     signalsPerMonth: calcSignalsPerMonth(ann50)
   })
 
-  // 3. Top 10 (min 15 trades)
+  // 3. Top 10 (min minTrades trades)
   const top10 = new Set(qualified.slice(0, 10).map(p => p.name))
   filters.push({ name: 'Top 10', politicians: top10, signalsPerMonth: calcSignalsPerMonth(top10) })
 
@@ -320,7 +353,7 @@ export function buildPoliticianFilters(signals: RawSignal[]): PoliticianFilter[]
     signalsPerMonth: calcSignalsPerMonth(ann40)
   })
 
-  // 5. Top 15 (min 15 trades)
+  // 5. Top 15 (min minTrades trades)
   const top15 = new Set(qualified.slice(0, 15).map(p => p.name))
   filters.push({ name: 'Top 15', politicians: top15, signalsPerMonth: calcSignalsPerMonth(top15) })
 
