@@ -68,13 +68,17 @@ interface Signal {
   action: 'buy' | 'sell'
   asset_type: 'stock' | 'etf' | 'option'
 
-  // Pricing
-  trade_price: number // Price at time of trade
+  // Pricing - IMPORTANT: Understand the difference!
+  // trade_price: Price when politician executed the trade (what they paid)
+  // disclosure_price: Price when trade was publicly disclosed (15-45 days later)
+  // current_price: Current market price at time of evaluation
+  trade_price: number
+  disclosure_price: number | null
   current_price: number
 
   // Dates
   trade_date: string // When politician traded
-  disclosure_date: string // When disclosure was filed
+  disclosure_date: string // When disclosure was filed (typically 15-45 days after trade)
 
   // Size (dollar amount, lower bound of range)
   position_size_min: number
@@ -83,11 +87,32 @@ interface Signal {
   politician_name: string
   source: string
 
-  // Computed
-  days_since_trade: number
-  days_since_disclosure: number
+  // Computed fields
+  days_since_trade: number // Days from trade_date to evaluation
+  days_since_filing: number // Days from disclosure_date to evaluation
+
+  // Price change metrics:
+  // price_change_pct = (current - trade_price) / trade_price × 100
+  //   → USED IN PRODUCTION for scoring and filtering
+  // disclosure_drift_pct = (current - disclosure_price) / disclosure_price × 100
+  //   → OBSERVABILITY ONLY - not used in decisions
   price_change_pct: number
+  disclosure_drift_pct: number | null
 }
+```
+
+### Price Timeline
+
+```
+trade_date ──────────────────── disclosure_date ──────────── evaluation (now)
+    │                                 │                              │
+    │ <── disclosure lag ───>         │ <── days_since_filing ──>    │
+    │      (15-45 days)               │      (0-14 days typically)   │
+    │                                 │                              │
+trade_price                    disclosure_price                current_price
+
+price_change_pct = total drift from trade → current (USED FOR SCORING)
+disclosure_drift_pct = drift from disclosure → current (OBSERVABILITY ONLY)
 ```
 
 ### Agent Configuration

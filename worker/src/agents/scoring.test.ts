@@ -35,6 +35,7 @@ function createTestSignal(overrides: Partial<EnrichedSignal> = {}): EnrichedSign
     action: 'buy',
     asset_type: 'stock',
     trade_price: 100,
+    disclosure_price: 100,
     current_price: 100,
     trade_date: '2026-01-01',
     disclosure_date: '2026-01-05',
@@ -43,7 +44,8 @@ function createTestSignal(overrides: Partial<EnrichedSignal> = {}): EnrichedSign
     source: 'quiver_quant',
     days_since_trade: 10,
     days_since_filing: 6,
-    price_change_pct: 0, // 0%
+    price_change_pct: 0, // (100 - 100) / 100 * 100 = 0%
+    disclosure_drift_pct: 0, // (100 - 100) / 100 * 100 = 0%
     ...overrides
   }
 }

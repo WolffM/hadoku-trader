@@ -474,6 +474,7 @@ export async function getUnprocessedSignals(env: TraderEnv): Promise<RawSignalRo
       action,
       asset_type,
       trade_price,
+      disclosure_price,
       trade_date,
       disclosure_date,
       position_size_min,

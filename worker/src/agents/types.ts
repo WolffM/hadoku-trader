@@ -254,7 +254,11 @@ export interface EnrichedSignal {
   asset_type: AssetType
 
   // Pricing
+  // trade_price: Price when politician executed the trade (what they paid)
+  // disclosure_price: Price when the trade was publicly disclosed (market reaction point)
+  // current_price: Current market price at time of evaluation
   trade_price: number
+  disclosure_price: number | null
   current_price: number
 
   // Dates
@@ -271,7 +275,20 @@ export interface EnrichedSignal {
   // Computed fields (set by enrichment)
   days_since_trade: number
   days_since_filing: number // Days since disclosure
+
+  // Price change metrics:
+  //
+  // price_change_pct: (current - trade_price) / trade_price × 100
+  //   → How much the price has drifted since the politician's actual trade
+  //   → Positive = price went up since they bought/sold
+  //   → USED IN PRODUCTION: Hard filters, scoring, dip bonus
+  //
+  // disclosure_drift_pct: (current - disclosure_price) / disclosure_price × 100
+  //   → How much the price has moved since public disclosure
+  //   → OBSERVABILITY ONLY: Not used in scoring or filtering decisions
+  //   → Useful for analysis/testing to understand market reaction timing
   price_change_pct: number
+  disclosure_drift_pct: number | null
 }
 
 /**

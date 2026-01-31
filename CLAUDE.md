@@ -162,6 +162,43 @@ python main.py
 3. Frontend mounts as child app - exports mount/unmount functions
 4. All fidelity-api trade functions should use dry=True for testing
 
+## Price Semantics (CRITICAL)
+
+Understanding the difference between `trade_price` and `disclosure_price` is essential:
+
+| Field              | What It Is                       | When                                                     |
+| ------------------ | -------------------------------- | -------------------------------------------------------- |
+| `trade_price`      | Stock price on `trade_date`      | When the politician actually executed the trade          |
+| `disclosure_price` | Stock price on `disclosure_date` | When the trade was publicly disclosed (15-45 days later) |
+| `current_price`    | Current market price             | At time of signal evaluation                             |
+
+### Timeline
+
+```
+trade_date ──────────────────── disclosure_date ──────────── evaluation (now)
+    │                                 │                              │
+    │ <── disclosure lag ───>         │ <── days_since_filing ──>    │
+    │      (15-45 days)               │      (0-14 days typically)   │
+    │                                 │                              │
+trade_price                    disclosure_price                current_price
+```
+
+### Price Change Metrics
+
+- **`price_change_pct`**: `(current - trade_price) / trade_price × 100`
+  - Total drift since politician's actual trade
+  - **USED IN PRODUCTION** for filtering and scoring decisions
+
+- **`disclosure_drift_pct`**: `(current - disclosure_price) / disclosure_price × 100`
+  - Drift since public disclosure
+  - **OBSERVABILITY ONLY** - not used in production scoring/filtering
+
+### Why This Matters
+
+1. **Scoring uses `trade_price`** - We measure alpha from when the politician traded, not when we learned about it
+2. **Hard filters use `price_change_pct`** - Reject signals where price already moved >15-25%
+3. **Dip bonus uses `price_change_pct`** - If price dropped since trade, that's a buying opportunity
+
 ## Signal Processing Flow
 
 When a signal arrives:

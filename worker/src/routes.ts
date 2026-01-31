@@ -1050,12 +1050,22 @@ function runAgentSimulation(
 
   const validSignals = sortedSignals.filter(s => s.disclosure_price && s.disclosure_price > 0)
 
-  // Compute politician win rates
+  // Compute politician "disclosure lag win rates"
+  // A "win" = price went up between trade_date and disclosure_date
+  // This measures the politician's timing skill: did they buy before a price increase?
+  //
+  // Price semantics:
+  // - trade_price: What they paid (price on trade_date)
+  // - disclosure_price: Price when trade became public (on disclosure_date)
+  //
+  // This metric captures the "edge" they had during the disclosure lag period,
+  // which is typically 15-45 days where they know something the market doesn't.
   const winRateStats = new Map<string, { wins: number; total: number }>()
   for (const signal of validSignals) {
     if (signal.action !== 'buy') continue
     const existing = winRateStats.get(signal.politician_name) || { wins: 0, total: 0 }
     existing.total++
+    // Win if disclosure_price > trade_price (price went up during disclosure lag)
     if (signal.disclosure_price! > signal.trade_price) {
       existing.wins++
     }
@@ -1100,12 +1110,15 @@ function runAgentSimulation(
     } else if (Math.abs(priceChangePct) > config.max_price_move_pct) {
       reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`
     } else if (config.scoring) {
+      // In simulation, currentPrice = disclosure_price (we evaluate at disclosure time)
+      // disclosure_drift_pct = 0 since current = disclosure price
       const enrichedSignal: EnrichedSignal = {
         id: simSignal.id,
         ticker: simSignal.ticker,
         action: simSignal.action,
         asset_type: (simSignal.asset_type || 'stock') as any,
         trade_price: tradePrice,
+        disclosure_price: simSignal.disclosure_price ?? null,
         current_price: currentPrice,
         trade_date: simSignal.trade_date,
         disclosure_date: simSignal.disclosure_date,
@@ -1113,8 +1126,9 @@ function runAgentSimulation(
         politician_name: simSignal.politician_name,
         source: simSignal.source,
         days_since_trade: daysSinceTrade,
-        days_since_filing: daysSinceTrade,
-        price_change_pct: priceChangePct
+        days_since_filing: 0, // At disclosure time, filing just happened
+        price_change_pct: priceChangePct,
+        disclosure_drift_pct: 0 // At disclosure time, no drift yet
       }
 
       const winRate = politicianWinRates.get(simSignal.politician_name) ?? 0.5

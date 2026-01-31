@@ -291,12 +291,14 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
       }
       // Scoring check (if agent uses scoring)
       else if (config.scoring) {
+        // In simulation, currentPrice = disclosure_price (we evaluate at disclosure time)
         const enrichedSignal: EnrichedSignal = {
           id: simSignal.id,
           ticker: simSignal.ticker,
           action: simSignal.action as 'buy' | 'sell',
           asset_type: simSignal.asset_type as any,
           trade_price: tradePrice,
+          disclosure_price: simSignal.disclosure_price ?? null,
           current_price: currentPrice,
           trade_date: simSignal.trade_date,
           disclosure_date: simSignal.disclosure_date,
@@ -304,8 +306,9 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
           politician_name: simSignal.politician_name,
           source: simSignal.source,
           days_since_trade: daysSinceTrade,
-          days_since_filing: daysSinceTrade, // Use same for simplicity
-          price_change_pct: priceChangePct
+          days_since_filing: 0, // At disclosure time
+          price_change_pct: priceChangePct,
+          disclosure_drift_pct: 0 // At disclosure time, no drift yet
         }
 
         const winRate = politicianWinRates.get(simSignal.politician_name) ?? 0.5

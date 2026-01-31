@@ -96,12 +96,17 @@ export function addDays(dateStr: string, days: number): string {
 // =============================================================================
 
 /**
- * Calculate price change percentage.
- * Returns percentage value (e.g., 5 for 5% increase).
+ * Calculate price change percentage from a base price to a comparison price.
+ * Returns percentage value (e.g., 5 for 5% increase, -5 for 5% decrease).
+ *
+ * @param basePrice - The reference price (denominator) - typically trade_price
+ * @param comparisonPrice - The price to compare against - typically current market price
+ *
+ * Example: basePrice=$100, comparisonPrice=$110 → returns 10 (10% increase)
  */
-export function calculatePriceChangePct(disclosedPrice: number, currentPrice: number): number {
-  if (disclosedPrice <= 0) return 0
-  return ((currentPrice - disclosedPrice) / disclosedPrice) * 100
+export function calculatePriceChangePct(basePrice: number, comparisonPrice: number): number {
+  if (basePrice <= 0) return 0
+  return ((comparisonPrice - basePrice) / basePrice) * 100
 }
 
 // =============================================================================
@@ -110,6 +115,11 @@ export function calculatePriceChangePct(disclosedPrice: number, currentPrice: nu
 
 /**
  * Raw signal row from database.
+ *
+ * Price fields:
+ * - trade_price: Price when politician executed the trade (what they paid)
+ * - disclosure_price: Price when the trade was publicly disclosed
+ * - current_price: Price at time of signal ingestion (stored for reference)
  */
 export interface RawSignalRow {
   id: string
@@ -117,16 +127,33 @@ export interface RawSignalRow {
   action: 'buy' | 'sell'
   asset_type: string
   trade_price: number | null
+  disclosure_price: number | null
   trade_date: string
   disclosure_date: string
   position_size_min: number
   politician_name: string
   source: string
-  current_price: number | null // Price at time of signal ingestion
+  current_price: number | null // Price at time of signal ingestion (stored for reference)
 }
 
 /**
  * Enrich a raw signal with computed fields.
+ *
+ * Price semantics:
+ * - trade_price: What the politician paid (price on trade_date)
+ * - disclosure_price: Price when trade became public (on disclosure_date)
+ * - currentPrice (param): Current market price at time of evaluation
+ *
+ * Computed price metrics:
+ * - price_change_pct: (current - trade_price) / trade_price × 100
+ *   → Total drift since politician's trade
+ *   → USED IN PRODUCTION for filtering and scoring decisions
+ * - disclosure_drift_pct: (current - disclosure_price) / disclosure_price × 100
+ *   → Drift since public disclosure (market reaction to the news)
+ *   → OBSERVABILITY ONLY - not used in production scoring/filtering
+ *
+ * @param rawSignal - Raw signal from database
+ * @param currentPrice - Current market price at evaluation time
  * @param evaluationDate - Optional date to evaluate from (defaults to today for production, use disclosure_date for simulation)
  */
 export function enrichSignal(
@@ -136,7 +163,16 @@ export function enrichSignal(
 ): EnrichedSignal {
   const evalDate = evaluationDate ?? getCurrentDate()
   const tradePrice = rawSignal.trade_price ?? currentPrice
+  const disclosurePrice = rawSignal.disclosure_price
+
+  // price_change_pct: How much price has drifted since the politician's actual trade
   const priceChangePct = calculatePriceChangePct(tradePrice, currentPrice)
+
+  // disclosure_drift_pct: How the market has reacted since the trade became public
+  const disclosureDriftPct =
+    disclosurePrice && disclosurePrice > 0
+      ? calculatePriceChangePct(disclosurePrice, currentPrice)
+      : null
 
   // Debug logging for price change calculation
   console.log(`[ENRICH] Signal ${rawSignal.id}:`)
@@ -144,8 +180,14 @@ export function enrichSignal(
     `[ENRICH]   Raw trade_price: ${rawSignal.trade_price} (type: ${typeof rawSignal.trade_price})`
   )
   console.log(`[ENRICH]   Used trade_price: $${tradePrice.toFixed(2)}`)
+  console.log(
+    `[ENRICH]   Disclosure price: ${disclosurePrice ? `$${disclosurePrice.toFixed(2)}` : 'null'}`
+  )
   console.log(`[ENRICH]   Current price: $${currentPrice.toFixed(2)}`)
-  console.log(`[ENRICH]   Price change: ${priceChangePct.toFixed(2)}%`)
+  console.log(`[ENRICH]   Price change (trade→current): ${priceChangePct.toFixed(2)}%`)
+  console.log(
+    `[ENRICH]   Disclosure drift (disclosure→current): ${disclosureDriftPct !== null ? `${disclosureDriftPct.toFixed(2)}%` : 'N/A'}`
+  )
 
   return {
     id: rawSignal.id,
@@ -153,6 +195,7 @@ export function enrichSignal(
     action: rawSignal.action,
     asset_type: rawSignal.asset_type as AssetType,
     trade_price: tradePrice,
+    disclosure_price: disclosurePrice,
     current_price: currentPrice,
     trade_date: rawSignal.trade_date,
     disclosure_date: rawSignal.disclosure_date,
@@ -161,7 +204,8 @@ export function enrichSignal(
     source: rawSignal.source,
     days_since_trade: daysBetween(rawSignal.trade_date, evalDate),
     days_since_filing: daysBetween(rawSignal.disclosure_date, evalDate),
-    price_change_pct: priceChangePct
+    price_change_pct: priceChangePct,
+    disclosure_drift_pct: disclosureDriftPct
   }
 }
 

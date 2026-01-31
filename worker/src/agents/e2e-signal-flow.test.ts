@@ -255,11 +255,13 @@ function createRawSignal(overrides: Partial<RawSignalRow> = {}): RawSignalRow {
     action: 'buy',
     asset_type: 'stock',
     trade_price: 140.0,
+    disclosure_price: 142.0, // Price at disclosure (slightly higher after 7 days)
     trade_date: tradeDate.toISOString().split('T')[0],
     disclosure_date: disclosureDate.toISOString().split('T')[0],
     position_size_min: 100001,
     politician_name: 'Nancy Pelosi',
     source: 'quiver_quant',
+    current_price: null,
     ...overrides
   }
 }
@@ -289,11 +291,13 @@ describe('End-to-End Signal Flow', () => {
         action: 'buy',
         asset_type: 'stock',
         trade_price: 140.0,
+        disclosure_price: 142.0, // Price when trade became public
         trade_date: tradeDate.toISOString().split('T')[0],
         disclosure_date: disclosureDate.toISOString().split('T')[0],
         position_size_min: 100001,
         politician_name: 'Nancy Pelosi',
-        source: 'quiver_quant'
+        source: 'quiver_quant',
+        current_price: null
       }
 
       const currentPrice = 145.0
