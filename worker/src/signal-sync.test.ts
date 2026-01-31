@@ -92,6 +92,19 @@ function createMockD1() {
             ) || null;
           }
 
+          // Handle logical duplicate check (ticker + politician_name + trade_date + action)
+          if (sql.includes("ticker = ?") && sql.includes("politician_name = ?") &&
+              sql.includes("trade_date = ?") && sql.includes("action = ?")) {
+            const ticker = boundParams[0];
+            const politicianName = boundParams[1];
+            const tradeDate = boundParams[2];
+            const action = boundParams[3];
+            return tableData.find(
+              (r) => r.ticker === ticker && r.politician_name === politicianName &&
+                     r.trade_date === tradeDate && r.action === action
+            ) || null;
+          }
+
           return tableData[0] || null;
         },
 
@@ -205,10 +218,20 @@ describe("ingestSignalBatch", () => {
   });
 
   it("should insert new signals successfully", async () => {
+    // Use distinct tickers to avoid logical duplicate detection
     const signals = [
-      createTestSignal({ meta: { source_url: "", source_id: "trade_1", scraped_at: new Date().toISOString() } }),
-      createTestSignal({ meta: { source_url: "", source_id: "trade_2", scraped_at: new Date().toISOString() } }),
-      createTestSignal({ meta: { source_url: "", source_id: "trade_3", scraped_at: new Date().toISOString() } }),
+      createTestSignal({
+        trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "trade_1", scraped_at: new Date().toISOString() },
+      }),
+      createTestSignal({
+        trade: { ticker: "AAPL", action: "buy", asset_type: "stock", trade_price: 190.0, trade_date: "2026-01-10", disclosure_price: 192.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "trade_2", scraped_at: new Date().toISOString() },
+      }),
+      createTestSignal({
+        trade: { ticker: "GOOGL", action: "buy", asset_type: "stock", trade_price: 180.0, trade_date: "2026-01-10", disclosure_price: 182.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "trade_3", scraped_at: new Date().toISOString() },
+      }),
     ];
 
     const result = await ingestSignalBatch(env, signals);
@@ -241,17 +264,27 @@ describe("ingestSignalBatch", () => {
   });
 
   it("should handle mixed new and duplicate signals", async () => {
-    // Insert first signal
+    // Insert first signal (NVDA)
     const existingSignal = createTestSignal({
+      trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
       meta: { source_url: "", source_id: "existing_trade", scraped_at: new Date().toISOString() },
     });
     await ingestSignalBatch(env, [existingSignal]);
 
-    // Try to insert batch with existing + new
+    // Try to insert batch with existing + new (different tickers to avoid logical dup)
     const batch = [
-      createTestSignal({ meta: { source_url: "", source_id: "existing_trade", scraped_at: new Date().toISOString() } }), // dup
-      createTestSignal({ meta: { source_url: "", source_id: "new_trade_1", scraped_at: new Date().toISOString() } }), // new
-      createTestSignal({ meta: { source_url: "", source_id: "new_trade_2", scraped_at: new Date().toISOString() } }), // new
+      createTestSignal({
+        trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "existing_trade", scraped_at: new Date().toISOString() },
+      }), // dup by source_id
+      createTestSignal({
+        trade: { ticker: "AAPL", action: "buy", asset_type: "stock", trade_price: 190.0, trade_date: "2026-01-10", disclosure_price: 192.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "new_trade_1", scraped_at: new Date().toISOString() },
+      }), // new
+      createTestSignal({
+        trade: { ticker: "GOOGL", action: "buy", asset_type: "stock", trade_price: 180.0, trade_date: "2026-01-10", disclosure_price: 182.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "new_trade_2", scraped_at: new Date().toISOString() },
+      }), // new
     ];
 
     const result = await ingestSignalBatch(env, batch);
@@ -268,6 +301,30 @@ describe("ingestSignalBatch", () => {
     expect(result.inserted).toBe(0);
     expect(result.skipped).toBe(0);
     expect(result.errors).toHaveLength(0);
+  });
+
+  it("should skip logical duplicates (same ticker, politician, date, action)", async () => {
+    // Insert first signal
+    const firstSignal = createTestSignal({
+      trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+      meta: { source_url: "https://source1.com", source_id: "source1_trade_1", scraped_at: new Date().toISOString() },
+    });
+    await ingestSignalBatch(env, [firstSignal]);
+
+    expect(env.mockDb.tables.signals).toHaveLength(1);
+
+    // Try to insert same trade from different source (different source_id but same trade signature)
+    const logicalDuplicateSignal = createTestSignal({
+      source: "quiver_quant", // Different source
+      trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+      meta: { source_url: "https://source2.com", source_id: "source2_trade_1", scraped_at: new Date().toISOString() },
+    });
+    const result = await ingestSignalBatch(env, [logicalDuplicateSignal]);
+
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(1); // Should be skipped as logical duplicate
+    expect(result.errors).toHaveLength(0);
+    expect(env.mockDb.tables.signals).toHaveLength(1); // Still just 1
   });
 
   it("should continue processing after individual errors", async () => {
@@ -320,9 +377,16 @@ describe("syncSignalsFromScraper", () => {
   });
 
   it("should fetch and insert signals from scraper", async () => {
+    // Use distinct tickers to avoid logical duplicate detection
     const testSignals = [
-      createTestSignal({ meta: { source_url: "", source_id: "scraper_1", scraped_at: new Date().toISOString() } }),
-      createTestSignal({ meta: { source_url: "", source_id: "scraper_2", scraped_at: new Date().toISOString() } }),
+      createTestSignal({
+        trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "scraper_1", scraped_at: new Date().toISOString() },
+      }),
+      createTestSignal({
+        trade: { ticker: "AAPL", action: "buy", asset_type: "stock", trade_price: 190.0, trade_date: "2026-01-10", disclosure_price: 192.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "scraper_2", scraped_at: new Date().toISOString() },
+      }),
     ];
 
     const mockResponse = createScraperResponse(testSignals);
@@ -377,16 +441,23 @@ describe("syncSignalsFromScraper", () => {
   });
 
   it("should skip duplicates when syncing", async () => {
-    // Pre-insert a signal
+    // Pre-insert a signal (NVDA)
     const existingSignal = createTestSignal({
+      trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
       meta: { source_url: "", source_id: "existing_scraper_signal", scraped_at: new Date().toISOString() },
     });
     await ingestSignalBatch(env, [existingSignal]);
 
-    // Mock scraper response with same signal + new one
+    // Mock scraper response with same signal + new one (different ticker)
     const scraperSignals = [
-      createTestSignal({ meta: { source_url: "", source_id: "existing_scraper_signal", scraped_at: new Date().toISOString() } }),
-      createTestSignal({ meta: { source_url: "", source_id: "new_scraper_signal", scraped_at: new Date().toISOString() } }),
+      createTestSignal({
+        trade: { ticker: "NVDA", action: "buy", asset_type: "stock", trade_price: 140.0, trade_date: "2026-01-10", disclosure_price: 142.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "existing_scraper_signal", scraped_at: new Date().toISOString() },
+      }),
+      createTestSignal({
+        trade: { ticker: "AAPL", action: "buy", asset_type: "stock", trade_price: 190.0, trade_date: "2026-01-10", disclosure_price: 192.0, disclosure_date: "2026-01-15", position_size: "$100,001 - $250,000", position_size_min: 100001, position_size_max: 250000 },
+        meta: { source_url: "", source_id: "new_scraper_signal", scraped_at: new Date().toISOString() },
+      }),
     ];
 
     globalThis.fetch = vi.fn().mockResolvedValue({
@@ -397,7 +468,7 @@ describe("syncSignalsFromScraper", () => {
     const result = await syncSignalsFromScraper(env);
 
     expect(result.inserted).toBe(1); // Only new one
-    expect(result.skipped).toBe(1); // Existing one
+    expect(result.skipped).toBe(1); // Existing one (by source_id)
     expect(result.errors).toHaveLength(0);
   });
 

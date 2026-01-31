@@ -12,8 +12,10 @@ import { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG, NAIVE_CONFIG } from "./co
 import { calculateScoreSync, scoreTimeDecay, scorePriceMovement, scorePositionSize } from "./scoring";
 import {
   loadSignalsFromFile,
+  loadSignalsFromExport,
   daysBetween,
   computePoliticianWinRates,
+  buildPoliticianFilters,
   pad,
   formatPct,
   type RawSignal,
@@ -62,7 +64,9 @@ interface AgentResult {
   skipped: number;
   finalCash: number;
   openPositions: Position[];
-  totalInvested: number;
+  netInvested: number;      // Current $ in open positions (cost basis)
+  grossBuys: number;        // Total $ spent on all buys
+  sellProceeds: number;     // Total $ returned from sells
   estimatedValue: number;
 }
 
@@ -273,6 +277,10 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
       else if (Math.abs(priceChangePct) > config.max_price_move_pct) {
         reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`;
       }
+      // Check max positions per ticker (prevent duplicate buys)
+      else if (positions.filter(p => p.ticker === simSignal.ticker).length >= (config.sizing.max_per_ticker ?? 1)) {
+        reason = `Already have position in ${simSignal.ticker} (max_per_ticker=${config.sizing.max_per_ticker ?? 1})`;
+      }
       // Scoring check (if agent uses scoring)
       else if (config.scoring) {
         const enrichedSignal: EnrichedSignal = {
@@ -370,10 +378,21 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
 
   const executed = decisions.filter(d => d.action === "BUY" || d.action === "SELL").length;
   const skipped = decisions.filter(d => d.action === "SKIP").length;
-  const totalInvested = decisions
+
+  // Net currently invested = cost basis of open positions
+  const netInvested = positions.reduce((sum, p) => sum + p.cost, 0);
+
+  // Gross buys = total $ spent on all buys (even if later sold)
+  const grossBuys = decisions
     .filter(d => d.action === "BUY")
     .reduce((sum, d) => sum + (d.positionSize ?? 0), 0);
-  const estimatedValue = cash + positions.reduce((sum, p) => sum + p.cost, 0); // Cost-based estimate
+
+  // Cash returned from sells
+  const sellProceeds = decisions
+    .filter(d => d.action === "SELL")
+    .reduce((sum, d) => sum + (d.positionSize ?? 0), 0);
+
+  const estimatedValue = cash + netInvested; // Cash + open position cost basis
 
   return {
     agentId: config.id,
@@ -384,7 +403,9 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
     skipped,
     finalCash: cash,
     openPositions: positions,
-    totalInvested,
+    netInvested,
+    grossBuys,
+    sellProceeds,
     estimatedValue,
   };
 }
@@ -556,11 +577,9 @@ function printCondensedTradesReport(result: AgentResult): void {
   console.log("-".repeat(160));
   const totalBuys = executedTrades.filter(d => d.action === "BUY").length;
   const totalSells = executedTrades.filter(d => d.action === "SELL").length;
-  const totalInvested = executedTrades
-    .filter(d => d.action === "BUY")
-    .reduce((sum, d) => sum + (d.positionSize ?? 0), 0);
 
-  console.log(`TOTAL: ${totalBuys} buys, ${totalSells} sells | Invested: $${totalInvested.toFixed(0)} | Final Cash: $${result.finalCash.toFixed(0)} | Open: ${result.openPositions.length} positions`);
+  // Use netInvested (cost basis of open positions) from result
+  console.log(`TOTAL: ${totalBuys} buys, ${totalSells} sells | Net Invested: $${result.netInvested.toFixed(0)} | Final Cash: $${result.finalCash.toFixed(0)} | Open: ${result.openPositions.length} positions`);
 
   // Score component legend
   console.log("\nScore Components: Time=time_decay(w=0.30) | Price=price_movement(w=0.25) | Size=position_size(w=0.15) | Skill=politician_skill(w=0.20) | Src=source_quality(w=0.10)");
@@ -586,7 +605,7 @@ function printPortfolioSummary(results: AgentResult[]): void {
     console.log(
       pad(`${r.agentName} (${r.agentId})`, 20, true) + " | " +
       pad(String(buys), 8) + " | " +
-      pad(`$${r.totalInvested.toFixed(0)}`, 10) + " | " +
+      pad(`$${r.netInvested.toFixed(0)}`, 10) + " | " +
       pad(String(r.openPositions.length), 6) + " | " +
       pad(`$${r.finalCash.toFixed(0)}`, 10) + " | " +
       pad(`$${r.estimatedValue.toFixed(0)}`, 12)
@@ -612,6 +631,118 @@ function printPortfolioSummary(results: AgentResult[]): void {
 // =============================================================================
 // Tests
 // =============================================================================
+
+// =============================================================================
+// CSV Export Function
+// =============================================================================
+
+/**
+ * Print a single-row-per-decision CSV report for hadoku-site validation.
+ * Includes all scoring components and decision details.
+ */
+function printCSVDecisionReport(result: AgentResult, filterName: string): void {
+  console.log("\n" + "═".repeat(200));
+  console.log(`CSV DECISION REPORT: ${result.agentName} + ${filterName}`);
+  console.log(`Total Decisions: ${result.decisions.length} | Executed: ${result.executed} | Skipped: ${result.skipped}`);
+  console.log("═".repeat(200));
+
+  // CSV Header
+  const headers = [
+    "row",
+    "date",
+    "signal_id",
+    "ticker",
+    "politician",
+    "sig_action",
+    "trade_price",
+    "current_price",
+    "price_change_pct",
+    "days_since_trade",
+    "decision",
+    "reason",
+    "score",
+    "time_decay_raw",
+    "time_decay_w",
+    "price_move_raw",
+    "price_move_w",
+    "pos_size_raw",
+    "pos_size_w",
+    "pol_skill_raw",
+    "pol_skill_w",
+    "src_qual_raw",
+    "src_qual_w",
+    "position_size_usd",
+    "cash_before",
+    "cash_after",
+    "open_positions",
+  ];
+  console.log(headers.join(","));
+
+  // CSV Rows
+  let rowNum = 0;
+  for (const d of result.decisions) {
+    rowNum++;
+    const b = d.breakdown;
+
+    const row = [
+      rowNum,
+      d.date.slice(0, 10),
+      `"${d.signalId}"`,
+      d.ticker,
+      `"${d.politician}"`,
+      d.signalAction.toUpperCase(),
+      d.tradePrice.toFixed(2),
+      d.currentPrice.toFixed(2),
+      d.priceChangePct.toFixed(2),
+      d.daysSinceTrade,
+      d.action,
+      `"${d.reason.replace(/"/g, "'")}"`,
+      d.score?.toFixed(4) ?? "",
+      b?.time_decay.raw.toFixed(4) ?? "",
+      b?.time_decay.weight.toFixed(2) ?? "",
+      b?.price_movement.raw.toFixed(4) ?? "",
+      b?.price_movement.weight.toFixed(2) ?? "",
+      b?.position_size.raw.toFixed(4) ?? "",
+      b?.position_size.weight.toFixed(2) ?? "",
+      b?.politician_skill.raw.toFixed(4) ?? "",
+      b?.politician_skill.weight.toFixed(2) ?? "",
+      b?.source_quality.raw.toFixed(4) ?? "",
+      b?.source_quality.weight.toFixed(2) ?? "",
+      d.positionSize?.toFixed(2) ?? "",
+      d.cashBefore.toFixed(2),
+      d.cashAfter.toFixed(2),
+      d.positionCount,
+    ];
+    console.log(row.join(","));
+  }
+
+  // Summary
+  console.log("\n" + "-".repeat(200));
+  console.log(`SUMMARY: ${result.totalSignals} signals processed`);
+  console.log(`  Executed: ${result.executed} (BUY: ${result.decisions.filter(d => d.action === "BUY").length}, SELL: ${result.decisions.filter(d => d.action === "SELL").length})`);
+  console.log(`  Skipped: ${result.skipped}`);
+  console.log(`  Net Invested: $${result.netInvested.toFixed(2)}`);
+  console.log(`  Gross Buys: $${result.grossBuys.toFixed(2)}`);
+  console.log(`  Sell Proceeds: $${result.sellProceeds.toFixed(2)}`);
+  console.log(`  Final Cash: $${result.finalCash.toFixed(2)}`);
+  console.log(`  Open Positions: ${result.openPositions.length}`);
+}
+
+/**
+ * Run verification with a politician filter applied
+ */
+function runAgentVerificationWithFilter(
+  config: AgentConfig,
+  signals: SimSignal[],
+  politicianFilter: Set<string> | null
+): AgentResult {
+  // Create a modified config with politician whitelist if filter provided
+  const effectiveConfig = politicianFilter
+    ? { ...config, politician_whitelist: [...politicianFilter] }
+    : config;
+
+  return runAgentVerification(effectiveConfig, signals);
+}
 
 describe("45-Day Signal Verification", () => {
   it("should run ALL agents and produce verification report", () => {
@@ -760,12 +891,64 @@ describe("45-Day Signal Verification", () => {
         pad(`${r.agentName} (${r.agentId})`, 25, true) + " | " +
         pad(String(buys), 5) + " | " +
         pad(String(sells), 5) + " | " +
-        pad(`$${r.totalInvested.toFixed(0)}`, 10) + " | " +
+        pad(`$${r.netInvested.toFixed(0)}`, 10) + " | " +
         pad(`$${r.finalCash.toFixed(0)}`, 8) + " | " +
         pad(String(r.openPositions.length), 10)
       );
     }
 
     expect(chatgptResult.decisions.length).toBeGreaterThan(0);
+  });
+
+  it("should produce ChatGPT+Top10 CSV decision report for hadoku-site validation", () => {
+    // Load 3-year historical data to compute Top 10 politician filter
+    console.log(`\n${"═".repeat(100)}`);
+    console.log(`CHATGPT + TOP 10 DECISION REPORT FOR HADOKU-SITE VALIDATION`);
+    console.log(`${"═".repeat(100)}`);
+
+    console.log("\nStep 1: Loading 3-year historical data to compute Top 10 filter...");
+    const historicalSignals = loadSignalsFromExport() as RawSignal[];
+    console.log(`  Loaded ${historicalSignals.length} historical signals`);
+
+    // Build politician filters from historical data
+    console.log("\nStep 2: Computing politician filters...");
+    const filters = buildPoliticianFilters(historicalSignals);
+    const top10Filter = filters.find(f => f.name === "Top 10");
+
+    if (!top10Filter) {
+      throw new Error("Could not compute Top 10 filter from historical data");
+    }
+
+    console.log(`  Top 10 Politicians (min 15 trades, sorted by annualized return):`);
+    for (const name of top10Filter.politicians) {
+      console.log(`    - ${name}`);
+    }
+    console.log(`  Signals per month with Top 10 filter: ${top10Filter.signalsPerMonth.toFixed(1)}`);
+
+    // Load 45-day signals
+    console.log("\nStep 3: Loading 45-day signals...");
+    const signals45d = loadSignals45d();
+    console.log(`  Loaded ${signals45d.length} signals from signals_45d.json`);
+
+    // Count how many signals match the Top 10 filter
+    const matchingSignals = signals45d.filter(s => top10Filter.politicians.has(s.politician_name));
+    console.log(`  Signals from Top 10 politicians: ${matchingSignals.length}`);
+
+    // Run ChatGPT with Top 10 filter
+    console.log("\nStep 4: Running ChatGPT agent with Top 10 politician filter...");
+    const result = runAgentVerificationWithFilter(CHATGPT_CONFIG, signals45d, top10Filter.politicians);
+
+    // Print the CSV decision report
+    printCSVDecisionReport(result, "Top 10");
+
+    // Also print open positions
+    if (result.openPositions.length > 0) {
+      console.log(`\nOPEN POSITIONS (${result.openPositions.length}):`);
+      for (const p of result.openPositions) {
+        console.log(`  ${p.ticker}: ${p.shares.toFixed(4)} shares @ $${p.entryPrice.toFixed(2)} = $${p.cost.toFixed(2)}`);
+      }
+    }
+
+    expect(result.decisions.length).toBeGreaterThan(0);
   });
 });

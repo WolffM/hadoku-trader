@@ -9,7 +9,7 @@ import {
   ExecuteTradeRequest,
   ExecuteTradeResponse,
 } from "./types";
-import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists, insertSignalRow } from "./utils";
+import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists, checkLogicalDuplicate, insertSignalRow } from "./utils";
 import { daysBetween } from "./agents";
 import {
   getActiveAgents,
@@ -178,7 +178,7 @@ export async function handleBackfillBatch(
 
   for (const signal of signals) {
     try {
-      // Check for duplicate using shared function
+      // Check for duplicate by source + source_id
       const existing = await checkSignalExists(
         env,
         signal.source ?? null,
@@ -186,6 +186,20 @@ export async function handleBackfillBatch(
       );
 
       if (existing) {
+        duplicates++;
+        continue;
+      }
+
+      // Check for logical duplicate (same ticker, politician, trade_date, action)
+      const logicalDupe = await checkLogicalDuplicate(
+        env,
+        signal.trade?.ticker,
+        signal.politician?.name,
+        signal.trade?.trade_date,
+        signal.trade?.action
+      );
+
+      if (logicalDupe) {
         duplicates++;
         continue;
       }

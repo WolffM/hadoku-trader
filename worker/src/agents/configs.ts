@@ -114,7 +114,7 @@ export const CHATGPT_CONFIG: AgentConfig = {
     max_position_amount: 1000,
     min_position_amount: 0,
     max_open_positions: 9999,
-    max_per_ticker: 9999,
+    max_per_ticker: 1,  // Only 1 position per ticker at a time
   },
 
   exit: {
@@ -197,7 +197,7 @@ export const CLAUDE_CONFIG: AgentConfig = {
     max_position_amount: 1000,
     min_position_amount: 0,
     max_open_positions: 9999,
-    max_per_ticker: 9999,
+    max_per_ticker: 1,  // Only 1 position per ticker at a time
   },
 
   exit: {
@@ -339,7 +339,7 @@ export const GEMINI_CONFIG: AgentConfig = {
     max_position_amount: 1000,
     min_position_amount: 0,
     max_open_positions: 9999,
-    max_per_ticker: 9999,
+    max_per_ticker: 1,  // Only 1 position per ticker at a time
   },
 
   exit: {

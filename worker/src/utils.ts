@@ -69,7 +69,7 @@ export function withCors(response: Response): Response {
 }
 
 /**
- * Check if a signal already exists in the database.
+ * Check if a signal already exists in the database by source + source_id.
  * Used for deduplication before inserting signals.
  */
 export async function checkSignalExists(
@@ -81,6 +81,32 @@ export async function checkSignalExists(
     "SELECT id FROM signals WHERE source = ? AND source_id = ?"
   )
     .bind(source, sourceId)
+    .first<{ id: string }>();
+
+  return existing ?? null;
+}
+
+/**
+ * Check if a logically duplicate signal exists (same ticker, politician, trade_date, action).
+ * This catches duplicates that have different source_id values but represent the same trade.
+ */
+export async function checkLogicalDuplicate(
+  env: TraderEnv,
+  ticker: string | null | undefined,
+  politicianName: string | null | undefined,
+  tradeDate: string | null | undefined,
+  action: string | null | undefined
+): Promise<{ id: string } | null> {
+  if (!ticker || !politicianName || !tradeDate || !action) {
+    return null;
+  }
+
+  const existing = await env.TRADER_DB.prepare(`
+    SELECT id FROM signals
+    WHERE ticker = ? AND politician_name = ? AND trade_date = ? AND action = ?
+    LIMIT 1
+  `)
+    .bind(ticker, politicianName, tradeDate, action)
     .first<{ id: string }>();
 
   return existing ?? null;
@@ -189,16 +215,35 @@ export async function insertSignalRow(
 /**
  * Insert a signal into the database, handling duplicates.
  * Returns the signal ID and whether it was a duplicate.
+ *
+ * Duplicate detection:
+ * 1. By source + source_id (exact match from same source)
+ * 2. By trade signature (ticker + politician + trade_date + action) to catch
+ *    logically duplicate signals that may have different source_ids
  */
 export async function insertSignal(
   env: TraderEnv,
   signal: Signal
 ): Promise<InsertSignalResult> {
-  // Check for duplicate using shared function
+  // Check for duplicate by source + source_id
   const existing = await checkSignalExists(env, signal.source, signal.meta.source_id);
-
   if (existing) {
     return { id: existing.id, duplicate: true };
+  }
+
+  // Check for logical duplicate (same trade signature)
+  const logicalDupe = await checkLogicalDuplicate(
+    env,
+    signal.trade.ticker,
+    signal.politician.name,
+    signal.trade.trade_date,
+    signal.trade.action
+  );
+  if (logicalDupe) {
+    console.log(
+      `Skipping logical duplicate: ${signal.trade.ticker} ${signal.trade.action} by ${signal.politician.name} on ${signal.trade.trade_date}`
+    );
+    return { id: logicalDupe.id, duplicate: true };
   }
 
   const id = generateId("sig");

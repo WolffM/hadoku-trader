@@ -280,6 +280,20 @@ export {
   calculateSortinoRatio,
 } from "./metrics";
 
+// =============================================================================
+// Politician Rankings Exports
+// =============================================================================
+
+export {
+  // Rankings computation
+  computePoliticianRankings,
+  getTopPoliticians,
+  getPoliticianRankings,
+  // Types
+  type PoliticianRanking,
+  type ComputeRankingsOptions,
+  type ComputeRankingsResult,
+} from "./rankings";
 
 // Simulation-specific types
 export type {
