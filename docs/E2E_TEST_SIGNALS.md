@@ -5,36 +5,53 @@ This document contains test signals for validating the full trading pipeline in 
 **Last Updated**: 2026-01-31
 **Test Data Source**: signals_45d.json (274 signals)
 
-## Current Top 10 Politicians (24-month window)
+## Current Production Top 10 Politicians
 
-Computed dynamically from historical data using the same algorithm as production:
+From `politician_rankings` table (24-month window, min 15 trades, computed 2026-01-31):
 
-| Rank | Politician             | Party |
-| ---- | ---------------------- | ----- |
-| 1    | Rob Bresnahan          | R     |
-| 2    | Bill Keating           | D     |
-| 3    | Kathy Manning          | D     |
-| 4    | David Taylor           | R     |
-| 5    | Cleo Fields            | D     |
-| 6    | Shelley Moore Capito   | R     |
-| 7    | John Fetterman         | D     |
-| 8    | James Comer            | R     |
-| 9    | Marjorie Taylor Greene | R     |
-| 10   | Ashley Moody           | R     |
+| Rank | Politician       | Party | Trades | Ann. Return |
+| ---- | ---------------- | ----- | ------ | ----------- |
+| 1    | Lisa McClain     | R     | 681    | 88.6%       |
+| 2    | Tim Moore        | R     | 154    | 79.3%       |
+| 3    | John James       | R     | 19     | 59.3%       |
+| 4    | Nancy Pelosi     | D     | 17     | 58.6%       |
+| 5    | Rob Bresnahan    | R     | 266    | 45.7%       |
+| 6    | David Taylor     | R     | 45     | 42.9%       |
+| 7    | Bill Keating     | D     | 28     | 40.9%       |
+| 8    | Tommy Tuberville | R     | 79     | 27.4%       |
+| 9    | Kathy Manning    | D     | 24     | 26.9%       |
+| 10   | Ashley Moody     | R     | 15     | 21.1%       |
 
-**NOTE**: This list is computed from `trader-db-export.json` using a 24-month rolling window and min 15 trades. Production computes from the D1 database, so the actual Top 10 may differ.
+**To refresh rankings**:
+
+```bash
+curl -X POST "https://hadoku.me/api/trader/politicians/compute-rankings" \
+  -H "X-API-Key: YOUR_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"windowMonths": 24, "minTrades": 15}'
+```
 
 ---
 
 ## Expected ChatGPT+Top10 Results (45-day replay)
 
-With the dynamic Top 10 filter applied, ChatGPT should execute **1 trade**:
+With the **production** Top 10 filter (Nancy Pelosi, Tim Moore, Tommy Tuberville ARE in Top 10):
 
-| #   | Date       | Signal ID      | Ticker | Politician  | Score | Size   | Action |
-| --- | ---------- | -------------- | ------ | ----------- | ----- | ------ | ------ |
-| 1   | 2026-01-19 | ct_20003794830 | GOOGL  | Cleo Fields | 0.574 | $49.46 | BUY    |
+ChatGPT will process signals from these politicians in signals_45d.json:
 
-**Summary**: 268 signals processed, 1 executed, 267 skipped
+- **Tim Moore** (Rank 2): GNPX, HOG, CBRL signals
+- **Nancy Pelosi**: NVDA, GOOGL, TSLA signals
+- **Tommy Tuberville** (Rank 8): XLU, XLP, XLV, AAPL, GOOGL signals
+
+Expected executed trades (score >= 0.55 threshold):
+
+| #   | Date       | Ticker | Politician   | Days | Score | Action |
+| --- | ---------- | ------ | ------------ | ---- | ----- | ------ |
+| 1   | 2026-01-08 | HOG    | Tim Moore    | 21   | ~0.59 | BUY    |
+| 2   | 2026-01-25 | NVDA   | Nancy Pelosi | 1    | ~0.75 | BUY    |
+| 3   | 2026-01-26 | TSLA   | Nancy Pelosi | 1    | ~0.70 | BUY    |
+
+**Note**: Exact results depend on current prices at evaluation time. Signals with score < 0.55 will be skipped.
 
 ---
 
@@ -75,30 +92,30 @@ Use this complete JSON file to send all test signals in sequence:
   "created_at": "2026-01-26T18:00:00Z",
   "signals": [
     {
-      "test_id": "test_01_buy_top10_passes",
-      "description": "BUY signal from Top 10 politician - should execute for ChatGPT (Cleo Fields is in Top 10)",
+      "test_id": "test_01_buy_tim_moore",
+      "description": "BUY signal from Tim Moore (Top 10 #2) - ChatGPT EXECUTE, Gemini SKIP (not Titan)",
       "expected": {
-        "chatgpt": { "action": "execute", "reason": "Cleo Fields in Top 10, score ~0.57" },
+        "chatgpt": { "action": "execute", "reason": "Tim Moore is Top 10 #2, score passes" },
         "claude": { "action": "execute", "reason": "Score passes threshold" },
-        "gemini": { "action": "skip", "reason": "Cleo Fields not in Titan whitelist" }
+        "gemini": { "action": "skip", "reason": "Tim Moore not in Titan whitelist" }
       },
       "signal": {
         "source": "capitol_trades",
         "politician": {
-          "name": "Cleo Fields",
+          "name": "Tim Moore",
           "chamber": "house",
-          "party": "D",
-          "state": "LA"
+          "party": "R",
+          "state": "NC"
         },
         "trade": {
-          "ticker": "GOOGL",
+          "ticker": "HOG",
           "action": "buy",
           "asset_type": "stock",
-          "trade_date": "2026-01-17",
-          "trade_price": 313.51,
-          "disclosure_date": "2026-01-19",
-          "disclosure_price": 330.0,
-          "current_price": 335.0,
+          "trade_date": "2026-01-28",
+          "trade_price": 21.0,
+          "disclosure_date": "2026-01-30",
+          "disclosure_price": 21.15,
+          "current_price": 21.5,
           "current_price_at": "2026-01-31T16:00:00Z",
           "position_size": "$15,001-$50,000",
           "position_size_min": 15001,
@@ -109,17 +126,20 @@ Use this complete JSON file to send all test signals in sequence:
         },
         "meta": {
           "source_url": "https://capitoltrades.com/test/e2e-01",
-          "source_id": "e2e_test_01_buy_top10_20260131",
+          "source_id": "e2e_test_01_tim_moore_20260131",
           "scraped_at": "2026-01-31T17:00:00Z"
         }
       }
     },
     {
-      "test_id": "test_01b_buy_pelosi_skip_top10",
-      "description": "BUY signal from Nancy Pelosi - ChatGPT SKIP (NOT in Top 10), Gemini EXECUTE (Titan)",
+      "test_id": "test_01b_buy_pelosi_execute",
+      "description": "BUY signal from Nancy Pelosi - ALL agents EXECUTE (Pelosi is Top 10 #4 + Titan)",
       "expected": {
-        "chatgpt": { "action": "skip", "reason": "Nancy Pelosi NOT in current Top 10" },
-        "claude": { "action": "execute", "reason": "Claude accepts all politicians" },
+        "chatgpt": {
+          "action": "execute",
+          "reason": "Nancy Pelosi IS in Top 10 (#4), score passes"
+        },
+        "claude": { "action": "execute", "reason": "Claude accepts all politicians, score passes" },
         "gemini": { "action": "execute", "reason": "Nancy Pelosi is Titan" }
       },
       "signal": {
@@ -463,25 +483,23 @@ Trade previewed successfully (DRY RUN - no order submitted)
 
 ## Expected Results Summary
 
-**IMPORTANT**: ChatGPT now uses a dynamic Top 10 politician filter. Only signals from Top 10 politicians (by annualized return, min 15 trades, 24-month window) will be processed.
+**IMPORTANT**: ChatGPT uses dynamic Top 10 filter from `politician_rankings` table (24-month window, min 15 trades).
 
-| Test | Signal                      | ChatGPT           | Claude       | Gemini            | Notes                               |
-| ---- | --------------------------- | ----------------- | ------------ | ----------------- | ----------------------------------- |
-| 1    | Nancy Pelosi NVDA buy       | SKIP (politician) | EXECUTE      | EXECUTE           | Pelosi NOT in current Top 10        |
-| 2    | John Smith XYZ buy          | SKIP (politician) | SKIP (score) | SKIP (politician) | Not in Top 10, low score, not Titan |
-| 3    | Nancy Pelosi AAPL buy (old) | SKIP (politician) | SKIP (age)   | SKIP (age)        | Not in Top 10, signal > 45 days     |
-| 4    | Josh Gottheimer MSFT buy    | SKIP (politician) | EXECUTE      | SKIP (politician) | Not in Top 10 or Titan list         |
-| 5    | Nancy Pelosi GOOGL option   | SKIP (politician) | EXECUTE/SKIP | SKIP (asset)      | Not in Top 10, Gemini stock only    |
-| 6    | Mark Green SMCI buy         | SKIP (politician) | SKIP (price) | SKIP (price)      | Not in Top 10, price moved > limit  |
+| Test | Signal                      | ChatGPT      | Claude       | Gemini       | Notes                               |
+| ---- | --------------------------- | ------------ | ------------ | ------------ | ----------------------------------- |
+| 1a   | Cleo Fields GOOGL buy       | SKIP (pol)   | EXECUTE      | SKIP (pol)   | Cleo Fields NOT in Top 10           |
+| 1b   | Nancy Pelosi NVDA buy       | EXECUTE      | EXECUTE      | EXECUTE      | Pelosi IS in Top 10 (#4) + Titan    |
+| 2    | John Smith XYZ buy          | SKIP (pol)   | SKIP (score) | SKIP (pol)   | Not in Top 10, low score, not Titan |
+| 3    | Nancy Pelosi AAPL buy (old) | SKIP (age)   | SKIP (age)   | SKIP (age)   | Signal > 45 days old                |
+| 4    | Josh Gottheimer MSFT buy    | SKIP (pol)   | EXECUTE      | SKIP (pol)   | Not in Top 10 or Titan list         |
+| 5    | Nancy Pelosi GOOGL option   | EXECUTE/SKIP | EXECUTE/SKIP | SKIP (asset) | In Top 10, Gemini stock only        |
+| 6    | Mark Green SMCI buy         | SKIP (pol)   | SKIP (price) | SKIP (price) | Not in Top 10, price moved > limit  |
 
-### Current Top 10 Filter Behavior
+### Production Top 10 Politicians (minTrades=15)
 
-Politicians currently in the computed Top 10 (may vary by data source):
-
-- Rob Bresnahan, Bill Keating, Kathy Manning, David Taylor, Cleo Fields
-- Shelley Moore Capito, John Fetterman, James Comer, Marjorie Taylor Greene, Ashley Moody
-
-**Notable exclusions**: Nancy Pelosi, Tommy Tuberville, Tim Moore are NOT in the current Top 10 based on 24-month returns.
+1. Lisa McClain (88.6%), 2. Tim Moore (79.3%), 3. John James (59.3%), 4. **Nancy Pelosi (58.6%)**
+2. Rob Bresnahan (45.7%), 6. David Taylor (42.9%), 7. Bill Keating (40.9%), 8. **Tommy Tuberville (27.4%)**
+3. Kathy Manning (26.9%), 10. Ashley Moody (21.1%)
 
 ---
 
