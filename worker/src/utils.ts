@@ -118,6 +118,9 @@ export async function insertSignal(
     (disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24)
   );
 
+  // D1 doesn't accept undefined - coalesce all values to null if undefined
+  const coalesce = <T>(val: T | undefined | null): T | null => val ?? null;
+
   await env.TRADER_DB.prepare(`
     INSERT INTO signals (
       id, source, politician_name, politician_chamber, politician_party, politician_state,
@@ -130,30 +133,30 @@ export async function insertSignal(
   `)
     .bind(
       id,
-      signal.source,
-      signal.politician.name,
-      signal.politician.chamber,
-      signal.politician.party,
-      signal.politician.state,
-      signal.trade.ticker,
-      signal.trade.action,
-      signal.trade.asset_type,
-      signal.trade.trade_price,
-      signal.trade.disclosure_price,
-      signal.trade.trade_date,
-      signal.trade.disclosure_date,
+      coalesce(signal.source),
+      coalesce(signal.politician.name),
+      coalesce(signal.politician.chamber),
+      coalesce(signal.politician.party),
+      coalesce(signal.politician.state),
+      coalesce(signal.trade.ticker),
+      coalesce(signal.trade.action),
+      coalesce(signal.trade.asset_type),
+      coalesce(signal.trade.trade_price),
+      coalesce(signal.trade.disclosure_price),
+      coalesce(signal.trade.trade_date),
+      coalesce(signal.trade.disclosure_date),
       disclosureLagDays,
-      signal.trade.current_price ?? null,
-      signal.trade.current_price_at ?? null,
-      signal.trade.position_size,
-      signal.trade.position_size_min,
-      signal.trade.position_size_max,
-      signal.trade.option_type,
-      signal.trade.strike_price,
-      signal.trade.expiration_date,
-      signal.meta.source_url,
-      signal.meta.source_id,
-      signal.meta.scraped_at
+      coalesce(signal.trade.current_price),
+      coalesce(signal.trade.current_price_at),
+      coalesce(signal.trade.position_size),
+      coalesce(signal.trade.position_size_min),
+      coalesce(signal.trade.position_size_max),
+      coalesce(signal.trade.option_type),
+      coalesce(signal.trade.strike_price),
+      coalesce(signal.trade.expiration_date),
+      coalesce(signal.meta.source_url),
+      coalesce(signal.meta.source_id),
+      coalesce(signal.meta.scraped_at)
     )
     .run();
 

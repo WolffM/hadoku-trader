@@ -263,6 +263,13 @@ export async function ingestSignalBatch(
   const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] };
 
   for (const signal of signals) {
+    // Skip signals without a ticker - they're not actionable
+    if (!signal.trade?.ticker) {
+      console.log(`Skipping signal without ticker: ${signal.meta?.source_id ?? "unknown"}`);
+      result.skipped++;
+      continue;
+    }
+
     try {
       const insertResult = await insertSignal(env, signal);
 
