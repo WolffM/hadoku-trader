@@ -10,16 +10,10 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { Signal } from "./types";
+import type { components } from "./generated/scraper-api";
 
-// Expected response format from /api/v1/politrades/signals
-interface ScraperSignalsResponse {
-  signals: Signal[];
-  sources_fetched: string[];
-  sources_failed: Record<string, string>;
-  total_signals: number;
-  fetched_at: string;
-}
+// Use generated type from scraper OpenAPI
+type ScraperSignalsResponse = components["schemas"]["FetchSignalsResponse"];
 
 const SCRAPER_URL = process.env.SCRAPER_URL;
 const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY;

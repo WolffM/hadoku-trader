@@ -234,11 +234,5 @@ export interface MarketQuote {
   timestamp: string;
 }
 
-export interface ScraperDataPackage {
-  signals: Signal[];
-  market_data: {
-    sp500: MarketQuote;
-    quotes: MarketQuote[]; // Current prices for tickers in signals
-  };
-  last_updated: string;
-}
+// Note: ScraperDataPackage removed - was for old /data-package endpoint
+// Now using FetchSignalsResponse from generated/scraper-api.ts

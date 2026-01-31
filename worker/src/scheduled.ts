@@ -2,7 +2,7 @@
  * Scheduled task handlers for the trader worker.
  */
 
-import { TraderEnv, ScraperDataPackage, Signal } from "./types";
+import { TraderEnv, Signal } from "./types";
 import { insertSignal } from "./utils";
 import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from "./agents";
 
@@ -112,16 +112,14 @@ export async function runFullSync(env: TraderEnv): Promise<void> {
   }
 }
 
+// Use generated types from scraper OpenAPI
+import type { components } from "./generated/scraper-api";
+
 /**
- * Response format from /api/v1/politrades/signals endpoint.
+ * Response from scraper /api/v1/politrades/signals endpoint.
+ * Generated from scraper's OpenAPI spec.
  */
-interface ScraperSignalsResponse {
-  signals: Signal[];
-  sources_fetched: string[];
-  sources_failed: Record<string, string>;
-  total_signals: number;
-  fetched_at: string;
-}
+type ScraperSignalsResponse = components["schemas"]["FetchSignalsResponse"];
 
 /**
  * Fetch signals and market data from hadoku-scraper.
@@ -153,7 +151,10 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
     }
 
     // Store new signals
-    for (const signal of data.signals) {
+    // Note: Cast through unknown because OpenAPI schema types signals as { [key: string]: unknown }[]
+    // The scraper should define a proper Signal schema to get type-safe generated types
+    const signals = data.signals as unknown as Signal[];
+    for (const signal of signals) {
       await storeSignal(env, signal);
     }
 
@@ -230,7 +231,9 @@ export async function syncSignalsFromScraper(
     }
 
     // Ingest all signals using the batch function
-    const batchResult = await ingestSignalBatch(env, data.signals);
+    // Note: Cast through unknown because OpenAPI schema types signals as { [key: string]: unknown }[]
+    const signals = data.signals as unknown as Signal[];
+    const batchResult = await ingestSignalBatch(env, signals);
     result.inserted = batchResult.inserted;
     result.skipped = batchResult.skipped;
     result.errors.push(...batchResult.errors);
