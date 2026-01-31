@@ -49,3 +49,4 @@ trader-db-export.json
 
 # Playwright browser state (contains auth cookies)
 fidelity-api/Fidelity.json
+signals_45d.json
