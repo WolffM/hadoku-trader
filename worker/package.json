@@ -24,7 +24,7 @@
   ],
   "scripts": {
     "generate:types": "openapi-typescript https://scraper.hadoku.me/openapi.json -o src/generated/scraper-api.ts",
-    "build": "pnpm generate:types && tsc",
+    "build": "tsc",
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "tsc --noEmit",
