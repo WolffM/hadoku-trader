@@ -52,18 +52,18 @@ interface SignalRow {
   position_size_min: number
 }
 
-interface PositionForCalc {
+interface ClosedTradeForCalc {
+  holdDays: number
+  profit: number
+  cost: number
+}
+
+interface OpenPositionForCalc {
   ticker: string
   shares: number
   entryPrice: number
   entryDate: string
   cost: number
-}
-
-interface ClosedTradeForCalc {
-  returnPct: number
-  holdDays: number
-  profit: number
 }
 
 // =============================================================================
@@ -79,9 +79,31 @@ function annualizeReturn(returnPct: number, holdDays: number): number {
   return annualized * 100
 }
 
+/**
+ * Build a price map of ticker -> latest price from all signals.
+ * Used to calculate unrealized gains on open positions.
+ */
+function buildPriceMap(signals: SignalRow[]): Map<string, { price: number; date: string }> {
+  const priceMap = new Map<string, { price: number; date: string }>()
+  for (const signal of signals) {
+    const ticker = signal.ticker
+    const existing = priceMap.get(ticker)
+    // Use trade_price as proxy for current price (disclosure_price may not be available)
+    const price = signal.trade_price
+    const date = signal.trade_date
+    if (!existing || date > existing.date) {
+      if (price > 0) {
+        priceMap.set(ticker, { price, date })
+      }
+    }
+  }
+  return priceMap
+}
+
 function calculatePoliticianStatsFromSignals(
   signals: SignalRow[],
-  politicianName: string
+  politicianName: string,
+  priceMap: Map<string, { price: number; date: string }>
 ): {
   party: string | null
   chamber: string | null
@@ -106,16 +128,17 @@ function calculatePoliticianStatsFromSignals(
   }
 
   const closedTrades: ClosedTradeForCalc[] = []
+  const openPositions: OpenPositionForCalc[] = []
 
-  for (const [, tickerSigs] of tickerSignals) {
+  for (const [ticker, tickerSigs] of tickerSignals) {
     const sorted = tickerSigs.sort((a, b) => a.trade_date.localeCompare(b.trade_date))
-    const positionQueue: PositionForCalc[] = []
+    const positionQueue: OpenPositionForCalc[] = []
 
     for (const signal of sorted) {
       if (signal.action === 'buy') {
         const shares = signal.position_size_min / signal.trade_price
         positionQueue.push({
-          ticker: signal.ticker,
+          ticker,
           shares,
           entryPrice: signal.trade_price,
           entryDate: signal.trade_date,
@@ -126,42 +149,52 @@ function calculatePoliticianStatsFromSignals(
           const position = positionQueue.shift()!
           const exitPrice = signal.trade_price
           const profit = (exitPrice - position.entryPrice) * position.shares
-          const returnPct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100
           const holdDays = daysBetween(position.entryDate, signal.trade_date)
 
           closedTrades.push({
-            returnPct,
             holdDays: Math.max(0, holdDays),
-            profit
+            profit,
+            cost: position.cost
           })
         }
       }
     }
+
+    // Remaining positions in queue are open
+    openPositions.push(...positionQueue)
   }
 
   const buySignals = politicianSignals.filter(s => s.action === 'buy')
   if (buySignals.length === 0) return null
 
-  // Calculate stats from closed trades only (no unrealized)
-  const totalCost = closedTrades.reduce((sum, t) => {
-    // Approximate cost from return and profit
-    // profit = (exit - entry) * shares
-    // returnPct = ((exit - entry) / entry) * 100
-    // So cost = profit / (returnPct / 100) if returnPct != 0
-    if (t.returnPct === 0) return sum
-    return sum + Math.abs(t.profit / (t.returnPct / 100))
-  }, 0)
+  // Calculate realized PnL from closed trades
+  const closedCost = closedTrades.reduce((sum, t) => sum + t.cost, 0)
+  const realizedPnL = closedTrades.reduce((sum, t) => sum + t.profit, 0)
 
-  const totalProfit = closedTrades.reduce((sum, t) => sum + t.profit, 0)
-  const totalReturnPct = totalCost > 0 ? (totalProfit / totalCost) * 100 : 0
+  // Calculate unrealized PnL from open positions using latest prices
+  let unrealizedCost = 0
+  let unrealizedPnL = 0
+  for (const pos of openPositions) {
+    const latestPrice = priceMap.get(pos.ticker)
+    if (latestPrice) {
+      const currentValue = pos.shares * latestPrice.price
+      unrealizedCost += pos.cost
+      unrealizedPnL += currentValue - pos.cost
+    }
+  }
 
+  // Total return includes both realized and unrealized
+  const totalCost = closedCost + unrealizedCost
+  const totalPnL = realizedPnL + unrealizedPnL
+  const totalReturnPct = totalCost > 0 ? (totalPnL / totalCost) * 100 : 0
+
+  // Average hold days from closed trades only (we know actual duration)
   const avgHoldDays =
     closedTrades.length > 0
       ? closedTrades.reduce((sum, t) => sum + t.holdDays, 0) / closedTrades.length
-      : null
+      : 180 // Default to 180 days if no closed trades (reasonable assumption for open positions)
 
-  const annualizedReturnPct =
-    avgHoldDays && avgHoldDays > 0 ? annualizeReturn(totalReturnPct, avgHoldDays) : totalReturnPct
+  const annualizedReturnPct = annualizeReturn(totalReturnPct, avgHoldDays)
 
   return {
     party: first.politician_party,
@@ -224,6 +257,9 @@ export async function computePoliticianRankings(
 
   const signals = signalsResult.results ?? []
 
+  // Build price map for unrealized gain calculation
+  const priceMap = buildPriceMap(signals)
+
   // Get unique politicians
   const politicianNames = [...new Set(signals.map(s => s.politician_name))]
 
@@ -231,7 +267,7 @@ export async function computePoliticianRankings(
   const allStats: PoliticianRanking[] = []
 
   for (const name of politicianNames) {
-    const stats = calculatePoliticianStatsFromSignals(signals, name)
+    const stats = calculatePoliticianStatsFromSignals(signals, name, priceMap)
     if (stats) {
       allStats.push({
         politician_name: name,
