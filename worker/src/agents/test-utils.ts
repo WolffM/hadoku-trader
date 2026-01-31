@@ -258,12 +258,12 @@ export interface BuildPoliticianFiltersOptions {
   /**
    * Rolling window in months to consider for ranking.
    * Matches production's computePoliticianRankings windowMonths parameter.
-   * Default: 24 (2 years) - same as production default.
+   * Default: 24 (2 years) - same as production.
    */
   windowMonths?: number
   /**
    * Minimum trades required to qualify for ranking.
-   * Default: 15 - same as production default.
+   * Default: 15 - matches hadoku-site's /politicians/compute-rankings endpoint.
    */
   minTrades?: number
 }
