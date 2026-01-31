@@ -3,7 +3,17 @@
  * These can be used directly or through createTraderHandler.
  */
 
-import type { TraderEnv, Signal, ExecuteTradeRequest, ExecuteTradeResponse } from './types'
+import type {
+  TraderEnv,
+  Signal,
+  ExecuteTradeRequest,
+  ExecuteTradeResponse,
+  BackfillBatchPayload,
+  BackfillSignal,
+  MarketPricesBackfillPayload,
+  MarketPriceData,
+  MarketBackfillTriggerRequest
+} from './types'
 import {
   jsonResponse,
   verifyApiKey,
@@ -133,7 +143,7 @@ export async function handleBackfillBatch(request: Request, env: TraderEnv): Pro
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const payload = await request.json()
+  const payload: BackfillBatchPayload = await request.json()
 
   // Extract fields from either payload.data or top-level (scraper uses payload.data)
   const jobId = payload.data?.job_id ?? payload.job_id
@@ -159,7 +169,7 @@ export async function handleBackfillBatch(request: Request, env: TraderEnv): Pro
   }
 
   // Process batch of signals (support both payload.data.signals and payload.signals)
-  const signals = payload.data?.signals || payload.signals || []
+  const signals: BackfillSignal[] = payload.data?.signals || payload.signals || []
   let inserted = 0
   let duplicates = 0
   let errors = 0
@@ -247,21 +257,10 @@ export async function handleMarketPricesBackfill(
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  interface PriceData {
-    ticker: string
-    date: string
-    open: number
-    high: number
-    low: number
-    close: number
-    volume?: number
-    source?: string
-  }
-
-  const payload = await request.json()
+  const payload: MarketPricesBackfillPayload = await request.json()
 
   // Extract prices from payload.data or top-level
-  const prices: PriceData[] = payload.data?.prices ?? payload.prices ?? []
+  const prices: MarketPriceData[] = payload.data?.prices ?? payload.prices ?? []
   const source = payload.data?.source ?? payload.source ?? 'yahoo'
 
   if (prices.length === 0) {
@@ -415,7 +414,7 @@ export async function handleMarketBackfillTrigger(
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const body = await request.json()
+  const body: MarketBackfillTriggerRequest = await request.json()
 
   const startDate = body.start_date || '2025-10-01'
   const endDate = body.end_date || new Date().toISOString().split('T')[0]

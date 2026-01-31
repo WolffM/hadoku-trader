@@ -236,3 +236,69 @@ export interface MarketQuote {
 
 // Note: ScraperDataPackage removed - was for old /data-package endpoint
 // Now using FetchSignalsResponse from generated/scraper-api.ts
+
+// =============================================================================
+// Backfill Webhook Types
+// =============================================================================
+
+/**
+ * Backfill batch signal - compatible with insertSignalRow's Partial<Signal> parameter
+ */
+export type BackfillSignal = Partial<Signal> & { source?: string | null }
+
+/**
+ * Webhook payload for backfill batch events from hadoku-scraper
+ */
+export interface BackfillBatchPayload {
+  event?: string
+  job_id?: string
+  batch_number?: number
+  source?: string
+  signals?: BackfillSignal[]
+  data?: {
+    job_id?: string
+    batch_number?: number
+    source?: string
+    signals?: BackfillSignal[]
+  }
+}
+
+// =============================================================================
+// Market Price Types
+// =============================================================================
+
+/**
+ * Market price data point from backfill
+ */
+export interface MarketPriceData {
+  ticker: string
+  date: string
+  open?: number
+  high?: number
+  low?: number
+  close: number
+  volume?: number
+  source?: string
+}
+
+/**
+ * Payload for market prices backfill endpoint
+ */
+export interface MarketPricesBackfillPayload {
+  event?: string
+  prices?: MarketPriceData[]
+  source?: string
+  data?: {
+    prices?: MarketPriceData[]
+    source?: string
+  }
+}
+
+/**
+ * Request body for triggering market backfill
+ */
+export interface MarketBackfillTriggerRequest {
+  start_date?: string
+  end_date?: string
+  tickers?: string[]
+}

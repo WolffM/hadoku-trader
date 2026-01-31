@@ -59,7 +59,7 @@ export async function getAgent(env: TraderEnv, agentId: string): Promise<AgentCo
   if (!row) return null
 
   try {
-    return JSON.parse(row.config_json) as AgentConfig
+    return JSON.parse((row as { config_json: string }).config_json) as AgentConfig
   } catch (e) {
     console.error(`Failed to parse config for agent ${agentId}:`, e)
     return null
@@ -123,10 +123,11 @@ export async function getAgentBudget(
     }
   }
 
+  const typedBudget = budget as { total_budget: number; spent: number }
   return {
-    total: budget.total_budget,
-    spent: budget.spent,
-    remaining: budget.total_budget - budget.spent
+    total: typedBudget.total_budget,
+    spent: typedBudget.spent,
+    remaining: typedBudget.total_budget - typedBudget.spent
   }
 }
 
