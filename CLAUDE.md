@@ -198,3 +198,75 @@ When a signal arrives:
 - Monthly budget caps ($1,000/agent) must be enforced
 - All trades need audit logging with full reasoning chain
 - Stop-loss and exit rules are monitored every 15 minutes during market hours
+
+## Code Organization & Avoiding Duplication
+
+**IMPORTANT: Before writing new code, check these canonical locations first.**
+
+### Type Definitions - Where to Find Them
+
+| Type Category | Canonical Location | Notes |
+|---------------|-------------------|-------|
+| Signal, Trade, Politician | `worker/src/types.ts` | Source of truth for API types |
+| Agent configs, scoring, sizing | `worker/src/agents/types.ts` | All trading engine types |
+| Frontend types | `src/types/api.ts` | Mirrors worker types (don't duplicate, reference worker) |
+| Test utilities | `worker/src/agents/types.ts` | `RawSignal`, `TestPosition`, `TestClosedTrade`, `TestPoliticianStats` |
+
+### Utility Functions - Where to Find Them
+
+| Function | Location | Usage |
+|----------|----------|-------|
+| `daysBetween(start, end)` | `worker/src/agents/filters.ts` | Date math - **DO NOT REDEFINE** |
+| `generateId(prefix)` | `worker/src/agents/filters.ts` | ID generation |
+| `calculateDisclosureLagDays()` | `worker/src/utils.ts` | Trade-to-disclosure lag |
+| `insertSignalRow()` | `worker/src/utils.ts` | DB signal insertion (use `lenient: true` for backfill) |
+| `buildPriceMap()` | `worker/src/agents/test-utils.ts` | Latest prices from signals |
+| `calculatePoliticianStats()` | `worker/src/agents/test-utils.ts` | Politician performance |
+| `buildPoliticianFilters()` | `worker/src/agents/test-utils.ts` | Top N politician filters |
+| `annualizeReturn()` | `worker/src/agents/test-utils.ts` | Return annualization |
+
+### Common Duplication Mistakes to Avoid
+
+1. **`daysBetween` function** - This was duplicated in 3 places. Always import from `filters.ts` or via `./agents` index.
+
+2. **Signal INSERT SQL** - The 25-column INSERT statement was duplicated. Use `insertSignalRow()` from `utils.ts`.
+
+3. **Disclosure lag calculation** - Was inline in multiple places. Use `calculateDisclosureLagDays()`.
+
+4. **Return percentage calculation** - Same loop pattern in multiple route handlers. Extract to a helper.
+
+5. **Scoring breakdown types** - `ScoringBreakdown` was defined in multiple files. Now in `agents/types.ts`.
+
+6. **Test type definitions** - `RawSignal`, `TestPosition`, etc. were in every test file. Now shared in `types.ts`.
+
+### Import Patterns
+
+```typescript
+// For route handlers - import from ./agents index
+import { daysBetween, calculateScoreSync } from "./agents";
+import type { ScoringBreakdown, EnrichedSignal } from "./agents";
+
+// For test files - import from test-utils
+import { daysBetween, buildPriceMap, loadSignalsFromExport } from "./test-utils";
+import type { RawSignal, TestPosition } from "./test-utils";
+
+// For utils that need internal use AND re-export
+import { daysBetween } from "./filters";
+export { daysBetween };  // Re-export for consumers
+```
+
+### Export Structure
+
+```
+worker/src/index.ts           → Public package exports
+worker/src/agents/index.ts    → All agent module exports
+worker/src/agents/types.ts    → Type definitions
+worker/src/agents/test-utils.ts → Test-specific utilities (re-exports from filters.ts)
+```
+
+### Before Adding New Code
+
+1. **Search first**: `grep -r "functionName" worker/src/` to check if it exists
+2. **Check indexes**: Look at `worker/src/agents/index.ts` for available exports
+3. **Check types.ts**: Both `worker/src/types.ts` and `worker/src/agents/types.ts`
+4. **Check test-utils.ts**: For any analysis/test utility functions

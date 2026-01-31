@@ -9,7 +9,8 @@ import {
   ExecuteTradeRequest,
   ExecuteTradeResponse,
 } from "./types";
-import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists } from "./utils";
+import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists, insertSignalRow } from "./utils";
+import { daysBetween } from "./agents";
 import {
   getActiveAgents,
   getAgent,
@@ -17,7 +18,15 @@ import {
   getAgentPositions,
   processAllPendingSignals,
   getCurrentMonth,
+  CHATGPT_CONFIG,
+  CLAUDE_CONFIG,
+  GEMINI_CONFIG,
+  calculateScoreSync,
+  scoreTimeDecay,
+  scorePriceMovement,
+  scorePositionSize,
 } from "./agents";
+import type { EnrichedSignal, ScoringConfig, AgentConfig, ScoringBreakdown } from "./agents";
 import { backfillMarketPrices } from "./scheduled";
 
 // =============================================================================
@@ -181,54 +190,9 @@ export async function handleBackfillBatch(
         continue;
       }
 
-      // Insert new signal - use defaults for NOT NULL columns, null for nullable
+      // Insert new signal using shared function with lenient mode for backfill data
       const id = generateId("sig");
-
-      // Calculate disclosure lag in days
-      const tradeDate = signal.trade?.trade_date ? new Date(signal.trade.trade_date) : null;
-      const disclosureDate = signal.trade?.disclosure_date ? new Date(signal.trade.disclosure_date) : null;
-      const disclosureLagDays = tradeDate && disclosureDate
-        ? Math.floor((disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24))
-        : null;
-
-      await env.TRADER_DB.prepare(`
-        INSERT INTO signals (
-          id, source, politician_name, politician_chamber, politician_party, politician_state,
-          ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
-          disclosure_lag_days, current_price, current_price_at,
-          position_size, position_size_min, position_size_max,
-          option_type, strike_price, expiration_date,
-          source_url, source_id, scraped_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `)
-        .bind(
-          id,
-          signal.source ?? null,
-          signal.politician?.name ?? null,
-          signal.politician?.chamber ?? null,
-          signal.politician?.party ?? "unknown",      // NOT NULL - default
-          signal.politician?.state ?? "unknown",      // NOT NULL - default
-          signal.trade?.ticker ?? null,
-          signal.trade?.action ?? null,
-          signal.trade?.asset_type ?? null,
-          signal.trade?.trade_price ?? null,
-          signal.trade?.disclosure_price ?? null,
-          signal.trade?.trade_date ?? null,
-          signal.trade?.disclosure_date ?? "",        // NOT NULL - default
-          disclosureLagDays,
-          signal.trade?.current_price ?? null,
-          signal.trade?.current_price_at ?? null,
-          signal.trade?.position_size ?? "",          // NOT NULL - default
-          signal.trade?.position_size_min ?? 0,       // NOT NULL - default
-          signal.trade?.position_size_max ?? 0,       // NOT NULL - default
-          signal.trade?.option_type ?? null,
-          signal.trade?.strike_price ?? null,
-          signal.trade?.expiration_date ?? null,
-          signal.meta?.source_url ?? "",              // NOT NULL - default
-          signal.meta?.source_id ?? null,
-          signal.meta?.scraped_at ?? null
-        )
-        .run();
+      await insertSignalRow(env, id, signal, { lenient: true });
 
       inserted++;
     } catch (error) {
@@ -754,6 +718,24 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
 // =============================================================================
 
 /**
+ * Calculate total return percentage from an array of positions.
+ * Each position should have cost_basis, current_price, and quantity fields.
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function calculatePositionsReturnPct(positions: any[]): number {
+  let totalCostBasis = 0;
+  let totalCurrentValue = 0;
+  for (const pos of positions) {
+    totalCostBasis += (pos.cost_basis as number) || 0;
+    totalCurrentValue +=
+      ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
+  }
+  return totalCostBasis > 0
+    ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
+    : 0;
+}
+
+/**
  * GET /agents - List all agents with budget status
  */
 export async function handleGetAgents(env: TraderEnv): Promise<Response> {
@@ -766,18 +748,7 @@ export async function handleGetAgents(env: TraderEnv): Promise<Response> {
         const budget = await getAgentBudget(env, agent.id);
         const positions = await getAgentPositions(env, agent.id);
 
-        // Calculate total return
-        let totalCostBasis = 0;
-        let totalCurrentValue = 0;
-        for (const pos of positions) {
-          totalCostBasis += (pos.cost_basis as number) || 0;
-          totalCurrentValue +=
-            ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
-        }
-        const totalReturnPct =
-          totalCostBasis > 0
-            ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
-            : 0;
+        const totalReturnPct = calculatePositionsReturnPct(positions);
 
         return {
           id: agent.id,
@@ -831,18 +802,7 @@ export async function handleGetAgentById(
       .bind(agentId)
       .all();
 
-    // Calculate total return
-    let totalCostBasis = 0;
-    let totalCurrentValue = 0;
-    for (const pos of positions) {
-      totalCostBasis += (pos.cost_basis as number) || 0;
-      totalCurrentValue +=
-        ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
-    }
-    const totalReturnPct =
-      totalCostBasis > 0
-        ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
-        : 0;
+    const totalReturnPct = calculatePositionsReturnPct(positions);
 
     // Format positions for response
     const formattedPositions = positions.map((pos: any) => {
@@ -927,6 +887,368 @@ export async function handleProcessSignals(
     console.error("Error processing signals:", error);
     return jsonResponse(
       { success: false, error: "Failed to process signals" },
+      500
+    );
+  }
+}
+
+// =============================================================================
+// Simulation Handler
+// =============================================================================
+
+interface SimulateRequest {
+  signals: Array<{
+    id: string;
+    source: string;
+    politician_name: string;
+    politician_chamber?: string;
+    politician_party?: string;
+    politician_state?: string;
+    ticker: string;
+    action: "buy" | "sell";
+    asset_type?: string;
+    position_size_min?: number;
+    trade_date: string;
+    trade_price: number;
+    disclosure_date: string;
+    disclosure_price: number | null;
+  }>;
+  budget?: number;
+  agents?: string[];
+}
+
+// ScoringBreakdown is imported from ./agents
+
+interface SimulationDecision {
+  signal_id: string;
+  ticker: string;
+  politician: string;
+  action: string;
+  days_since_trade: number;
+  price_change_pct: number;
+  score: number | null;
+  score_breakdown: ScoringBreakdown | null;
+  decision: "execute" | "skip";
+  position_size: number | null;
+  reason: string;
+}
+
+interface SimulationAgentResult {
+  id: string;
+  name: string;
+  decisions: SimulationDecision[];
+  summary: {
+    total_signals: number;
+    executed: number;
+    skipped: number;
+    total_invested: number;
+    cash_remaining: number;
+    open_positions: number;
+  };
+}
+
+// daysBetween is imported from ./agents (originally from filters.ts)
+
+function getDetailedScoring(
+  config: ScoringConfig,
+  signal: EnrichedSignal,
+  winRate: number
+): ScoringBreakdown {
+  const components = config.components;
+  const breakdown: ScoringBreakdown = {
+    time_decay: { raw: 0, weight: 0, contribution: 0 },
+    price_movement: { raw: 0, weight: 0, contribution: 0 },
+    position_size: { raw: 0, weight: 0, contribution: 0 },
+    politician_skill: { raw: 0, weight: 0, contribution: 0 },
+    source_quality: { raw: 0, weight: 0, contribution: 0 },
+    final_score: 0,
+  };
+
+  let totalWeight = 0;
+  let weightedSum = 0;
+
+  if (components.time_decay) {
+    const raw = scoreTimeDecay(components.time_decay, signal);
+    const weight = components.time_decay.weight;
+    breakdown.time_decay = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.price_movement) {
+    const raw = scorePriceMovement(components.price_movement, signal);
+    const weight = components.price_movement.weight;
+    breakdown.price_movement = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.position_size) {
+    const raw = scorePositionSize(components.position_size, signal);
+    const weight = components.position_size.weight;
+    breakdown.position_size = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.politician_skill) {
+    const raw = winRate !== undefined
+      ? Math.max(0.4, Math.min(0.7, winRate))
+      : components.politician_skill.default_score;
+    const weight = components.politician_skill.weight;
+    breakdown.politician_skill = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.source_quality) {
+    const raw = components.source_quality.scores[signal.source]
+      ?? components.source_quality.scores["default"]
+      ?? 0.8;
+    const weight = components.source_quality.weight;
+    breakdown.source_quality = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.filing_speed) {
+    let raw = 1.0;
+    if (signal.days_since_filing <= 7) {
+      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05);
+    } else if (signal.days_since_filing >= 30) {
+      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1);
+    }
+    const weight = components.filing_speed.weight;
+    breakdown.filing_speed = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  if (components.cross_confirmation) {
+    const raw = 0.5;
+    const weight = components.cross_confirmation.weight;
+    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight };
+    weightedSum += raw * weight;
+    totalWeight += weight;
+  }
+
+  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0;
+
+  return breakdown;
+}
+
+function calculateSimPositionSize(config: AgentConfig, score: number, availableCash: number): number {
+  const sizing = config.sizing;
+
+  let size: number;
+  if (sizing.mode === "score_squared") {
+    size = score * score * (sizing.base_multiplier ?? 0.15) * config.monthly_budget;
+  } else if (sizing.mode === "score_linear") {
+    size = (sizing.base_amount ?? 15) * score * (availableCash / config.monthly_budget);
+  } else if (sizing.mode === "smart_budget") {
+    size = Math.min(200, availableCash * 0.2);
+  } else {
+    size = 100;
+  }
+
+  size = Math.min(size, sizing.max_position_amount ?? 1000);
+  size = Math.min(size, availableCash * (sizing.max_position_pct ?? 1.0));
+  size = Math.max(0, size);
+
+  return Math.round(size * 100) / 100;
+}
+
+function runAgentSimulation(
+  config: AgentConfig,
+  signals: SimulateRequest["signals"],
+  budget: number
+): SimulationAgentResult {
+  const sortedSignals = [...signals].sort((a, b) =>
+    a.disclosure_date.localeCompare(b.disclosure_date)
+  );
+
+  const validSignals = sortedSignals.filter(s => s.disclosure_price && s.disclosure_price > 0);
+
+  // Compute politician win rates
+  const winRateStats = new Map<string, { wins: number; total: number }>();
+  for (const signal of validSignals) {
+    if (signal.action !== "buy") continue;
+    const existing = winRateStats.get(signal.politician_name) || { wins: 0, total: 0 };
+    existing.total++;
+    if (signal.disclosure_price! > signal.trade_price) {
+      existing.wins++;
+    }
+    winRateStats.set(signal.politician_name, existing);
+  }
+  const politicianWinRates = new Map<string, number>();
+  for (const [name, { wins, total }] of winRateStats) {
+    politicianWinRates.set(name, total > 0 ? wins / total : 0.5);
+  }
+
+  let cash = budget;
+  const decisions: SimulationDecision[] = [];
+  let openPositions = 0;
+  let totalInvested = 0;
+
+  for (const simSignal of validSignals) {
+    const currentPrice = simSignal.disclosure_price!;
+    const tradePrice = simSignal.trade_price ?? currentPrice;
+    const daysSinceTrade = daysBetween(simSignal.trade_date, simSignal.disclosure_date);
+    const priceChangePct = tradePrice > 0 ? ((currentPrice - tradePrice) / tradePrice) * 100 : 0;
+
+    let decision: "execute" | "skip" = "skip";
+    let reason = "";
+    let score: number | null = null;
+    let breakdown: ScoringBreakdown | null = null;
+    let positionSize: number | null = null;
+
+    if (simSignal.action === "sell") {
+      reason = "Sell signal (simulation only tracks buys)";
+    } else if (config.politician_whitelist && !config.politician_whitelist.includes(simSignal.politician_name)) {
+      reason = "Not in politician whitelist";
+    } else if (simSignal.asset_type && !config.allowed_asset_types.includes(simSignal.asset_type as any)) {
+      reason = `Asset type ${simSignal.asset_type} not allowed`;
+    } else if (daysSinceTrade > config.max_signal_age_days) {
+      reason = `Too old (${daysSinceTrade}d > ${config.max_signal_age_days}d)`;
+    } else if (Math.abs(priceChangePct) > config.max_price_move_pct) {
+      reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`;
+    } else if (config.scoring) {
+      const enrichedSignal: EnrichedSignal = {
+        id: simSignal.id,
+        ticker: simSignal.ticker,
+        action: simSignal.action,
+        asset_type: (simSignal.asset_type || "stock") as any,
+        trade_price: tradePrice,
+        current_price: currentPrice,
+        trade_date: simSignal.trade_date,
+        disclosure_date: simSignal.disclosure_date,
+        position_size_min: simSignal.position_size_min || 0,
+        politician_name: simSignal.politician_name,
+        source: simSignal.source,
+        days_since_trade: daysSinceTrade,
+        days_since_filing: daysSinceTrade,
+        price_change_pct: priceChangePct,
+      };
+
+      const winRate = politicianWinRates.get(simSignal.politician_name) ?? 0.5;
+      const scoreResult = calculateScoreSync(config.scoring, enrichedSignal, winRate);
+      score = scoreResult.score;
+      breakdown = getDetailedScoring(config.scoring, enrichedSignal, winRate);
+
+      if (score < config.execute_threshold) {
+        reason = `Score ${score.toFixed(3)} < threshold ${config.execute_threshold}`;
+      } else {
+        const size = calculateSimPositionSize(config, score, cash);
+        if (size < 1) {
+          reason = `Position size too small ($${size.toFixed(2)})`;
+        } else if (size > cash) {
+          reason = `Insufficient cash ($${size.toFixed(0)} > $${cash.toFixed(0)})`;
+        } else {
+          decision = "execute";
+          positionSize = size;
+          cash -= size;
+          openPositions++;
+          totalInvested += size;
+          reason = `Executed @ $${currentPrice.toFixed(2)}`;
+        }
+      }
+    } else {
+      // No scoring (Gemini-style)
+      const size = calculateSimPositionSize(config, 1.0, cash);
+      if (size < 1) {
+        reason = "Position size too small";
+      } else if (size > cash) {
+        reason = "Insufficient cash";
+      } else {
+        decision = "execute";
+        positionSize = size;
+        cash -= size;
+        openPositions++;
+        totalInvested += size;
+        reason = `Executed @ $${currentPrice.toFixed(2)}`;
+      }
+    }
+
+    decisions.push({
+      signal_id: simSignal.id,
+      ticker: simSignal.ticker,
+      politician: simSignal.politician_name,
+      action: simSignal.action,
+      days_since_trade: daysSinceTrade,
+      price_change_pct: Math.round(priceChangePct * 100) / 100,
+      score,
+      score_breakdown: breakdown,
+      decision,
+      position_size: positionSize,
+      reason,
+    });
+  }
+
+  const executed = decisions.filter(d => d.decision === "execute").length;
+  const skipped = decisions.filter(d => d.decision === "skip").length;
+
+  return {
+    id: config.id,
+    name: config.name,
+    decisions,
+    summary: {
+      total_signals: validSignals.length,
+      executed,
+      skipped,
+      total_invested: Math.round(totalInvested * 100) / 100,
+      cash_remaining: Math.round(cash * 100) / 100,
+      open_positions: openPositions,
+    },
+  };
+}
+
+/**
+ * POST /simulate - Run simulation on signals without executing trades
+ *
+ * This endpoint runs the full scoring and decision pipeline without
+ * actually executing any trades. Useful for testing and verification.
+ */
+export async function handleSimulateSignals(
+  request: Request,
+  env: TraderEnv
+): Promise<Response> {
+  // Verify API key
+  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
+    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  }
+
+  try {
+    const payload: SimulateRequest = await request.json();
+    const budget = payload.budget ?? 1000;
+    const requestedAgents = payload.agents ?? ["chatgpt"];
+
+    const agentConfigs: Record<string, AgentConfig> = {
+      chatgpt: CHATGPT_CONFIG,
+      claude: CLAUDE_CONFIG,
+      gemini: GEMINI_CONFIG,
+    };
+
+    const results: SimulationAgentResult[] = [];
+
+    for (const agentId of requestedAgents) {
+      const config = agentConfigs[agentId];
+      if (!config) {
+        continue;
+      }
+      const result = runAgentSimulation(config, payload.signals, budget);
+      results.push(result);
+    }
+
+    return jsonResponse({
+      success: true,
+      simulation_date: new Date().toISOString(),
+      budget,
+      agents: results,
+    });
+  } catch (error) {
+    console.error("Error running simulation:", error);
+    return jsonResponse(
+      { success: false, error: "Failed to run simulation" },
       500
     );
   }

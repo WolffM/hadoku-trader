@@ -22,28 +22,26 @@ import { CHATGPT_CONFIG } from "./configs";
 import type { AgentConfig, ScoringConfig } from "./types";
 import { calculateHistoricalBucketStats, calculateBucketSizes, getBucket, type SimSignal } from "./simulation";
 import { calculateScoreSync } from "./scoring";
-import { loadSignalsFromExport, daysBetween } from "./test-utils";
+import {
+  loadSignalsFromExport,
+  daysBetween,
+  computePoliticianWinRates,
+  generateMonths,
+  pad,
+  formatPct,
+  formatMoney,
+  buildPriceMap,
+  calculatePoliticianStats,
+  type RawSignal,
+  type TestPoliticianStats,
+} from "./test-utils";
 
 // =============================================================================
-// Load Data
+// Load Data (use shared types from test-utils)
 // =============================================================================
 
-interface Signal {
-  id: string;
-  source: string;
-  politician_name: string;
-  politician_chamber: "house" | "senate";
-  politician_party: "D" | "R";
-  politician_state: string;
-  ticker: string;
-  action: "buy" | "sell";
-  asset_type: string;
-  position_size_min: number;
-  trade_date: string;
-  trade_price: number;
-  disclosure_date: string;
-  disclosure_price: number | null;
-}
+type Signal = RawSignal;
+type PoliticianStats = TestPoliticianStats;
 
 function loadSignals(): SimSignal[] {
   return loadSignalsFromExport();
@@ -61,122 +59,7 @@ function loadSignalsTyped(): Signal[] {
   );
 }
 
-// =============================================================================
-// Politician Performance (for Top 10 filter)
-// =============================================================================
-
-interface PoliticianStats {
-  name: string;
-  party: "D" | "R";
-  trades: number;
-  closedTrades: number;
-  totalReturnPct: number;
-  annualizedReturnPct: number;
-}
-
-function buildPriceMap(signals: Signal[]): Map<string, { price: number; date: string }> {
-  const priceMap = new Map<string, { price: number; date: string }>();
-  for (const signal of signals) {
-    const ticker = signal.ticker;
-    const existing = priceMap.get(ticker);
-    const price = signal.disclosure_price ?? signal.trade_price;
-    const date = signal.disclosure_date;
-    if (!existing || date > existing.date) {
-      if (price > 0) {
-        priceMap.set(ticker, { price, date });
-      }
-    }
-  }
-  return priceMap;
-}
-
-function calculatePoliticianStats(
-  signals: Signal[],
-  politicianName: string,
-  priceMap: Map<string, { price: number; date: string }>
-): PoliticianStats | null {
-  const politicianSignals = signals.filter(s => s.politician_name === politicianName);
-  if (politicianSignals.length === 0) return null;
-
-  const first = politicianSignals[0];
-  const tickerSignals = new Map<string, Signal[]>();
-  for (const signal of politicianSignals) {
-    if (!tickerSignals.has(signal.ticker)) {
-      tickerSignals.set(signal.ticker, []);
-    }
-    tickerSignals.get(signal.ticker)!.push(signal);
-  }
-
-  interface ClosedTrade {
-    returnPct: number;
-    holdDays: number;
-    profit: number;
-  }
-
-  const closedTrades: ClosedTrade[] = [];
-  const openPositions: { cost: number; currentValue?: number }[] = [];
-
-  for (const [ticker, tickerSigs] of tickerSignals) {
-    const sorted = tickerSigs.sort((a, b) => a.trade_date.localeCompare(b.trade_date));
-    const positionQueue: { shares: number; entryPrice: number; entryDate: string; cost: number }[] = [];
-
-    for (const signal of sorted) {
-      if (signal.action === "buy") {
-        const shares = signal.position_size_min / signal.trade_price;
-        positionQueue.push({
-          shares,
-          entryPrice: signal.trade_price,
-          entryDate: signal.trade_date,
-          cost: signal.position_size_min,
-        });
-      } else if (signal.action === "sell") {
-        if (positionQueue.length > 0) {
-          const position = positionQueue.shift()!;
-          const exitPrice = signal.trade_price;
-          const profit = (exitPrice - position.entryPrice) * position.shares;
-          const returnPct = ((exitPrice - position.entryPrice) / position.entryPrice) * 100;
-          const holdDays = daysBetween(position.entryDate, signal.trade_date);
-          closedTrades.push({ returnPct, holdDays: Math.max(0, holdDays), profit });
-        }
-      }
-    }
-
-    for (const position of positionQueue) {
-      const latestPrice = priceMap.get(ticker);
-      if (latestPrice) {
-        openPositions.push({
-          cost: position.cost,
-          currentValue: position.shares * latestPrice.price,
-        });
-      }
-    }
-  }
-
-  if (closedTrades.length === 0 && openPositions.length === 0) return null;
-
-  const totalCostOfClosed = closedTrades.reduce((sum, t) => sum + 100, 0); // Simplified
-  const realizedPnL = closedTrades.reduce((sum, t) => sum + t.profit, 0);
-  const openWithPrices = openPositions.filter(p => p.currentValue !== undefined);
-  const totalCostOfOpen = openWithPrices.reduce((sum, p) => sum + p.cost, 0);
-  const unrealizedPnL = openWithPrices.reduce((sum, p) => sum + ((p.currentValue ?? 0) - p.cost), 0);
-  const totalCost = totalCostOfClosed + totalCostOfOpen || 1;
-  const totalReturn = ((realizedPnL + unrealizedPnL) / totalCost) * 100;
-  const avgHoldDays = closedTrades.length > 0
-    ? closedTrades.reduce((sum, t) => sum + t.holdDays, 0) / closedTrades.length
-    : 365;
-  const annualized = avgHoldDays > 30
-    ? (Math.pow(1 + totalReturn / 100, 365 / avgHoldDays) - 1) * 100
-    : totalReturn;
-
-  return {
-    name: politicianName,
-    party: first.politician_party,
-    trades: politicianSignals.length,
-    closedTrades: closedTrades.length,
-    totalReturnPct: totalReturn,
-    annualizedReturnPct: annualized,
-  };
-}
+// buildPriceMap and calculatePoliticianStats imported from test-utils.ts
 
 function buildTop10Filter(typedSignals: Signal[]): Set<string> {
   const priceMap = buildPriceMap(typedSignals);
@@ -363,21 +246,8 @@ function runVariationSimulation(
 
   if (validSignals.length === 0) return null;
 
-  // Compute politician win rates
-  const politicianWinRates = new Map<string, number>();
-  const winRateStats = new Map<string, { wins: number; total: number }>();
-  for (const signal of allSignals) {
-    if (signal.action !== "buy" || !signal.disclosure_price || signal.disclosure_price <= 0) continue;
-    const existing = winRateStats.get(signal.politician_name) || { wins: 0, total: 0 };
-    existing.total++;
-    if (signal.disclosure_price > (signal.trade_price ?? 0)) {
-      existing.wins++;
-    }
-    winRateStats.set(signal.politician_name, existing);
-  }
-  for (const [name, { wins, total }] of winRateStats) {
-    politicianWinRates.set(name, total > 0 ? wins / total : 0.5);
-  }
+  // Compute politician win rates (using shared utility)
+  const politicianWinRates = computePoliticianWinRates(allSignals);
 
   // Pre-filter for bucket stats
   const preFilteredBuySignals = validSignals.filter(simSignal => {
@@ -414,16 +284,10 @@ function runVariationSimulation(
 
   const bucketStats = calculateHistoricalBucketStats(preFilteredBuySignals as SimSignal[]);
 
-  // Generate months
+  // Generate months (using shared utility)
   const startDate = validSignals[0].disclosure_date;
   const endDate = validSignals[validSignals.length - 1].disclosure_date;
-  const months: string[] = [];
-  let current = new Date(startDate.substring(0, 7) + "-01");
-  const end = new Date(endDate.substring(0, 7) + "-01");
-  while (current <= end) {
-    months.push(current.toISOString().substring(0, 7));
-    current.setMonth(current.getMonth() + 1);
-  }
+  const months = generateMonths(startDate, endDate);
 
   // Simulation state
   let cash = 0;
@@ -549,27 +413,7 @@ function runVariationSimulation(
   };
 }
 
-// =============================================================================
-// Formatting Helpers
-// =============================================================================
-
-function pad(str: string, len: number, left = false): string {
-  if (str.length >= len) return str.substring(0, len);
-  const padding = " ".repeat(len - str.length);
-  return left ? str + padding : padding + str;
-}
-
-function formatPct(n: number): string {
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(1)}%`;
-}
-
-function formatMoney(n: number): string {
-  if (Math.abs(n) >= 1000) {
-    return `$${(n / 1000).toFixed(1)}K`;
-  }
-  return `$${n.toFixed(0)}`;
-}
+// Formatting helpers imported from test-utils.ts
 
 // =============================================================================
 // Tests

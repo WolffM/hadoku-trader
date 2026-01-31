@@ -67,6 +67,31 @@ export interface ScoringConfig {
   };
 }
 
+/**
+ * Detailed breakdown of individual scoring component contributions.
+ * Used for transparency in signal evaluation and debugging.
+ */
+export interface ScoringComponentBreakdown {
+  raw: number;
+  weight: number;
+  contribution: number;
+}
+
+/**
+ * Full breakdown of a signal's score calculation.
+ * Contains the contribution from each scoring component.
+ */
+export interface ScoringBreakdown {
+  time_decay: ScoringComponentBreakdown;
+  price_movement: ScoringComponentBreakdown;
+  position_size: ScoringComponentBreakdown;
+  politician_skill: ScoringComponentBreakdown;
+  source_quality: ScoringComponentBreakdown;
+  filing_speed?: ScoringComponentBreakdown;
+  cross_confirmation?: ScoringComponentBreakdown;
+  final_score: number;
+}
+
 // =============================================================================
 // Sizing Configuration Types
 // =============================================================================
@@ -696,4 +721,81 @@ export interface SimulationReport {
   signalsProcessed: number;
   signalsSkipped: number;
   agentResults: Record<string, PerformanceMetrics>;
+}
+
+// =============================================================================
+// Test Utility Types (shared across test files)
+// =============================================================================
+
+/**
+ * Raw signal from database export (used in test files).
+ * This is the shape of signals from trader-db-export.json.
+ */
+export interface RawSignal {
+  id: string;
+  source: string;
+  politician_name: string;
+  politician_chamber: "house" | "senate";
+  politician_party: "D" | "R";
+  politician_state: string;
+  ticker: string;
+  action: "buy" | "sell";
+  asset_type: string;
+  position_size_min: number;
+  trade_date: string;
+  trade_price: number;
+  disclosure_date: string;
+  disclosure_price: number | null;
+}
+
+/**
+ * Position tracked during test simulations.
+ * Simpler than production SimPosition - used for analysis.
+ */
+export interface TestPosition {
+  ticker: string;
+  shares: number;
+  entryPrice: number;
+  entryDate: string;
+  cost: number;
+  currentPrice?: number;
+  currentValue?: number;
+  unrealizedPnL?: number;
+}
+
+/**
+ * Closed trade with return info (used in test analysis).
+ */
+export interface TestClosedTrade {
+  ticker: string;
+  shares: number;
+  entryPrice: number;
+  exitPrice: number;
+  entryDate: string;
+  exitDate: string;
+  returnPct: number;
+  holdDays: number;
+  profit: number;
+}
+
+/**
+ * Politician performance statistics (used in test analysis).
+ */
+export interface TestPoliticianStats {
+  name: string;
+  party: "D" | "R";
+  trades: number;
+  closedTrades: number;
+  totalReturnPct: number;
+  annualizedReturnPct: number;
+  avgHoldDays: number;
+}
+
+/**
+ * Politician filter for strategy testing.
+ */
+export interface PoliticianFilter {
+  name: string;
+  politicians: Set<string>;
+  signalsPerMonth: number;
 }

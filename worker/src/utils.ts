@@ -95,6 +95,98 @@ export interface InsertSignalResult {
 }
 
 /**
+ * Calculate disclosure lag in days between trade date and disclosure date.
+ * Returns null if either date is missing.
+ */
+export function calculateDisclosureLagDays(
+  tradeDate: string | null | undefined,
+  disclosureDate: string | null | undefined
+): number | null {
+  if (!tradeDate || !disclosureDate) return null;
+  const trade = new Date(tradeDate);
+  const disclosure = new Date(disclosureDate);
+  return Math.floor((disclosure.getTime() - trade.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Options for inserting a signal row.
+ */
+export interface InsertSignalRowOptions {
+  /** Use lenient defaults for NOT NULL columns (for backfill data that may have missing fields) */
+  lenient?: boolean;
+}
+
+/**
+ * Insert a signal row directly into the database.
+ * This is the low-level function used by both insertSignal and handleBackfillBatch.
+ *
+ * @param env - Environment with TRADER_DB binding
+ * @param id - The signal ID to use
+ * @param signal - Partial signal data (may have missing fields for backfill)
+ * @param options - Insert options (lenient mode uses defaults for NOT NULL columns)
+ */
+export async function insertSignalRow(
+  env: TraderEnv,
+  id: string,
+  signal: Partial<Signal> & { source?: string | null },
+  options: InsertSignalRowOptions = {}
+): Promise<void> {
+  const lenient = options.lenient ?? false;
+
+  // Calculate disclosure lag
+  const disclosureLagDays = calculateDisclosureLagDays(
+    signal.trade?.trade_date,
+    signal.trade?.disclosure_date
+  );
+
+  // Helper: coalesce undefined/null to null, or use default in lenient mode
+  const val = <T>(v: T | undefined | null, defaultVal?: T): T | null => {
+    if (v !== undefined && v !== null) return v;
+    if (lenient && defaultVal !== undefined) return defaultVal;
+    return null;
+  };
+
+  await env.TRADER_DB.prepare(`
+    INSERT INTO signals (
+      id, source, politician_name, politician_chamber, politician_party, politician_state,
+      ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
+      disclosure_lag_days, current_price, current_price_at,
+      position_size, position_size_min, position_size_max,
+      option_type, strike_price, expiration_date,
+      source_url, source_id, scraped_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+  `)
+    .bind(
+      id,
+      val(signal.source),
+      val(signal.politician?.name),
+      val(signal.politician?.chamber),
+      val(signal.politician?.party, lenient ? "unknown" : undefined),       // NOT NULL
+      val(signal.politician?.state, lenient ? "unknown" : undefined),       // NOT NULL
+      val(signal.trade?.ticker),
+      val(signal.trade?.action),
+      val(signal.trade?.asset_type),
+      val(signal.trade?.trade_price),
+      val(signal.trade?.disclosure_price),
+      val(signal.trade?.trade_date),
+      val(signal.trade?.disclosure_date, lenient ? "" : undefined),         // NOT NULL
+      disclosureLagDays,
+      val(signal.trade?.current_price),
+      val(signal.trade?.current_price_at),
+      val(signal.trade?.position_size, lenient ? "" : undefined),           // NOT NULL
+      val(signal.trade?.position_size_min, lenient ? 0 : undefined),        // NOT NULL
+      val(signal.trade?.position_size_max, lenient ? 0 : undefined),        // NOT NULL
+      val(signal.trade?.option_type),
+      val(signal.trade?.strike_price),
+      val(signal.trade?.expiration_date),
+      val(signal.meta?.source_url, lenient ? "" : undefined),               // NOT NULL
+      val(signal.meta?.source_id),
+      val(signal.meta?.scraped_at)
+    )
+    .run();
+}
+
+/**
  * Insert a signal into the database, handling duplicates.
  * Returns the signal ID and whether it was a duplicate.
  */
@@ -110,55 +202,7 @@ export async function insertSignal(
   }
 
   const id = generateId("sig");
-
-  // Calculate disclosure lag in days
-  const tradeDate = new Date(signal.trade.trade_date);
-  const disclosureDate = new Date(signal.trade.disclosure_date);
-  const disclosureLagDays = Math.floor(
-    (disclosureDate.getTime() - tradeDate.getTime()) / (1000 * 60 * 60 * 24)
-  );
-
-  // D1 doesn't accept undefined - coalesce all values to null if undefined
-  const coalesce = <T>(val: T | undefined | null): T | null => val ?? null;
-
-  await env.TRADER_DB.prepare(`
-    INSERT INTO signals (
-      id, source, politician_name, politician_chamber, politician_party, politician_state,
-      ticker, action, asset_type, trade_price, disclosure_price, trade_date, disclosure_date,
-      disclosure_lag_days, current_price, current_price_at,
-      position_size, position_size_min, position_size_max,
-      option_type, strike_price, expiration_date,
-      source_url, source_id, scraped_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-  `)
-    .bind(
-      id,
-      coalesce(signal.source),
-      coalesce(signal.politician.name),
-      coalesce(signal.politician.chamber),
-      coalesce(signal.politician.party),
-      coalesce(signal.politician.state),
-      coalesce(signal.trade.ticker),
-      coalesce(signal.trade.action),
-      coalesce(signal.trade.asset_type),
-      coalesce(signal.trade.trade_price),
-      coalesce(signal.trade.disclosure_price),
-      coalesce(signal.trade.trade_date),
-      coalesce(signal.trade.disclosure_date),
-      disclosureLagDays,
-      coalesce(signal.trade.current_price),
-      coalesce(signal.trade.current_price_at),
-      coalesce(signal.trade.position_size),
-      coalesce(signal.trade.position_size_min),
-      coalesce(signal.trade.position_size_max),
-      coalesce(signal.trade.option_type),
-      coalesce(signal.trade.strike_price),
-      coalesce(signal.trade.expiration_date),
-      coalesce(signal.meta.source_url),
-      coalesce(signal.meta.source_id),
-      coalesce(signal.meta.scraped_at)
-    )
-    .run();
+  await insertSignalRow(env, id, signal, { lenient: false });
 
   return { id, duplicate: false };
 }

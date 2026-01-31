@@ -6,53 +6,33 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { loadSignalsFromExport, daysBetween, annualizeReturn } from "./test-utils";
+import {
+  loadSignalsFromExport,
+  daysBetween,
+  annualizeReturn,
+  pad,
+  formatPct,
+  formatMoney,
+  buildPriceMap,
+  type RawSignal,
+  type TestPosition,
+  type TestClosedTrade,
+} from "./test-utils";
 
 // =============================================================================
-// Types
+// Types (use shared types from test-utils)
 // =============================================================================
 
-interface Signal {
-  id: string;
-  source: string;
-  politician_name: string;
-  politician_chamber: "house" | "senate";
-  politician_party: "D" | "R";
-  politician_state: string;
-  ticker: string;
-  action: "buy" | "sell";
-  asset_type: string;
-  position_size_min: number;
-  trade_date: string;
-  trade_price: number;
-  disclosure_date: string;
-  disclosure_price: number | null;
-}
+// Use RawSignal from test-utils as Signal
+type Signal = RawSignal;
 
-
-interface Position {
-  ticker: string;
-  shares: number;
-  entryPrice: number;
-  entryDate: string;
-  cost: number;
-  currentPrice?: number;
-  currentValue?: number;
-  unrealizedPnL?: number;
+// Use TestPosition from test-utils, extended with unrealizedPct
+interface Position extends TestPosition {
   unrealizedPct?: number;
 }
 
-interface ClosedTrade {
-  ticker: string;
-  shares: number;
-  entryPrice: number;
-  exitPrice: number;
-  entryDate: string;
-  exitDate: string;
-  returnPct: number;
-  holdDays: number;
-  profit: number;
-}
+// Use TestClosedTrade from test-utils as ClosedTrade
+type ClosedTrade = TestClosedTrade;
 
 interface PoliticianStats {
   name: string;
@@ -127,30 +107,7 @@ function loadSignals(): Signal[] {
   );
 }
 
-// =============================================================================
-// Price Provider - Get most recent price for a ticker
-// =============================================================================
-
-function buildPriceMap(signals: Signal[]): Map<string, { price: number; date: string }> {
-  const priceMap = new Map<string, { price: number; date: string }>();
-
-  for (const signal of signals) {
-    const ticker = signal.ticker;
-    const existing = priceMap.get(ticker);
-
-    // Use disclosure_price if available, otherwise trade_price
-    const price = signal.disclosure_price ?? signal.trade_price;
-    const date = signal.disclosure_date;
-
-    if (!existing || date > existing.date) {
-      if (price > 0) {
-        priceMap.set(ticker, { price, date });
-      }
-    }
-  }
-
-  return priceMap;
-}
+// buildPriceMap imported from test-utils.ts
 
 /**
  * Calculate SPY benchmark return over the period of congressional trading.
@@ -445,24 +402,7 @@ function calculateStrategyStats(
 }
 
 // =============================================================================
-// Table Formatting
-// =============================================================================
-
-function pad(str: string, len: number, right = false): string {
-  if (right) return str.padEnd(len);
-  return str.padStart(len);
-}
-
-function formatMoney(n: number): string {
-  if (Math.abs(n) >= 1000000) return `$${(n / 1000000).toFixed(1)}M`;
-  if (Math.abs(n) >= 1000) return `$${(n / 1000).toFixed(0)}K`;
-  return `$${n.toFixed(0)}`;
-}
-
-function formatPct(n: number): string {
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(1)}%`;
-}
+// Table Formatting - imported from test-utils.ts
 
 // =============================================================================
 // Tests

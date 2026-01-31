@@ -10,24 +10,20 @@
 import { describe, it, expect } from "vitest";
 import { CHATGPT_CONFIG } from "./configs";
 import { calculateScoreSync, scoreTimeDecay, scorePriceMovement, scorePositionSize } from "./scoring";
-import { loadSignalsFromExport, daysBetween } from "./test-utils";
+import {
+  loadSignalsFromExport,
+  daysBetween,
+  computePoliticianWinRates,
+  pad,
+  formatPct,
+  type RawSignal,
+} from "./test-utils";
 
 // =============================================================================
-// Load Data
+// Load Data (extend RawSignal with position_size_max for this test)
 // =============================================================================
 
-interface Signal {
-  id: string;
-  source: string;
-  ticker: string;
-  action: string;
-  asset_type: string;
-  politician_name: string;
-  trade_date: string;
-  disclosure_date: string;
-  trade_price: number | null;
-  disclosure_price: number | null;
-  position_size_min: number;
+interface Signal extends RawSignal {
   position_size_max: number;
 }
 
@@ -170,27 +166,6 @@ function enrichTradesWithScores(
   return results;
 }
 
-function computePoliticianWinRates(signals: Signal[]): Map<string, number> {
-  const stats = new Map<string, { wins: number; total: number }>();
-
-  for (const signal of signals) {
-    if (signal.action !== "buy" || !signal.disclosure_price || signal.disclosure_price <= 0) continue;
-
-    const existing = stats.get(signal.politician_name) || { wins: 0, total: 0 };
-    existing.total++;
-    if (signal.disclosure_price > (signal.trade_price ?? 0)) {
-      existing.wins++;
-    }
-    stats.set(signal.politician_name, existing);
-  }
-
-  const winRates = new Map<string, number>();
-  for (const [name, { wins, total }] of stats) {
-    winRates.set(name, total > 0 ? wins / total : 0.5);
-  }
-  return winRates;
-}
-
 // =============================================================================
 // Statistical Helpers
 // =============================================================================
@@ -238,16 +213,7 @@ function bucketAnalysis(
   return results;
 }
 
-function pad(s: string, len: number, left = false): string {
-  if (s.length >= len) return s;
-  const padding = " ".repeat(len - s.length);
-  return left ? s + padding : padding + s;
-}
-
-function formatPct(n: number): string {
-  const sign = n >= 0 ? "+" : "";
-  return `${sign}${n.toFixed(1)}%`;
-}
+// Formatting helpers imported from test-utils.ts
 
 // =============================================================================
 // Tests

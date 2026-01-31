@@ -21,6 +21,7 @@ import {
   handleGetMarketPrices,
   handleGetMarketTickers,
   handleMarketBackfillTrigger,
+  handleSimulateSignals,
 } from "./routes";
 import { jsonResponse, corsHeaders, withCors } from "./utils";
 
@@ -113,6 +114,10 @@ export function createTraderHandler(
 
         case route === "/signals/process" && request.method === "POST":
           response = await handleProcessSignals(request, env);
+          break;
+
+        case route === "/simulate" && request.method === "POST":
+          response = await handleSimulateSignals(request, env);
           break;
 
         // Market prices routes

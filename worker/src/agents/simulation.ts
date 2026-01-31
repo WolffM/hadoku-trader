@@ -266,7 +266,7 @@ function generateMonths(startDate: string, endDate: string): string[] {
  * the subset that would actually execute. This is used to calculate accurate
  * historical bucket stats.
  */
-function preFilterSignals(
+export function preFilterSignals(
   signals: SimSignal[],
   config: AgentConfig,
   politicianWinRates: Map<string, number>
@@ -419,6 +419,7 @@ export function runSimulation(
       const bucket = getBucket(congressionalSize);
       let positionSize = bucketSizes[bucket];
 
+
       // Apply day-of-month ramp: positions get larger as month progresses
       // Day 1: 1.0x, Day 15: ~1.5x, Day 31: 2.0x
       // This naturally deploys more cash if early month was slow
@@ -436,7 +437,8 @@ export function runSimulation(
         continue;
       }
 
-      positionSize = Math.round(positionSize * 100) / 100;
+      // Use floor to avoid rounding up beyond available cash
+      positionSize = Math.floor(positionSize * 100) / 100;
 
       if (positionSize > cash) {
         monthSkips++;
@@ -487,6 +489,6 @@ export function runSimulation(
   };
 }
 
-// Export bucket stats calculation for use in tests
-export { calculateHistoricalBucketStats, calculateBucketSizes, getBucket };
+// Export helpers for use in tests
+export { calculateHistoricalBucketStats, calculateBucketSizes, getBucket, computePoliticianWinRates, generateMonths };
 export type { HistoricalBucketStats };

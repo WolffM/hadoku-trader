@@ -24,6 +24,8 @@ export type {
   FilingSpeedConfig,
   CrossConfirmationConfig,
   ScoringConfig,
+  ScoringComponentBreakdown,
+  ScoringBreakdown,
   // Sizing types
   SizingMode,
   SizingConfig,
@@ -176,6 +178,12 @@ export {
 export {
   // Main scoring function
   calculateScore,
+  // Sync version for simulation/backtesting
+  calculateScoreSync,
+  // Component scoring functions
+  scoreTimeDecay,
+  scorePriceMovement,
+  scorePositionSize,
   // Helper for confirmation counting
   getSignalConfirmationCount,
 } from "./scoring";

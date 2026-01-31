@@ -27,8 +27,16 @@
  * ```
  */
 
-// Re-export all types
+// Re-export all types from worker types
 export * from "./types";
+
+// Re-export specific agent types used by frontend
+export type {
+  AgentSummary,
+  AgentPosition,
+  AgentDetailResponse,
+  PerformanceMetrics as AgentPerformanceMetrics,
+} from "./agents/types";
 
 // Export handlers
 export { createTraderHandler } from "./handler";
