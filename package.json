@@ -27,7 +27,7 @@
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
-    "prepare": "git config core.hooksPath .husky 2>/dev/null || true"
+    "prepare": "husky || exit 0"
   },
   "peerDependencies": {
     "@wolffm/task-ui-components": ">=1.0.0",
