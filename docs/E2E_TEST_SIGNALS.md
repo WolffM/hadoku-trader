@@ -2,12 +2,49 @@
 
 This document contains test signals for validating the full trading pipeline in production.
 
+**Last Updated**: 2026-01-31
+**Test Data Source**: signals_45d.json (274 signals)
+
+## Current Top 10 Politicians (24-month window)
+
+Computed dynamically from historical data using the same algorithm as production:
+
+| Rank | Politician             | Party |
+| ---- | ---------------------- | ----- |
+| 1    | Rob Bresnahan          | R     |
+| 2    | Bill Keating           | D     |
+| 3    | Kathy Manning          | D     |
+| 4    | David Taylor           | R     |
+| 5    | Cleo Fields            | D     |
+| 6    | Shelley Moore Capito   | R     |
+| 7    | John Fetterman         | D     |
+| 8    | James Comer            | R     |
+| 9    | Marjorie Taylor Greene | R     |
+| 10   | Ashley Moody           | R     |
+
+**NOTE**: This list is computed from `trader-db-export.json` using a 24-month rolling window and min 15 trades. Production computes from the D1 database, so the actual Top 10 may differ.
+
+---
+
+## Expected ChatGPT+Top10 Results (45-day replay)
+
+With the dynamic Top 10 filter applied, ChatGPT should execute **1 trade**:
+
+| #   | Date       | Signal ID      | Ticker | Politician  | Score | Size   | Action |
+| --- | ---------- | -------------- | ------ | ----------- | ----- | ------ | ------ |
+| 1   | 2026-01-19 | ct_20003794830 | GOOGL  | Cleo Fields | 0.574 | $49.46 | BUY    |
+
+**Summary**: 268 signals processed, 1 executed, 267 skipped
+
+---
+
 **IMPORTANT**: Before running these tests:
 
 1. Verify `DRY_RUN = true` in `worker/src/agents/tradingConfig.ts` (line 19)
-2. Redeploy the trader-worker package if changed
-3. Ensure cloudflared tunnel is active
-4. Ensure local trader-worker (PM2) is running
+2. Or set `ENABLE_LIVE_TRADING=false` in environment
+3. Redeploy the trader-worker package if changed
+4. Ensure cloudflared tunnel is active
+5. Ensure local trader-worker (PM2) is running
 
 ---
 
@@ -38,12 +75,52 @@ Use this complete JSON file to send all test signals in sequence:
   "created_at": "2026-01-26T18:00:00Z",
   "signals": [
     {
-      "test_id": "test_01_buy_passes_all",
-      "description": "BUY signal that passes all filters - should execute for all 3 agents (DRY RUN)",
+      "test_id": "test_01_buy_top10_passes",
+      "description": "BUY signal from Top 10 politician - should execute for ChatGPT (Cleo Fields is in Top 10)",
       "expected": {
-        "chatgpt": { "action": "execute", "reason": "High score ~0.75+" },
-        "claude": { "action": "execute", "reason": "High score ~0.75+" },
-        "gemini": { "action": "execute", "reason": "Nancy Pelosi is Titan, passes filters" }
+        "chatgpt": { "action": "execute", "reason": "Cleo Fields in Top 10, score ~0.57" },
+        "claude": { "action": "execute", "reason": "Score passes threshold" },
+        "gemini": { "action": "skip", "reason": "Cleo Fields not in Titan whitelist" }
+      },
+      "signal": {
+        "source": "capitol_trades",
+        "politician": {
+          "name": "Cleo Fields",
+          "chamber": "house",
+          "party": "D",
+          "state": "LA"
+        },
+        "trade": {
+          "ticker": "GOOGL",
+          "action": "buy",
+          "asset_type": "stock",
+          "trade_date": "2026-01-17",
+          "trade_price": 313.51,
+          "disclosure_date": "2026-01-19",
+          "disclosure_price": 330.0,
+          "current_price": 335.0,
+          "current_price_at": "2026-01-31T16:00:00Z",
+          "position_size": "$15,001-$50,000",
+          "position_size_min": 15001,
+          "position_size_max": 50000,
+          "option_type": null,
+          "strike_price": null,
+          "expiration_date": null
+        },
+        "meta": {
+          "source_url": "https://capitoltrades.com/test/e2e-01",
+          "source_id": "e2e_test_01_buy_top10_20260131",
+          "scraped_at": "2026-01-31T17:00:00Z"
+        }
+      }
+    },
+    {
+      "test_id": "test_01b_buy_pelosi_skip_top10",
+      "description": "BUY signal from Nancy Pelosi - ChatGPT SKIP (NOT in Top 10), Gemini EXECUTE (Titan)",
+      "expected": {
+        "chatgpt": { "action": "skip", "reason": "Nancy Pelosi NOT in current Top 10" },
+        "claude": { "action": "execute", "reason": "Claude accepts all politicians" },
+        "gemini": { "action": "execute", "reason": "Nancy Pelosi is Titan" }
       },
       "signal": {
         "source": "capitol_trades",
@@ -57,12 +134,12 @@ Use this complete JSON file to send all test signals in sequence:
           "ticker": "NVDA",
           "action": "buy",
           "asset_type": "stock",
-          "trade_date": "2026-01-24",
+          "trade_date": "2026-01-29",
           "trade_price": 140.0,
-          "disclosure_date": "2026-01-25",
+          "disclosure_date": "2026-01-30",
           "disclosure_price": 142.0,
           "current_price": 143.5,
-          "current_price_at": "2026-01-26T16:00:00Z",
+          "current_price_at": "2026-01-31T16:00:00Z",
           "position_size": "$250,001-$500,000",
           "position_size_min": 250001,
           "position_size_max": 500000,
@@ -71,9 +148,9 @@ Use this complete JSON file to send all test signals in sequence:
           "expiration_date": null
         },
         "meta": {
-          "source_url": "https://capitoltrades.com/test/e2e-01",
-          "source_id": "e2e_test_01_buy_passes_20260126",
-          "scraped_at": "2026-01-26T17:00:00Z"
+          "source_url": "https://capitoltrades.com/test/e2e-01b",
+          "source_id": "e2e_test_01b_pelosi_20260131",
+          "scraped_at": "2026-01-31T17:00:00Z"
         }
       }
     },
@@ -386,14 +463,25 @@ Trade previewed successfully (DRY RUN - no order submitted)
 
 ## Expected Results Summary
 
-| Test | Signal                      | ChatGPT      | Claude       | Gemini            | Notes                      |
-| ---- | --------------------------- | ------------ | ------------ | ----------------- | -------------------------- |
-| 1    | Nancy Pelosi NVDA buy       | EXECUTE      | EXECUTE      | EXECUTE           | All agents buy (dry run)   |
-| 2    | John Smith XYZ buy          | SKIP (score) | SKIP (score) | SKIP (politician) | Low score + not Titan      |
-| 3    | Nancy Pelosi AAPL buy (old) | SKIP (age)   | SKIP (age)   | SKIP (age)        | Signal > 45 days old       |
-| 4    | Josh Gottheimer MSFT buy    | EXECUTE      | EXECUTE      | SKIP (politician) | Not in Gemini's Titan list |
-| 5    | Nancy Pelosi GOOGL option   | EXECUTE/SKIP | EXECUTE/SKIP | SKIP (asset)      | Gemini only accepts stock  |
-| 6    | Mark Green SMCI buy         | SKIP (price) | SKIP (price) | SKIP (price)      | Price moved > thresholds   |
+**IMPORTANT**: ChatGPT now uses a dynamic Top 10 politician filter. Only signals from Top 10 politicians (by annualized return, min 15 trades, 24-month window) will be processed.
+
+| Test | Signal                      | ChatGPT           | Claude       | Gemini            | Notes                               |
+| ---- | --------------------------- | ----------------- | ------------ | ----------------- | ----------------------------------- |
+| 1    | Nancy Pelosi NVDA buy       | SKIP (politician) | EXECUTE      | EXECUTE           | Pelosi NOT in current Top 10        |
+| 2    | John Smith XYZ buy          | SKIP (politician) | SKIP (score) | SKIP (politician) | Not in Top 10, low score, not Titan |
+| 3    | Nancy Pelosi AAPL buy (old) | SKIP (politician) | SKIP (age)   | SKIP (age)        | Not in Top 10, signal > 45 days     |
+| 4    | Josh Gottheimer MSFT buy    | SKIP (politician) | EXECUTE      | SKIP (politician) | Not in Top 10 or Titan list         |
+| 5    | Nancy Pelosi GOOGL option   | SKIP (politician) | EXECUTE/SKIP | SKIP (asset)      | Not in Top 10, Gemini stock only    |
+| 6    | Mark Green SMCI buy         | SKIP (politician) | SKIP (price) | SKIP (price)      | Not in Top 10, price moved > limit  |
+
+### Current Top 10 Filter Behavior
+
+Politicians currently in the computed Top 10 (may vary by data source):
+
+- Rob Bresnahan, Bill Keating, Kathy Manning, David Taylor, Cleo Fields
+- Shelley Moore Capito, John Fetterman, James Comer, Marjorie Taylor Greene, Ashley Moody
+
+**Notable exclusions**: Nancy Pelosi, Tommy Tuberville, Tim Moore are NOT in the current Top 10 based on 24-month returns.
 
 ---
 
