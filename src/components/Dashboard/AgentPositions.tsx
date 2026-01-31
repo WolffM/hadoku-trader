@@ -12,9 +12,7 @@ interface AgentCardProps {
 }
 
 function AgentCard({ agent, positions, isExpanded, onToggle, isLoading }: AgentCardProps) {
-  const budgetPct = agent.monthly_budget > 0
-    ? (agent.budget_spent / agent.monthly_budget) * 100
-    : 0
+  const budgetPct = agent.monthly_budget > 0 ? (agent.budget_spent / agent.monthly_budget) * 100 : 0
 
   return (
     <div className="agent-card">
@@ -29,7 +27,9 @@ function AgentCard({ agent, positions, isExpanded, onToggle, isLoading }: AgentC
         <div className="agent-card__stats">
           <div className="agent-card__stat">
             <span className="agent-card__stat-label">Return</span>
-            <span className={`agent-card__stat-value ${agent.total_return_pct >= 0 ? 'positive' : 'negative'}`}>
+            <span
+              className={`agent-card__stat-value ${agent.total_return_pct >= 0 ? 'positive' : 'negative'}`}
+            >
               {formatPercent(agent.total_return_pct)}
             </span>
           </div>
@@ -78,7 +78,9 @@ function AgentCard({ agent, positions, isExpanded, onToggle, isLoading }: AgentC
                     <td className="agent-card__shares">{pos.shares}</td>
                     <td className="agent-card__price">{formatCurrency(pos.entry_price)}</td>
                     <td className="agent-card__price">{formatCurrency(pos.current_price)}</td>
-                    <td className={`agent-card__pnl ${pos.return_pct >= 0 ? 'positive' : 'negative'}`}>
+                    <td
+                      className={`agent-card__pnl ${pos.return_pct >= 0 ? 'positive' : 'negative'}`}
+                    >
                       {formatPercent(pos.return_pct)}
                     </td>
                     <td className="agent-card__days">{pos.days_held}d</td>
@@ -120,8 +122,10 @@ export function AgentPositions() {
       }
     }
 
-    loadAgents()
-    return () => { mounted = false }
+    void loadAgents()
+    return () => {
+      mounted = false
+    }
   }, [])
 
   // Fetch positions when expanding an agent
@@ -186,7 +190,7 @@ export function AgentPositions() {
             agent={agent}
             positions={positions[agent.id] || []}
             isExpanded={expandedId === agent.id}
-            onToggle={() => handleToggle(agent.id)}
+            onToggle={() => void handleToggle(agent.id)}
             isLoading={loadingId === agent.id}
           />
         ))}

@@ -3,8 +3,8 @@
  * Generates mock historical prices for backtesting
  */
 
-import type { SimSignal } from "./simulation";
-import { addDays } from "./filters";
+import type { SimSignal } from './simulation'
+import { addDays } from './filters'
 
 // =============================================================================
 // Price Provider Interface
@@ -14,42 +14,42 @@ import { addDays } from "./filters";
  * Synchronous price provider interface for mock/static providers.
  */
 export interface PriceProvider {
-  getPrice(ticker: string, date: string): number | null;
-  getClosingPrices(tickers: string[], date: string): Map<string, number>;
+  getPrice(ticker: string, date: string): number | null
+  getClosingPrices(tickers: string[], date: string): Map<string, number>
 }
 
 /**
  * Async price provider interface for database-backed providers.
  */
 export interface AsyncPriceProvider {
-  getPrice(ticker: string, date: string): Promise<number | null>;
-  getClosingPrices(tickers: string[], date: string): Promise<Map<string, number>>;
-  getOHLC(ticker: string, date: string): Promise<OHLC | null>;
+  getPrice(ticker: string, date: string): Promise<number | null>
+  getClosingPrices(tickers: string[], date: string): Promise<Map<string, number>>
+  getOHLC(ticker: string, date: string): Promise<OHLC | null>
 }
 
 /**
  * OHLC price data structure.
  */
 export interface OHLC {
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume?: number;
+  open: number
+  high: number
+  low: number
+  close: number
+  volume?: number
 }
 
 /**
  * Market price row from database.
  */
 export interface MarketPriceRow {
-  ticker: string;
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number | null;
-  source: string;
+  ticker: string
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume: number | null
+  source: string
 }
 
 // =============================================================================
@@ -61,31 +61,27 @@ export interface MarketPriceRow {
  * Prices are deterministic based on seed for reproducibility.
  */
 export class MockPriceProvider implements PriceProvider {
-  private priceCache: Map<string, Map<string, number>> = new Map();
-  private seed: number;
-  private daysToGenerate: number;
+  private priceCache = new Map<string, Map<string, number>>()
+  private seed: number
+  private daysToGenerate: number
 
   /**
    * @param signals - Signals to base prices on
    * @param seed - Random seed for reproducibility (default: 42)
    * @param daysToGenerate - Days of price data to generate forward (default: 150)
    */
-  constructor(
-    signals: SimSignal[],
-    seed: number = 42,
-    daysToGenerate: number = 150
-  ) {
-    this.seed = seed;
-    this.daysToGenerate = daysToGenerate;
-    this.initializePrices(signals);
+  constructor(signals: SimSignal[], seed = 42, daysToGenerate = 150) {
+    this.seed = seed
+    this.daysToGenerate = daysToGenerate
+    this.initializePrices(signals)
   }
 
   /**
    * Seeded random number generator for reproducibility.
    */
   private seededRandom(): number {
-    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff;
-    return (this.seed % 10000) / 10000;
+    this.seed = (this.seed * 1103515245 + 12345) & 0x7fffffff
+    return (this.seed % 10000) / 10000
   }
 
   /**
@@ -95,152 +91,141 @@ export class MockPriceProvider implements PriceProvider {
    */
   private initializePrices(signals: SimSignal[]): void {
     // Track unique tickers with their earliest disclosure date and price
-    const tickerInfo = new Map<
-      string,
-      { date: string; price: number }
-    >();
+    const tickerInfo = new Map<string, { date: string; price: number }>()
 
     // Find earliest disclosure date and price for each ticker
     for (const signal of signals) {
-      const existing = tickerInfo.get(signal.ticker);
+      const existing = tickerInfo.get(signal.ticker)
       // Use disclosure_date since that's when we can act on the signal
       if (!existing || signal.disclosure_date < existing.date) {
         tickerInfo.set(signal.ticker, {
           date: signal.disclosure_date,
           // Use disclosure_price if available, otherwise trade_price
-          price: signal.disclosure_price || signal.trade_price || 100,
-        });
+          price: signal.disclosure_price || signal.trade_price || 100
+        })
       }
     }
 
     // Generate price paths for each ticker
     for (const [ticker, info] of tickerInfo) {
-      this.generatePricePath(ticker, info.date, info.price);
+      this.generatePricePath(ticker, info.date, info.price)
     }
   }
 
   /**
    * Generate a random walk price path for a ticker.
    */
-  private generatePricePath(
-    ticker: string,
-    startDate: string,
-    basePrice: number
-  ): void {
-    const tickerPrices = new Map<string, number>();
-    let price = basePrice;
+  private generatePricePath(ticker: string, startDate: string, basePrice: number): void {
+    const tickerPrices = new Map<string, number>()
+    let price = basePrice
 
     // Generate prices for each day
     for (let i = 0; i < this.daysToGenerate; i++) {
-      const date = addDays(startDate, i);
+      const date = addDays(startDate, i)
 
       // Random walk: daily change of ±3%
       // Using normal distribution approximation (Box-Muller)
-      const u1 = this.seededRandom();
-      const u2 = this.seededRandom();
-      const z = Math.sqrt(-2 * Math.log(u1 || 0.001)) * Math.cos(2 * Math.PI * u2);
+      const u1 = this.seededRandom()
+      const u2 = this.seededRandom()
+      const z = Math.sqrt(-2 * Math.log(u1 || 0.001)) * Math.cos(2 * Math.PI * u2)
 
       // Daily volatility ~1.5%, with slight upward drift
-      const dailyReturn = 0.0003 + z * 0.015;
-      price *= 1 + dailyReturn;
+      const dailyReturn = 0.0003 + z * 0.015
+      price *= 1 + dailyReturn
 
       // Ensure price doesn't go negative
-      price = Math.max(price, 0.01);
+      price = Math.max(price, 0.01)
 
-      tickerPrices.set(date, Number(price.toFixed(2)));
+      tickerPrices.set(date, Number(price.toFixed(2)))
     }
 
-    this.priceCache.set(ticker, tickerPrices);
+    this.priceCache.set(ticker, tickerPrices)
   }
 
   /**
    * Get price for a ticker on a specific date.
    */
   getPrice(ticker: string, date: string): number | null {
-    const tickerPrices = this.priceCache.get(ticker);
+    const tickerPrices = this.priceCache.get(ticker)
     if (!tickerPrices) {
-      return null;
+      return null
     }
 
-    const price = tickerPrices.get(date);
+    const price = tickerPrices.get(date)
     if (price !== undefined) {
-      return price;
+      return price
     }
 
     // If exact date not found, try to find nearest available date
-    const sortedDates = Array.from(tickerPrices.keys()).sort();
-    const nearestDate = sortedDates.find((d) => d >= date);
+    const sortedDates = Array.from(tickerPrices.keys()).sort()
+    const nearestDate = sortedDates.find(d => d >= date)
     if (nearestDate) {
-      return tickerPrices.get(nearestDate) ?? null;
+      return tickerPrices.get(nearestDate) ?? null
     }
 
     // Return last available price if date is after our data
-    const lastDate = sortedDates[sortedDates.length - 1];
-    return tickerPrices.get(lastDate) ?? null;
+    const lastDate = sortedDates[sortedDates.length - 1]
+    return tickerPrices.get(lastDate) ?? null
   }
 
   /**
    * Get closing prices for multiple tickers on a date.
    */
   getClosingPrices(tickers: string[], date: string): Map<string, number> {
-    const prices = new Map<string, number>();
+    const prices = new Map<string, number>()
 
     for (const ticker of tickers) {
-      const price = this.getPrice(ticker, date);
+      const price = this.getPrice(ticker, date)
       if (price !== null) {
-        prices.set(ticker, price);
+        prices.set(ticker, price)
       }
     }
 
-    return prices;
+    return prices
   }
 
   /**
    * Check if we have price data for a ticker.
    */
   hasTicker(ticker: string): boolean {
-    return this.priceCache.has(ticker);
+    return this.priceCache.has(ticker)
   }
 
   /**
    * Get all tickers with price data.
    */
   getTickers(): string[] {
-    return Array.from(this.priceCache.keys());
+    return Array.from(this.priceCache.keys())
   }
 
   /**
    * Get price range for a ticker.
    */
   getDateRange(ticker: string): { start: string; end: string } | null {
-    const tickerPrices = this.priceCache.get(ticker);
+    const tickerPrices = this.priceCache.get(ticker)
     if (!tickerPrices || tickerPrices.size === 0) {
-      return null;
+      return null
     }
 
-    const dates = Array.from(tickerPrices.keys()).sort();
+    const dates = Array.from(tickerPrices.keys()).sort()
     return {
       start: dates[0],
-      end: dates[dates.length - 1],
-    };
+      end: dates[dates.length - 1]
+    }
   }
 
   /**
    * Calculate price change percentage between two dates.
    */
-  getPriceChange(
-    ticker: string,
-    startDate: string,
-    endDate: string
-  ): number | null {
-    const startPrice = this.getPrice(ticker, startDate);
-    const endPrice = this.getPrice(ticker, endDate);
+  getPriceChange(ticker: string, startDate: string, endDate: string): number | null {
+    const startPrice = this.getPrice(ticker, startDate)
+    const endPrice = this.getPrice(ticker, endDate)
 
     if (startPrice === null || endPrice === null) {
-      return null;
+      return null
     }
 
-    return ((endPrice - startPrice) / startPrice) * 100;
+    return ((endPrice - startPrice) / startPrice) * 100
   }
 }
 
@@ -253,16 +238,16 @@ export class MockPriceProvider implements PriceProvider {
  * Useful for unit testing.
  */
 export class StaticPriceProvider implements PriceProvider {
-  private prices: Map<string, Map<string, number>> = new Map();
+  private prices = new Map<string, Map<string, number>>()
 
   /**
    * Set a price for a ticker on a date.
    */
   setPrice(ticker: string, date: string, price: number): void {
     if (!this.prices.has(ticker)) {
-      this.prices.set(ticker, new Map());
+      this.prices.set(ticker, new Map())
     }
-    this.prices.get(ticker)!.set(date, price);
+    this.prices.get(ticker)!.set(date, price)
   }
 
   /**
@@ -270,42 +255,42 @@ export class StaticPriceProvider implements PriceProvider {
    */
   setConstantPrice(ticker: string, price: number): void {
     if (!this.prices.has(ticker)) {
-      this.prices.set(ticker, new Map());
+      this.prices.set(ticker, new Map())
     }
     // Use special key for constant prices
-    this.prices.get(ticker)!.set("*", price);
+    this.prices.get(ticker)!.set('*', price)
   }
 
   getPrice(ticker: string, date: string): number | null {
-    const tickerPrices = this.prices.get(ticker);
+    const tickerPrices = this.prices.get(ticker)
     if (!tickerPrices) {
-      return null;
+      return null
     }
 
     // Check for exact date match
     if (tickerPrices.has(date)) {
-      return tickerPrices.get(date)!;
+      return tickerPrices.get(date)!
     }
 
     // Check for constant price
-    if (tickerPrices.has("*")) {
-      return tickerPrices.get("*")!;
+    if (tickerPrices.has('*')) {
+      return tickerPrices.get('*')!
     }
 
-    return null;
+    return null
   }
 
   getClosingPrices(tickers: string[], date: string): Map<string, number> {
-    const prices = new Map<string, number>();
+    const prices = new Map<string, number>()
 
     for (const ticker of tickers) {
-      const price = this.getPrice(ticker, date);
+      const price = this.getPrice(ticker, date)
       if (price !== null) {
-        prices.set(ticker, price);
+        prices.set(ticker, price)
       }
     }
 
-    return prices;
+    return prices
   }
 }
 
@@ -318,31 +303,31 @@ export class StaticPriceProvider implements PriceProvider {
  * Fetches real historical prices from the market_prices table.
  */
 export class D1PriceProvider implements AsyncPriceProvider {
-  private db: D1Database;
-  private cache: Map<string, number> = new Map();
+  private db: D1Database
+  private cache = new Map<string, number>()
 
   constructor(db: D1Database) {
-    this.db = db;
+    this.db = db
   }
 
   /**
    * Get closing price for a ticker on a specific date.
    */
   async getPrice(ticker: string, date: string): Promise<number | null> {
-    const cacheKey = `${ticker}:${date}`;
+    const cacheKey = `${ticker}:${date}`
     if (this.cache.has(cacheKey)) {
-      return this.cache.get(cacheKey)!;
+      return this.cache.get(cacheKey)!
     }
 
     const row = await this.db
       .prepare(`SELECT close FROM market_prices WHERE ticker = ? AND date = ?`)
       .bind(ticker, date)
-      .first();
+      .first()
 
     if (row?.close !== undefined) {
-      const price = row.close as number;
-      this.cache.set(cacheKey, price);
-      return price;
+      const price = row.close as number
+      this.cache.set(cacheKey, price)
+      return price
     }
 
     // Try to find nearest previous date if exact match not found
@@ -353,58 +338,55 @@ export class D1PriceProvider implements AsyncPriceProvider {
          ORDER BY date DESC LIMIT 1`
       )
       .bind(ticker, date)
-      .first();
+      .first()
 
     if (nearestRow?.close !== undefined) {
-      const price = nearestRow.close as number;
-      this.cache.set(cacheKey, price);
-      return price;
+      const price = nearestRow.close as number
+      this.cache.set(cacheKey, price)
+      return price
     }
 
-    return null;
+    return null
   }
 
   /**
    * Get closing prices for multiple tickers on a date.
    */
-  async getClosingPrices(
-    tickers: string[],
-    date: string
-  ): Promise<Map<string, number>> {
-    const prices = new Map<string, number>();
+  async getClosingPrices(tickers: string[], date: string): Promise<Map<string, number>> {
+    const prices = new Map<string, number>()
 
     if (tickers.length === 0) {
-      return prices;
+      return prices
     }
 
     // Build query with placeholders
-    const placeholders = tickers.map(() => "?").join(",");
+    const placeholders = tickers.map(() => '?').join(',')
     const results = await this.db
       .prepare(
         `SELECT ticker, close FROM market_prices
          WHERE ticker IN (${placeholders}) AND date = ?`
       )
       .bind(...tickers, date)
-      .all();
+      .all()
 
     for (const row of results.results) {
-      const ticker = row.ticker as string;
-      const close = row.close as number;
-      prices.set(ticker, close);
-      this.cache.set(`${ticker}:${date}`, close);
+      const ticker = row.ticker as string
+      const close = row.close as number
+      prices.set(ticker, close)
+      this.cache.set(`${ticker}:${date}`, close)
     }
 
     // For tickers not found on exact date, try nearest previous
     for (const ticker of tickers) {
       if (!prices.has(ticker)) {
-        const price = await this.getPrice(ticker, date);
+        const price = await this.getPrice(ticker, date)
         if (price !== null) {
-          prices.set(ticker, price);
+          prices.set(ticker, price)
         }
       }
     }
 
-    return prices;
+    return prices
   }
 
   /**
@@ -413,19 +395,17 @@ export class D1PriceProvider implements AsyncPriceProvider {
    */
   async preloadPricesForDate(date: string): Promise<number> {
     const results = await this.db
-      .prepare(
-        `SELECT ticker, close FROM market_prices WHERE date = ?`
-      )
+      .prepare(`SELECT ticker, close FROM market_prices WHERE date = ?`)
       .bind(date)
-      .all();
+      .all()
 
     for (const row of results.results) {
-      const ticker = row.ticker as string;
-      const close = row.close as number;
-      this.cache.set(`${ticker}:${date}`, close);
+      const ticker = row.ticker as string
+      const close = row.close as number
+      this.cache.set(`${ticker}:${date}`, close)
     }
 
-    return results.results.length;
+    return results.results.length
   }
 
   /**
@@ -437,15 +417,15 @@ export class D1PriceProvider implements AsyncPriceProvider {
     startDate: string,
     endDate: string
   ): Promise<number> {
-    if (tickers.length === 0) return 0;
+    if (tickers.length === 0) return 0
 
     // Batch in groups of 50 tickers to avoid query size limits
-    const batchSize = 50;
-    let totalLoaded = 0;
+    const batchSize = 50
+    let totalLoaded = 0
 
     for (let i = 0; i < tickers.length; i += batchSize) {
-      const batch = tickers.slice(i, i + batchSize);
-      const placeholders = batch.map(() => "?").join(",");
+      const batch = tickers.slice(i, i + batchSize)
+      const placeholders = batch.map(() => '?').join(',')
 
       const results = await this.db
         .prepare(
@@ -454,18 +434,18 @@ export class D1PriceProvider implements AsyncPriceProvider {
            AND date >= ? AND date <= ?`
         )
         .bind(...batch, startDate, endDate)
-        .all();
+        .all()
 
       for (const row of results.results) {
-        const ticker = row.ticker as string;
-        const date = row.date as string;
-        const close = row.close as number;
-        this.cache.set(`${ticker}:${date}`, close);
-        totalLoaded++;
+        const ticker = row.ticker as string
+        const date = row.date as string
+        const close = row.close as number
+        this.cache.set(`${ticker}:${date}`, close)
+        totalLoaded++
       }
     }
 
-    return totalLoaded;
+    return totalLoaded
   }
 
   /**
@@ -478,10 +458,10 @@ export class D1PriceProvider implements AsyncPriceProvider {
          FROM market_prices WHERE ticker = ? AND date = ?`
       )
       .bind(ticker, date)
-      .first();
+      .first()
 
     if (!row) {
-      return null;
+      return null
     }
 
     return {
@@ -489,32 +469,30 @@ export class D1PriceProvider implements AsyncPriceProvider {
       high: row.high as number,
       low: row.low as number,
       close: row.close as number,
-      volume: row.volume as number | undefined,
-    };
+      volume: row.volume as number | undefined
+    }
   }
 
   /**
    * Get date range available for a ticker.
    */
-  async getDateRange(
-    ticker: string
-  ): Promise<{ start: string; end: string } | null> {
+  async getDateRange(ticker: string): Promise<{ start: string; end: string } | null> {
     const row = await this.db
       .prepare(
         `SELECT MIN(date) as start_date, MAX(date) as end_date
          FROM market_prices WHERE ticker = ?`
       )
       .bind(ticker)
-      .first();
+      .first()
 
     if (!row?.start_date) {
-      return null;
+      return null
     }
 
     return {
       start: row.start_date as string,
-      end: row.end_date as string,
-    };
+      end: row.end_date as string
+    }
   }
 
   /**
@@ -523,26 +501,24 @@ export class D1PriceProvider implements AsyncPriceProvider {
   async getTickers(): Promise<string[]> {
     const results = await this.db
       .prepare(`SELECT DISTINCT ticker FROM market_prices ORDER BY ticker`)
-      .all();
+      .all()
 
-    return results.results.map((row) => row.ticker as string);
+    return results.results.map(row => row.ticker as string)
   }
 
   /**
    * Get price count in the database.
    */
   async getPriceCount(): Promise<number> {
-    const row = await this.db
-      .prepare(`SELECT COUNT(*) as count FROM market_prices`)
-      .first();
+    const row = await this.db.prepare(`SELECT COUNT(*) as count FROM market_prices`).first()
 
-    return (row?.count as number) ?? 0;
+    return (row?.count as number) ?? 0
   }
 
   /**
    * Clear the in-memory cache.
    */
   clearCache(): void {
-    this.cache.clear();
+    this.cache.clear()
   }
 }

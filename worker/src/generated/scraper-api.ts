@@ -4,2436 +4,2326 @@
  */
 
 export interface paths {
-    "/api/v1/jobs": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Jobs
-         * @description List jobs with optional filters.
-         */
-        get: operations["list_jobs_api_v1_jobs_get"];
-        put?: never;
-        /**
-         * Submit Job
-         * @description Submit a new scraping job.
-         */
-        post: operations["submit_job_api_v1_jobs_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/jobs/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Job
-         * @description Get job status and result.
-         */
-        get: operations["get_job_api_v1_jobs__job_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Cancel Job
-         * @description Cancel a pending job.
-         */
-        delete: operations["cancel_job_api_v1_jobs__job_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/jobs/{job_id}/children": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Job Children
-         * @description Get child jobs created from expansion.
-         */
-        get: operations["get_job_children_api_v1_jobs__job_id__children_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/scrapers": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Scrapers
-         * @description List available scrapers.
-         */
-        get: operations["list_scrapers_api_v1_scrapers_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/crosspost": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Submit Crosspost
-         * @description Submit a crosspost request.
-         *
-         *     Creates a batch job that formats content for all platforms,
-         *     then spawns sub-jobs for each auto-post platform.
-         */
-        post: operations["submit_crosspost_api_v1_crosspost_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/crosspost/{batch_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Crosspost Status
-         * @description Get status of a crosspost batch and its sub-jobs.
-         */
-        get: operations["get_crosspost_status_api_v1_crosspost__batch_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/crosspost/{batch_id}/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Retry Crosspost
-         * @description Retry failed sub-jobs for a batch.
-         *
-         *     Creates new sub-jobs for failed/skipped platforms. Old jobs are preserved
-         *     in the dead queue for audit purposes.
-         */
-        post: operations["retry_crosspost_api_v1_crosspost__batch_id__retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/sources": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List available data sources
-         * @description Returns a list of available politician trading data sources.
-         */
-        get: operations["list_sources_api_v1_politrades_sources_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/signals/pull": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Pull signals since timestamp
-         * @description Pull signals since a given timestamp for incremental sync.
-         *
-         *     **Use Case:**
-         *     This endpoint is useful when you have a webhook but want to catch up on
-         *     any signals you might have missed during downtime.
-         *
-         *     **Pagination:**
-         *     - First call: provide `since` timestamp
-         *     - Subsequent calls: use `cursor` from previous response
-         *     - Continue until `has_more` is false
-         *
-         *     **Example Flow:**
-         *     1. GET /signals/pull?since=2026-01-15T00:00:00Z
-         *     2. Process signals, save next_cursor
-         *     3. GET /signals/pull?cursor=abc123
-         *     4. Repeat until has_more=false
-         */
-        get: operations["pull_signals_api_v1_politrades_signals_pull_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/signals/backfill": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Paginated backfill (simple GET)
-         * @description Simple paginated backfill endpoint as an alternative to webhook-based backfill.
-         *
-         *     **Use Case:**
-         *     Use this when you prefer a simple polling approach instead of webhooks.
-         *     Ideal for one-time data imports or when webhooks are not feasible.
-         *
-         *     **Pagination:**
-         *     - Use `page` parameter to navigate (1-indexed)
-         *     - Response includes total_pages for progress tracking
-         *     - Continue until has_next=false
-         *
-         *     **Performance Notes:**
-         *     - Price enrichment adds latency; consider disabling for large backfills
-         *     - For very large date ranges, consider using the webhook-based backfill instead
-         *
-         *     **Example:**
-         *     ```
-         *     GET /signals/backfill?start_date=2025-01-01&page=1&page_size=100
-         *     # Response: page=1, total_pages=15, has_next=true
-         *     GET /signals/backfill?start_date=2025-01-01&page=2&page_size=100
-         *     # Continue...
-         *     ```
-         */
-        get: operations["paginated_backfill_api_v1_politrades_signals_backfill_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/signals": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fetch politician trading signals
-         * @description Fetch politician trading signals from all available sources.
-         *
-         *     **Data Sources:**
-         *     - `senate_stock_watcher`: Historical Senate trades from GitHub repository
-         *     - `capitol_trades`: Real-time trades for both House and Senate
-         *
-         *     **Price Enrichment:**
-         *     When `enrich_prices=true`, each signal includes:
-         *     - `trade_price`: Stock price on the trade date - politician's cost basis (from Yahoo Finance)
-         *     - `disclosure_price`: Stock price on the disclosure date - when public learned (from Yahoo Finance)
-         *     - `current_price`: Current stock price (from Yahoo Finance)
-         *
-         *     **Filters:**
-         *     - `ticker`: Filter by stock ticker (e.g., "NVDA", "AAPL")
-         *     - `politician`: Filter by politician name (case-insensitive partial match)
-         *     - `limit`: Maximum signals per source (default: 100)
-         *
-         *     **Performance:**
-         *     - Sources are fetched in parallel by default
-         *     - Price enrichment adds ~2-5 seconds for Yahoo Finance lookups
-         */
-        get: operations["fetch_signals_api_v1_politrades_signals_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/signals/{source}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Fetch signals from a specific source
-         * @description Fetch politician trading signals from a specific data source.
-         */
-        get: operations["fetch_signals_from_source_api_v1_politrades_signals__source__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List backfill jobs
-         * @description List backfill jobs, optionally filtered by status.
-         */
-        get: operations["list_backfill_jobs_api_v1_politrades_backfill_get"];
-        put?: never;
-        /**
-         * Submit a backfill job
-         * @description Submit a job to backfill historical politician trading data.
-         *
-         *     **How it works:**
-         *     1. Submit this request with a date range and webhook URL
-         *     2. Job is queued and processed in the background
-         *     3. Batches of signals are POSTed to your webhook as they're scraped
-         *     4. Poll GET /backfill/{job_id} to check progress
-         *     5. When complete, a final 'backfill.completed' event is sent
-         *
-         *     **Webhook Events:**
-         *     - `backfill.batch`: Batch of signals (sent repeatedly)
-         *     - `backfill.completed`: Job finished successfully
-         *     - `backfill.error`: Recoverable error (e.g., rate limit)
-         *
-         *     **Date Formats:**
-         *     - Absolute: `2024-01-16`
-         *     - Relative: `-365d` (365 days ago)
-         *
-         *     **Rate Limiting:**
-         *     The backfill processor uses stealth techniques to avoid rate limits:
-         *     - Human-like delays between requests
-         *     - Automatic retry with exponential backoff
-         *     - Job pauses on rate limit, auto-resumes after cooldown
-         */
-        post: operations["submit_backfill_api_v1_politrades_backfill_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/{job_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get backfill job status
-         * @description Poll the status and progress of a backfill job.
-         */
-        get: operations["get_backfill_status_api_v1_politrades_backfill__job_id__get"];
-        put?: never;
-        post?: never;
-        /**
-         * Cancel a backfill job
-         * @description Cancel a pending or running backfill job.
-         */
-        delete: operations["cancel_backfill_job_api_v1_politrades_backfill__job_id__delete"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/{job_id}/failed-batches": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get failed batches
-         * @description Retrieve batches that failed webhook delivery.
-         *
-         *     Use this as a polling fallback if your webhook was temporarily unavailable.
-         *     Each batch includes the full signals array so you can ingest missed data.
-         */
-        get: operations["get_failed_batches_api_v1_politrades_backfill__job_id__failed_batches_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/{job_id}/failed-batches/{batch_number}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get a specific failed batch
-         * @description Retrieve the full signals from a specific failed batch.
-         */
-        get: operations["get_failed_batch_api_v1_politrades_backfill__job_id__failed_batches__batch_number__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/admin/recover": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Recover stale running jobs
-         * @description Move all jobs stuck in 'running' state back to 'pending'.
-         *
-         *     Use this after a server restart when jobs were interrupted mid-processing.
-         *     The jobs will be re-processed from their last checkpoint.
-         */
-        post: operations["recover_backfill_jobs_api_v1_politrades_backfill_admin_recover_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/admin/clear-stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Clear stale jobs
-         * @description Cancel jobs that have been stuck in 'running' state for too long.
-         *
-         *     Jobs inactive for longer than max_age_hours will be moved to 'failed' state.
-         *     Default is 1 hour.
-         */
-        post: operations["clear_stale_backfill_jobs_api_v1_politrades_backfill_admin_clear_stale_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/politrades/backfill/admin/fail-stale": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Fail stale jobs by activity
-         * @description Fail jobs that have had no activity (checkpoint updates) for too long.
-         *
-         *     Unlike clear-stale which uses updated_at, this checks last_activity_at
-         *     which is only updated when actual progress is made (checkpoint writes).
-         *
-         *     Jobs without recent activity are considered stalled and will be failed
-         *     with detailed checkpoint information in the error message.
-         */
-        post: operations["fail_stale_backfill_jobs_api_v1_politrades_backfill_admin_fail_stale_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/market/quotes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get batch stock quotes
-         * @description Fetch current prices for multiple tickers with S&P 500 benchmark.
-         */
-        get: operations["get_quotes_api_v1_market_quotes_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/market/quotes/batch": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Get batch current quotes (POST)
-         * @description Fetch current prices for up to 500 tickers. Use POST for larger batches.
-         */
-        post: operations["get_quotes_batch_post_api_v1_market_quotes_batch_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/market/price": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get historical price
-         * @description Get closing price for a ticker on a specific date.
-         */
-        get: operations["get_price_api_v1_market_price_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/market/historical": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get historical price range
-         * @description Get OHLCV data for a ticker over a date range.
-         */
-        get: operations["get_historical_api_v1_market_historical_get"];
-        put?: never;
-        /**
-         * Get bulk historical price data
-         * @description Get OHLCV data for multiple tickers over a date range. Optimized for batch operations.
-         */
-        post: operations["post_historical_bulk_api_v1_market_historical_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/health": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Health Check
-         * @description Health check endpoint.
-         *
-         *     No authentication required.
-         */
-        get: operations["health_check_api_v1_health_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/metrics": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Metrics
-         * @description Prometheus metrics endpoint.
-         *
-         *     No authentication required.
-         *     Placeholder - full metrics in Phase 5.
-         */
-        get: operations["metrics_api_v1_metrics_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
+  '/api/v1/jobs': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Jobs
+     * @description List jobs with optional filters.
+     */
+    get: operations['list_jobs_api_v1_jobs_get']
+    put?: never
+    /**
+     * Submit Job
+     * @description Submit a new scraping job.
+     */
+    post: operations['submit_job_api_v1_jobs_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/jobs/{job_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Job
+     * @description Get job status and result.
+     */
+    get: operations['get_job_api_v1_jobs__job_id__get']
+    put?: never
+    post?: never
+    /**
+     * Cancel Job
+     * @description Cancel a pending job.
+     */
+    delete: operations['cancel_job_api_v1_jobs__job_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/jobs/{job_id}/children': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Job Children
+     * @description Get child jobs created from expansion.
+     */
+    get: operations['get_job_children_api_v1_jobs__job_id__children_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/scrapers': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List Scrapers
+     * @description List available scrapers.
+     */
+    get: operations['list_scrapers_api_v1_scrapers_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/crosspost': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Submit Crosspost
+     * @description Submit a crosspost request.
+     *
+     *     Creates a batch job that formats content for all platforms,
+     *     then spawns sub-jobs for each auto-post platform.
+     */
+    post: operations['submit_crosspost_api_v1_crosspost_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/crosspost/{batch_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get Crosspost Status
+     * @description Get status of a crosspost batch and its sub-jobs.
+     */
+    get: operations['get_crosspost_status_api_v1_crosspost__batch_id__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/crosspost/{batch_id}/retry': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Retry Crosspost
+     * @description Retry failed sub-jobs for a batch.
+     *
+     *     Creates new sub-jobs for failed/skipped platforms. Old jobs are preserved
+     *     in the dead queue for audit purposes.
+     */
+    post: operations['retry_crosspost_api_v1_crosspost__batch_id__retry_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/sources': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List available data sources
+     * @description Returns a list of available politician trading data sources.
+     */
+    get: operations['list_sources_api_v1_politrades_sources_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/signals/pull': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Pull signals since timestamp
+     * @description Pull signals since a given timestamp for incremental sync.
+     *
+     *     **Use Case:**
+     *     This endpoint is useful when you have a webhook but want to catch up on
+     *     any signals you might have missed during downtime.
+     *
+     *     **Pagination:**
+     *     - First call: provide `since` timestamp
+     *     - Subsequent calls: use `cursor` from previous response
+     *     - Continue until `has_more` is false
+     *
+     *     **Example Flow:**
+     *     1. GET /signals/pull?since=2026-01-15T00:00:00Z
+     *     2. Process signals, save next_cursor
+     *     3. GET /signals/pull?cursor=abc123
+     *     4. Repeat until has_more=false
+     */
+    get: operations['pull_signals_api_v1_politrades_signals_pull_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/signals/backfill': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Paginated backfill (simple GET)
+     * @description Simple paginated backfill endpoint as an alternative to webhook-based backfill.
+     *
+     *     **Use Case:**
+     *     Use this when you prefer a simple polling approach instead of webhooks.
+     *     Ideal for one-time data imports or when webhooks are not feasible.
+     *
+     *     **Pagination:**
+     *     - Use `page` parameter to navigate (1-indexed)
+     *     - Response includes total_pages for progress tracking
+     *     - Continue until has_next=false
+     *
+     *     **Performance Notes:**
+     *     - Price enrichment adds latency; consider disabling for large backfills
+     *     - For very large date ranges, consider using the webhook-based backfill instead
+     *
+     *     **Example:**
+     *     ```
+     *     GET /signals/backfill?start_date=2025-01-01&page=1&page_size=100
+     *     # Response: page=1, total_pages=15, has_next=true
+     *     GET /signals/backfill?start_date=2025-01-01&page=2&page_size=100
+     *     # Continue...
+     *     ```
+     */
+    get: operations['paginated_backfill_api_v1_politrades_signals_backfill_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/signals': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Fetch politician trading signals
+     * @description Fetch politician trading signals from all available sources.
+     *
+     *     **Data Sources:**
+     *     - `senate_stock_watcher`: Historical Senate trades from GitHub repository
+     *     - `capitol_trades`: Real-time trades for both House and Senate
+     *
+     *     **Price Enrichment:**
+     *     When `enrich_prices=true`, each signal includes:
+     *     - `trade_price`: Stock price on the trade date - politician's cost basis (from Yahoo Finance)
+     *     - `disclosure_price`: Stock price on the disclosure date - when public learned (from Yahoo Finance)
+     *     - `current_price`: Current stock price (from Yahoo Finance)
+     *
+     *     **Filters:**
+     *     - `ticker`: Filter by stock ticker (e.g., "NVDA", "AAPL")
+     *     - `politician`: Filter by politician name (case-insensitive partial match)
+     *     - `limit`: Maximum signals per source (default: 100)
+     *
+     *     **Performance:**
+     *     - Sources are fetched in parallel by default
+     *     - Price enrichment adds ~2-5 seconds for Yahoo Finance lookups
+     */
+    get: operations['fetch_signals_api_v1_politrades_signals_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/signals/{source}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Fetch signals from a specific source
+     * @description Fetch politician trading signals from a specific data source.
+     */
+    get: operations['fetch_signals_from_source_api_v1_politrades_signals__source__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * List backfill jobs
+     * @description List backfill jobs, optionally filtered by status.
+     */
+    get: operations['list_backfill_jobs_api_v1_politrades_backfill_get']
+    put?: never
+    /**
+     * Submit a backfill job
+     * @description Submit a job to backfill historical politician trading data.
+     *
+     *     **How it works:**
+     *     1. Submit this request with a date range and webhook URL
+     *     2. Job is queued and processed in the background
+     *     3. Batches of signals are POSTed to your webhook as they're scraped
+     *     4. Poll GET /backfill/{job_id} to check progress
+     *     5. When complete, a final 'backfill.completed' event is sent
+     *
+     *     **Webhook Events:**
+     *     - `backfill.batch`: Batch of signals (sent repeatedly)
+     *     - `backfill.completed`: Job finished successfully
+     *     - `backfill.error`: Recoverable error (e.g., rate limit)
+     *
+     *     **Date Formats:**
+     *     - Absolute: `2024-01-16`
+     *     - Relative: `-365d` (365 days ago)
+     *
+     *     **Rate Limiting:**
+     *     The backfill processor uses stealth techniques to avoid rate limits:
+     *     - Human-like delays between requests
+     *     - Automatic retry with exponential backoff
+     *     - Job pauses on rate limit, auto-resumes after cooldown
+     */
+    post: operations['submit_backfill_api_v1_politrades_backfill_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/{job_id}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get backfill job status
+     * @description Poll the status and progress of a backfill job.
+     */
+    get: operations['get_backfill_status_api_v1_politrades_backfill__job_id__get']
+    put?: never
+    post?: never
+    /**
+     * Cancel a backfill job
+     * @description Cancel a pending or running backfill job.
+     */
+    delete: operations['cancel_backfill_job_api_v1_politrades_backfill__job_id__delete']
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/{job_id}/failed-batches': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get failed batches
+     * @description Retrieve batches that failed webhook delivery.
+     *
+     *     Use this as a polling fallback if your webhook was temporarily unavailable.
+     *     Each batch includes the full signals array so you can ingest missed data.
+     */
+    get: operations['get_failed_batches_api_v1_politrades_backfill__job_id__failed_batches_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/{job_id}/failed-batches/{batch_number}': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get a specific failed batch
+     * @description Retrieve the full signals from a specific failed batch.
+     */
+    get: operations['get_failed_batch_api_v1_politrades_backfill__job_id__failed_batches__batch_number__get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/admin/recover': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Recover stale running jobs
+     * @description Move all jobs stuck in 'running' state back to 'pending'.
+     *
+     *     Use this after a server restart when jobs were interrupted mid-processing.
+     *     The jobs will be re-processed from their last checkpoint.
+     */
+    post: operations['recover_backfill_jobs_api_v1_politrades_backfill_admin_recover_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/admin/clear-stale': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Clear stale jobs
+     * @description Cancel jobs that have been stuck in 'running' state for too long.
+     *
+     *     Jobs inactive for longer than max_age_hours will be moved to 'failed' state.
+     *     Default is 1 hour.
+     */
+    post: operations['clear_stale_backfill_jobs_api_v1_politrades_backfill_admin_clear_stale_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/politrades/backfill/admin/fail-stale': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Fail stale jobs by activity
+     * @description Fail jobs that have had no activity (checkpoint updates) for too long.
+     *
+     *     Unlike clear-stale which uses updated_at, this checks last_activity_at
+     *     which is only updated when actual progress is made (checkpoint writes).
+     *
+     *     Jobs without recent activity are considered stalled and will be failed
+     *     with detailed checkpoint information in the error message.
+     */
+    post: operations['fail_stale_backfill_jobs_api_v1_politrades_backfill_admin_fail_stale_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/market/quotes': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get batch stock quotes
+     * @description Fetch current prices for multiple tickers with S&P 500 benchmark.
+     */
+    get: operations['get_quotes_api_v1_market_quotes_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/market/quotes/batch': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    get?: never
+    put?: never
+    /**
+     * Get batch current quotes (POST)
+     * @description Fetch current prices for up to 500 tickers. Use POST for larger batches.
+     */
+    post: operations['get_quotes_batch_post_api_v1_market_quotes_batch_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/market/price': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get historical price
+     * @description Get closing price for a ticker on a specific date.
+     */
+    get: operations['get_price_api_v1_market_price_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/market/historical': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Get historical price range
+     * @description Get OHLCV data for a ticker over a date range.
+     */
+    get: operations['get_historical_api_v1_market_historical_get']
+    put?: never
+    /**
+     * Get bulk historical price data
+     * @description Get OHLCV data for multiple tickers over a date range. Optimized for batch operations.
+     */
+    post: operations['post_historical_bulk_api_v1_market_historical_post']
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/health': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Health Check
+     * @description Health check endpoint.
+     *
+     *     No authentication required.
+     */
+    get: operations['health_check_api_v1_health_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
+  '/api/v1/metrics': {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    /**
+     * Metrics
+     * @description Prometheus metrics endpoint.
+     *
+     *     No authentication required.
+     *     Placeholder - full metrics in Phase 5.
+     */
+    get: operations['metrics_api_v1_metrics_get']
+    put?: never
+    post?: never
+    delete?: never
+    options?: never
+    head?: never
+    patch?: never
+    trace?: never
+  }
 }
-export type webhooks = Record<string, never>;
+export type webhooks = Record<string, never>
 export interface components {
-    schemas: {
-        /**
-         * APIResponse
-         * @description Standard API response wrapper.
-         */
-        APIResponse: {
-            /** Success */
-            success: boolean;
-            /** Data */
-            data?: unknown;
-            /** Error */
-            error?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * AssetType
-         * @description Type of traded asset.
-         * @enum {string}
-         */
-        AssetType: "stock" | "stock_option" | "bond" | "mutual_fund" | "etf" | "crypto" | "other" | "unknown";
-        /**
-         * AutoPostPlatform
-         * @description Platforms that support automated API posting.
-         * @enum {string}
-         */
-        AutoPostPlatform: "bluesky" | "mastodon" | "devto" | "hashnode" | "github" | "reddit";
-        /**
-         * BackfillJobResponse
-         * @description Response for backfill job submission.
-         */
-        BackfillJobResponse: {
-            /**
-             * Job Id
-             * @description Unique job identifier
-             */
-            job_id: string;
-            /**
-             * Status
-             * @description Job status
-             */
-            status: string;
-            /**
-             * Sources
-             * @description Sources being fetched
-             */
-            sources: string[];
-            /**
-             * Start Date
-             * @description Start of date range
-             */
-            start_date: string;
-            /**
-             * End Date
-             * @description End of date range
-             */
-            end_date: string;
-            /**
-             * Created At
-             * @description Job creation timestamp
-             */
-            created_at: string;
-        };
-        /**
-         * BackfillProgressResponse
-         * @description Progress information for a backfill job.
-         */
-        BackfillProgressResponse: {
-            /**
-             * Total Signals
-             * @description Total signals fetched so far
-             * @default 0
-             */
-            total_signals: number;
-            /**
-             * Batches Sent
-             * @description Number of batches sent
-             * @default 0
-             */
-            batches_sent: number;
-            /**
-             * Batches Acknowledged
-             * @description Batches with successful delivery
-             * @default 0
-             */
-            batches_acknowledged: number;
-            /**
-             * Batches Failed
-             * @description Batches that failed delivery
-             * @default 0
-             */
-            batches_failed: number;
-        };
-        /**
-         * BackfillRequest
-         * @description Request to start a backfill job.
-         */
-        BackfillRequest: {
-            /**
-             * Start Date
-             * @description Start date in YYYY-MM-DD format or relative format like '-365d'
-             * @example 2024-01-16
-             */
-            start_date: string;
-            /**
-             * End Date
-             * @description End date in YYYY-MM-DD format. Defaults to today.
-             * @example 2025-01-16
-             */
-            end_date?: string | null;
-            /**
-             * Sources
-             * @description List of sources to fetch from. Defaults to all.
-             * @example [
-             *       "capitol_trades",
-             *       "senate_stock_watcher"
-             *     ]
-             */
-            sources?: string[] | null;
-            /**
-             * Webhook Url
-             * @description URL to POST batches to
-             * @example https://yourapp.com/ingest
-             */
-            webhook_url: string;
-            /**
-             * Webhook Secret
-             * @description HMAC secret for webhook signature verification
-             */
-            webhook_secret?: string | null;
-            /**
-             * Batch Size
-             * @description Number of signals per scraper batch (internal batching)
-             * @default 100
-             */
-            batch_size: number;
-            /**
-             * Webhook Batch Size
-             * @description Signals per webhook delivery. For CF Workers with D1, use 20-50.
-             * @default 100
-             */
-            webhook_batch_size: number;
-            /**
-             * Inter Batch Delay Ms
-             * @description Delay in ms between webhook batches. For CF Workers, use 1000+.
-             * @default 1000
-             */
-            inter_batch_delay_ms: number;
-            /**
-             * Enrich Prices
-             * @description Add trade_price/disclosure_price to signals. Fits within page delays so no extra time cost.
-             * @default true
-             */
-            enrich_prices: boolean;
-            /**
-             * Ticker
-             * @description Filter by stock ticker symbol
-             * @example NVDA
-             */
-            ticker?: string | null;
-            /**
-             * Politician
-             * @description Filter by politician name
-             * @example pelosi
-             */
-            politician?: string | null;
-            /**
-             * Resume Page
-             * @description Page to start scraping from. Use for resuming interrupted backfills or skipping to older data. Page ~2000 contains Jan 2024 data.
-             * @default 1
-             * @example 1
-             * @example 500
-             * @example 2000
-             */
-            resume_page: number;
-            /**
-             * Stop Page
-             * @description Optional page to stop at (safety limit). Scraper stops when reaching this page OR when all trades are before start_date.
-             * @example 2500
-             * @example 5000
-             */
-            stop_page?: number | null;
-            /**
-             * Stop At Source Id
-             * @description Stop scraping when this source_id is encountered. Use for incremental sync - pass the last source_id from previous sync to fetch only new data.
-             * @example ct_Nancy_Pelosi_NVDA_2026-01-15_purchase
-             */
-            stop_at_source_id?: string | null;
-        };
-        /**
-         * BackfillStatusResponse
-         * @description Full status response for a backfill job.
-         */
-        BackfillStatusResponse: {
-            /** Job Id */
-            job_id: string;
-            /** Status */
-            status: string;
-            /** Start Date */
-            start_date: string;
-            /** End Date */
-            end_date: string;
-            /** Sources */
-            sources: string[];
-            progress: components["schemas"]["BackfillProgressResponse"];
-            /** Source Status */
-            source_status: {
-                [key: string]: components["schemas"]["SourceStatusResponse"];
-            };
-            /** Errors */
-            errors?: {
-                [key: string]: unknown;
-            }[];
-            /** Created At */
-            created_at: string;
-            /** Started At */
-            started_at?: string | null;
-            /** Completed At */
-            completed_at?: string | null;
-        };
-        /**
-         * BatchQuotesRequest
-         * @description Request body for batch current quotes.
-         */
-        BatchQuotesRequest: {
-            /**
-             * Tickers
-             * @description List of ticker symbols (max 500)
-             */
-            tickers: string[];
-            /**
-             * As Of
-             * @description Optional ISO8601 timestamp for audit trail (e.g., '2026-01-18T01:00:00Z')
-             */
-            as_of?: string | null;
-        };
-        /**
-         * BulkHistoricalRequest
-         * @description Request body for bulk historical data.
-         */
-        BulkHistoricalRequest: {
-            /**
-             * Tickers
-             * @description List of ticker symbols (max 100)
-             */
-            tickers: string[];
-            /**
-             * Start Date
-             * @description Start date in YYYY-MM-DD format
-             */
-            start_date: string;
-            /**
-             * End Date
-             * @description End date in YYYY-MM-DD format
-             */
-            end_date: string;
-        };
-        /**
-         * Chamber
-         * @description Congressional chamber.
-         * @enum {string}
-         */
-        Chamber: "house" | "senate" | "unknown";
-        /**
-         * CrosspostRequest
-         * @description API request for crossposting.
-         */
-        CrosspostRequest: {
-            /** Title */
-            title: string;
-            /** Body */
-            body: string;
-            /**
-             * Canonical Url
-             * Format: uri
-             */
-            canonical_url: string;
-            /** Targets Auto */
-            targets_auto: components["schemas"]["AutoPostPlatform"][];
-            /**
-             * Targets Manual
-             * @default []
-             */
-            targets_manual: components["schemas"]["ManualPostPlatform"][];
-            /**
-             * Tags
-             * @default []
-             */
-            tags: string[];
-            /** Summary Short */
-            summary_short?: string | null;
-            /** Summary Medium */
-            summary_medium?: string | null;
-            /**
-             * Media
-             * @default []
-             */
-            media: components["schemas"]["MediaItem"][];
-            /**
-             * Overrides
-             * @default {}
-             */
-            overrides: {
-                [key: string]: unknown;
-            };
-            /** Callback Url */
-            callback_url?: string | null;
-            /** Callback Secret */
-            callback_secret?: string | null;
-        };
-        /**
-         * FailedBatchResponse
-         * @description A failed batch available for polling.
-         */
-        FailedBatchResponse: {
-            /** Batch Number */
-            batch_number: number;
-            /** Source */
-            source: string;
-            /** Signals Count */
-            signals_count: number;
-            /** Error */
-            error?: string | null;
-        };
-        /**
-         * FailedBatchesResponse
-         * @description Response containing failed batches for a job.
-         */
-        FailedBatchesResponse: {
-            /** Job Id */
-            job_id: string;
-            /** Failed Batches */
-            failed_batches: components["schemas"]["FailedBatchResponse"][];
-            /** Total Failed */
-            total_failed: number;
-        };
-        /**
-         * FetchSignalsResponse
-         * @description Response from fetching politician trading signals.
-         * @example {
-         *       "fetched_at": "2026-01-16T04:29:14.928373Z",
-         *       "signals": [
-         *         {
-         *           "meta": {
-         *             "scraped_at": "2026-01-16T04:29:12Z",
-         *             "source_id": "ct_abc123"
-         *           },
-         *           "politician": {
-         *             "chamber": "house",
-         *             "name": "Nancy Pelosi",
-         *             "party": "D",
-         *             "state": "CA"
-         *           },
-         *           "source": "capitol_trades",
-         *           "trade": {
-         *             "action": "buy",
-         *             "asset_type": "stock",
-         *             "disclosure_date": "2026-01-15",
-         *             "ticker": "NVDA",
-         *             "trade_date": "2026-01-10"
-         *           }
-         *         }
-         *       ],
-         *       "sources_failed": {},
-         *       "sources_fetched": [
-         *         "capitol_trades",
-         *         "senate_stock_watcher"
-         *       ],
-         *       "total_signals": 1
-         *     }
-         */
-        FetchSignalsResponse: {
-            /**
-             * Signals
-             * @description List of trading signals
-             */
-            signals: components["schemas"]["Signal"][];
-            /**
-             * Sources Fetched
-             * @description Sources that were successfully fetched
-             */
-            sources_fetched: string[];
-            /**
-             * Sources Failed
-             * @description Sources that failed with error messages
-             */
-            sources_failed: {
-                [key: string]: string;
-            };
-            /**
-             * Total Signals
-             * @description Total number of signals returned
-             */
-            total_signals: number;
-            /**
-             * Fetched At
-             * @description ISO8601 timestamp of when the fetch completed
-             */
-            fetched_at: string;
-        };
-        /** HTTPValidationError */
-        HTTPValidationError: {
-            /** Detail */
-            detail?: components["schemas"]["ValidationError"][];
-        };
-        /**
-         * HealthChecks
-         * @description Individual health check results.
-         */
-        HealthChecks: {
-            /** @description Queue health status */
-            queue: components["schemas"]["QueueHealthCheck"];
-        };
-        /**
-         * HealthResponse
-         * @description Health check response.
-         * @example {
-         *       "checks": {
-         *         "queue": {
-         *           "depth": 5,
-         *           "status": "ok"
-         *         }
-         *       },
-         *       "status": "healthy"
-         *     }
-         */
-        HealthResponse: {
-            /**
-             * Status
-             * @description Overall health status
-             * @enum {string}
-             */
-            status: "healthy" | "degraded" | "unhealthy";
-            /** @description Individual health check results */
-            checks: components["schemas"]["HealthChecks"];
-        };
-        /**
-         * JobSubmitRequest
-         * @description Request body for job submission.
-         */
-        JobSubmitRequest: {
-            /** Url */
-            url: string;
-            /** Scraper Hint */
-            scraper_hint?: string | null;
-            /** Options */
-            options?: {
-                [key: string]: unknown;
-            };
-            /**
-             * Priority
-             * @default normal
-             */
-            priority: string;
-            /**
-             * Project
-             * @default default
-             */
-            project: string;
-            /** Callback Url */
-            callback_url?: string | null;
-            /** Callback Secret */
-            callback_secret?: string | null;
-        };
-        /**
-         * ManualPostPlatform
-         * @description Platforms that only support manual posting (formatted output).
-         * @enum {string}
-         */
-        ManualPostPlatform: "twitter" | "linkedin" | "medium";
-        /**
-         * MediaItem
-         * @description Media attachment for crosspost.
-         */
-        MediaItem: {
-            /**
-             * Url
-             * Format: uri
-             */
-            url: string;
-            /**
-             * Alt
-             * @default
-             */
-            alt: string;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "image/png" | "image/jpeg";
-        };
-        /**
-         * PaginatedBackfillResponse
-         * @description Response for paginated backfill (simple GET-based).
-         */
-        PaginatedBackfillResponse: {
-            /**
-             * Signals
-             * @description List of trading signals
-             */
-            signals: components["schemas"]["Signal"][];
-            /**
-             * Page
-             * @description Current page number (1-indexed)
-             */
-            page: number;
-            /**
-             * Page Size
-             * @description Number of signals per page
-             */
-            page_size: number;
-            /**
-             * Total Count
-             * @description Total signals available for this query
-             */
-            total_count: number;
-            /**
-             * Total Pages
-             * @description Total number of pages
-             */
-            total_pages: number;
-            /**
-             * Has Next
-             * @description Whether more pages are available
-             */
-            has_next: boolean;
-        };
-        /**
-         * Politician
-         * @description Politician information from trading disclosure.
-         * @example {
-         *       "chamber": "house",
-         *       "name": "Nancy Pelosi",
-         *       "party": "D",
-         *       "state": "CA"
-         *     }
-         */
-        Politician: {
-            /**
-             * Name
-             * @description Full name of the politician
-             */
-            name: string;
-            /**
-             * @description Congressional chamber: 'house', 'senate', or 'unknown'
-             * @default unknown
-             */
-            chamber: components["schemas"]["Chamber"];
-            /**
-             * Party
-             * @description Party affiliation: 'D' (Democrat), 'R' (Republican), 'I' (Independent), or null
-             */
-            party?: string | null;
-            /**
-             * State
-             * @description Two-letter US state code (e.g., 'CA', 'TX')
-             */
-            state?: string | null;
-        };
-        /**
-         * QueueHealthCheck
-         * @description Queue health check result.
-         */
-        QueueHealthCheck: {
-            /**
-             * Status
-             * @description Queue health status
-             * @enum {string}
-             */
-            status: "ok" | "degraded" | "error";
-            /**
-             * Depth
-             * @description Number of pending jobs in queue
-             */
-            depth: number;
-        };
-        /**
-         * RetryRequest
-         * @description Request body for retry endpoint.
-         */
-        RetryRequest: {
-            /** Platforms */
-            platforms?: string[] | null;
-        };
-        /**
-         * Signal
-         * @description A single politician trading signal.
-         *
-         *     This is the canonical signal schema used throughout the system.
-         *     All scrapers produce Signal objects, and all API responses use this model.
-         * @example {
-         *       "meta": {
-         *         "scraped_at": "2026-01-16T04:29:12.103014Z",
-         *         "source_id": "ct_abc123def456",
-         *         "source_url": "https://www.capitoltrades.com/trades/..."
-         *       },
-         *       "politician": {
-         *         "chamber": "house",
-         *         "name": "Nancy Pelosi",
-         *         "party": "D",
-         *         "state": "CA"
-         *       },
-         *       "source": "capitol_trades",
-         *       "trade": {
-         *         "action": "buy",
-         *         "asset_type": "stock",
-         *         "current_price": 148.25,
-         *         "disclosure_date": "2026-01-15",
-         *         "disclosure_price": 142.5,
-         *         "position_size": "$100,001 - $250,000",
-         *         "position_size_max": 250000,
-         *         "position_size_min": 100001,
-         *         "ticker": "NVDA",
-         *         "trade_date": "2026-01-10",
-         *         "trade_price": 135.87
-         *       }
-         *     }
-         */
-        Signal: {
-            /** @description Data source that provided this signal */
-            source: components["schemas"]["SignalSource"];
-            /** @description Information about the politician */
-            politician: components["schemas"]["Politician"];
-            /** @description Details of the trade */
-            trade: components["schemas"]["Trade"];
-            /** @description Metadata for tracking and deduplication */
-            meta: components["schemas"]["SignalMeta"];
-            /**
-             * Extra
-             * @description Optional catch-all for source-specific data or future extensions
-             */
-            extra?: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /**
-         * SignalMeta
-         * @description Signal metadata for tracking and deduplication.
-         * @example {
-         *       "scraped_at": "2026-01-16T04:29:12.103014Z",
-         *       "source_id": "ct_abc123def456",
-         *       "source_url": "https://efdsearch.senate.gov/..."
-         *     }
-         */
-        SignalMeta: {
-            /**
-             * Source Url
-             * @description URL to the original filing or disclosure
-             */
-            source_url?: string | null;
-            /**
-             * Source Id
-             * @description Unique identifier from source for deduplication
-             */
-            source_id: string;
-            /**
-             * Scraped At
-             * @description ISO8601 timestamp when the signal was scraped
-             */
-            scraped_at: string;
-        };
-        /**
-         * SignalSource
-         * @description Data source for politician trading signals.
-         * @enum {string}
-         */
-        SignalSource: "house_stock_watcher" | "senate_stock_watcher" | "capitol_trades" | "unusual_whales" | "quiver_quant" | "sec_13f";
-        /**
-         * SignalsPullResponse
-         * @description Response for incremental signal pull.
-         */
-        SignalsPullResponse: {
-            /**
-             * Signals
-             * @description List of trading signals
-             */
-            signals: components["schemas"]["Signal"][];
-            /**
-             * Next Cursor
-             * @description Cursor for next page (if has_more is true)
-             */
-            next_cursor?: string | null;
-            /**
-             * Has More
-             * @description Whether more signals are available
-             */
-            has_more: boolean;
-            /**
-             * Fetched At
-             * @description ISO8601 timestamp of when the fetch completed
-             */
-            fetched_at: string;
-        };
-        /**
-         * SourceStatusResponse
-         * @description Status of a single source in backfill.
-         */
-        SourceStatusResponse: {
-            /**
-             * Status
-             * @description Source status
-             */
-            status: string;
-            /**
-             * Signals
-             * @description Signals fetched from this source
-             * @default 0
-             */
-            signals: number;
-            /**
-             * Pages Scraped
-             * @description Pages scraped (for paginated sources)
-             */
-            pages_scraped?: number | null;
-            /**
-             * Last Page
-             * @description Last page number processed
-             */
-            last_page?: number | null;
-            /**
-             * Oldest Date Seen
-             * @description Oldest trade date seen so far (YYYY-MM-DD)
-             */
-            oldest_date_seen?: string | null;
-            /**
-             * Estimated Pages Remaining
-             * @description Estimated pages remaining
-             */
-            estimated_pages_remaining?: number | null;
-            /**
-             * Estimated Completion Pct
-             * @description Estimated completion percentage (0-100)
-             */
-            estimated_completion_pct?: number | null;
-            /**
-             * Error
-             * @description Error message if failed
-             */
-            error?: string | null;
-        };
-        /**
-         * Trade
-         * @description Trade details from disclosure.
-         * @example {
-         *       "action": "buy",
-         *       "asset_type": "stock",
-         *       "current_price": 148.25,
-         *       "disclosure_date": "2026-01-15",
-         *       "disclosure_price": 142.5,
-         *       "position_size": "$100,001 - $250,000",
-         *       "position_size_max": 250000,
-         *       "position_size_min": 100001,
-         *       "ticker": "NVDA",
-         *       "trade_date": "2026-01-10",
-         *       "trade_price": 135.87
-         *     }
-         */
-        Trade: {
-            /**
-             * Ticker
-             * @description Stock ticker symbol (e.g., 'NVDA', 'AAPL')
-             */
-            ticker?: string | null;
-            /** @description Trade action: 'buy', 'sell', 'exchange', or 'unknown' */
-            action: components["schemas"]["TradeAction"];
-            /**
-             * @description Type of asset traded
-             * @default stock
-             */
-            asset_type: components["schemas"]["AssetType"];
-            /**
-             * Trade Date
-             * @description Date the trade was executed (YYYY-MM-DD)
-             */
-            trade_date?: string | null;
-            /**
-             * Disclosure Date
-             * @description Date the disclosure was filed/published (YYYY-MM-DD)
-             */
-            disclosure_date?: string | null;
-            /**
-             * Disclosure Lag Days
-             * @description Days between trade_date and disclosure_date
-             */
-            disclosure_lag_days?: number | null;
-            /**
-             * Position Size
-             * @description Original position size range string (e.g., '$1,001 - $15,000')
-             */
-            position_size?: string | null;
-            /**
-             * Position Size Min
-             * @description Lower bound of position size in dollars
-             */
-            position_size_min?: number | null;
-            /**
-             * Position Size Max
-             * @description Upper bound of position size in dollars
-             */
-            position_size_max?: number | null;
-            /**
-             * Trade Price
-             * @description Stock price on trade_date (politician's cost basis)
-             */
-            trade_price?: number | null;
-            /**
-             * Disclosure Price
-             * @description Stock price on disclosure_date (when public learned)
-             */
-            disclosure_price?: number | null;
-            /**
-             * Current Price
-             * @description Current stock price
-             */
-            current_price?: number | null;
-            /**
-             * Option Type
-             * @description Option type: 'call' or 'put' (only for stock_option)
-             */
-            option_type?: string | null;
-            /**
-             * Strike Price
-             * @description Strike price for options
-             */
-            strike_price?: number | null;
-            /**
-             * Expiration Date
-             * @description Option expiration date (YYYY-MM-DD)
-             */
-            expiration_date?: string | null;
-        };
-        /**
-         * TradeAction
-         * @description Type of trade action.
-         * @enum {string}
-         */
-        TradeAction: "buy" | "sell" | "exchange" | "unknown";
-        /** ValidationError */
-        ValidationError: {
-            /** Location */
-            loc: (string | number)[];
-            /** Message */
-            msg: string;
-            /** Error Type */
-            type: string;
-        };
-    };
-    responses: never;
-    parameters: never;
-    requestBodies: never;
-    headers: never;
-    pathItems: never;
+  schemas: {
+    /**
+     * APIResponse
+     * @description Standard API response wrapper.
+     */
+    APIResponse: {
+      /** Success */
+      success: boolean
+      /** Data */
+      data?: unknown
+      /** Error */
+      error?: Record<string, unknown> | null
+    }
+    /**
+     * AssetType
+     * @description Type of traded asset.
+     * @enum {string}
+     */
+    AssetType:
+      | 'stock'
+      | 'stock_option'
+      | 'bond'
+      | 'mutual_fund'
+      | 'etf'
+      | 'crypto'
+      | 'other'
+      | 'unknown'
+    /**
+     * AutoPostPlatform
+     * @description Platforms that support automated API posting.
+     * @enum {string}
+     */
+    AutoPostPlatform: 'bluesky' | 'mastodon' | 'devto' | 'hashnode' | 'github' | 'reddit'
+    /**
+     * BackfillJobResponse
+     * @description Response for backfill job submission.
+     */
+    BackfillJobResponse: {
+      /**
+       * Job Id
+       * @description Unique job identifier
+       */
+      job_id: string
+      /**
+       * Status
+       * @description Job status
+       */
+      status: string
+      /**
+       * Sources
+       * @description Sources being fetched
+       */
+      sources: string[]
+      /**
+       * Start Date
+       * @description Start of date range
+       */
+      start_date: string
+      /**
+       * End Date
+       * @description End of date range
+       */
+      end_date: string
+      /**
+       * Created At
+       * @description Job creation timestamp
+       */
+      created_at: string
+    }
+    /**
+     * BackfillProgressResponse
+     * @description Progress information for a backfill job.
+     */
+    BackfillProgressResponse: {
+      /**
+       * Total Signals
+       * @description Total signals fetched so far
+       * @default 0
+       */
+      total_signals: number
+      /**
+       * Batches Sent
+       * @description Number of batches sent
+       * @default 0
+       */
+      batches_sent: number
+      /**
+       * Batches Acknowledged
+       * @description Batches with successful delivery
+       * @default 0
+       */
+      batches_acknowledged: number
+      /**
+       * Batches Failed
+       * @description Batches that failed delivery
+       * @default 0
+       */
+      batches_failed: number
+    }
+    /**
+     * BackfillRequest
+     * @description Request to start a backfill job.
+     */
+    BackfillRequest: {
+      /**
+       * Start Date
+       * @description Start date in YYYY-MM-DD format or relative format like '-365d'
+       * @example 2024-01-16
+       */
+      start_date: string
+      /**
+       * End Date
+       * @description End date in YYYY-MM-DD format. Defaults to today.
+       * @example 2025-01-16
+       */
+      end_date?: string | null
+      /**
+       * Sources
+       * @description List of sources to fetch from. Defaults to all.
+       * @example [
+       *       "capitol_trades",
+       *       "senate_stock_watcher"
+       *     ]
+       */
+      sources?: string[] | null
+      /**
+       * Webhook Url
+       * @description URL to POST batches to
+       * @example https://yourapp.com/ingest
+       */
+      webhook_url: string
+      /**
+       * Webhook Secret
+       * @description HMAC secret for webhook signature verification
+       */
+      webhook_secret?: string | null
+      /**
+       * Batch Size
+       * @description Number of signals per scraper batch (internal batching)
+       * @default 100
+       */
+      batch_size: number
+      /**
+       * Webhook Batch Size
+       * @description Signals per webhook delivery. For CF Workers with D1, use 20-50.
+       * @default 100
+       */
+      webhook_batch_size: number
+      /**
+       * Inter Batch Delay Ms
+       * @description Delay in ms between webhook batches. For CF Workers, use 1000+.
+       * @default 1000
+       */
+      inter_batch_delay_ms: number
+      /**
+       * Enrich Prices
+       * @description Add trade_price/disclosure_price to signals. Fits within page delays so no extra time cost.
+       * @default true
+       */
+      enrich_prices: boolean
+      /**
+       * Ticker
+       * @description Filter by stock ticker symbol
+       * @example NVDA
+       */
+      ticker?: string | null
+      /**
+       * Politician
+       * @description Filter by politician name
+       * @example pelosi
+       */
+      politician?: string | null
+      /**
+       * Resume Page
+       * @description Page to start scraping from. Use for resuming interrupted backfills or skipping to older data. Page ~2000 contains Jan 2024 data.
+       * @default 1
+       * @example 1
+       * @example 500
+       * @example 2000
+       */
+      resume_page: number
+      /**
+       * Stop Page
+       * @description Optional page to stop at (safety limit). Scraper stops when reaching this page OR when all trades are before start_date.
+       * @example 2500
+       * @example 5000
+       */
+      stop_page?: number | null
+      /**
+       * Stop At Source Id
+       * @description Stop scraping when this source_id is encountered. Use for incremental sync - pass the last source_id from previous sync to fetch only new data.
+       * @example ct_Nancy_Pelosi_NVDA_2026-01-15_purchase
+       */
+      stop_at_source_id?: string | null
+    }
+    /**
+     * BackfillStatusResponse
+     * @description Full status response for a backfill job.
+     */
+    BackfillStatusResponse: {
+      /** Job Id */
+      job_id: string
+      /** Status */
+      status: string
+      /** Start Date */
+      start_date: string
+      /** End Date */
+      end_date: string
+      /** Sources */
+      sources: string[]
+      progress: components['schemas']['BackfillProgressResponse']
+      /** Source Status */
+      source_status: Record<string, components['schemas']['SourceStatusResponse']>
+      /** Errors */
+      errors?: Record<string, unknown>[]
+      /** Created At */
+      created_at: string
+      /** Started At */
+      started_at?: string | null
+      /** Completed At */
+      completed_at?: string | null
+    }
+    /**
+     * BatchQuotesRequest
+     * @description Request body for batch current quotes.
+     */
+    BatchQuotesRequest: {
+      /**
+       * Tickers
+       * @description List of ticker symbols (max 500)
+       */
+      tickers: string[]
+      /**
+       * As Of
+       * @description Optional ISO8601 timestamp for audit trail (e.g., '2026-01-18T01:00:00Z')
+       */
+      as_of?: string | null
+    }
+    /**
+     * BulkHistoricalRequest
+     * @description Request body for bulk historical data.
+     */
+    BulkHistoricalRequest: {
+      /**
+       * Tickers
+       * @description List of ticker symbols (max 100)
+       */
+      tickers: string[]
+      /**
+       * Start Date
+       * @description Start date in YYYY-MM-DD format
+       */
+      start_date: string
+      /**
+       * End Date
+       * @description End date in YYYY-MM-DD format
+       */
+      end_date: string
+    }
+    /**
+     * Chamber
+     * @description Congressional chamber.
+     * @enum {string}
+     */
+    Chamber: 'house' | 'senate' | 'unknown'
+    /**
+     * CrosspostRequest
+     * @description API request for crossposting.
+     */
+    CrosspostRequest: {
+      /** Title */
+      title: string
+      /** Body */
+      body: string
+      /**
+       * Canonical Url
+       * Format: uri
+       */
+      canonical_url: string
+      /** Targets Auto */
+      targets_auto: components['schemas']['AutoPostPlatform'][]
+      /**
+       * Targets Manual
+       * @default []
+       */
+      targets_manual: components['schemas']['ManualPostPlatform'][]
+      /**
+       * Tags
+       * @default []
+       */
+      tags: string[]
+      /** Summary Short */
+      summary_short?: string | null
+      /** Summary Medium */
+      summary_medium?: string | null
+      /**
+       * Media
+       * @default []
+       */
+      media: components['schemas']['MediaItem'][]
+      /**
+       * Overrides
+       * @default {}
+       */
+      overrides: Record<string, unknown>
+      /** Callback Url */
+      callback_url?: string | null
+      /** Callback Secret */
+      callback_secret?: string | null
+    }
+    /**
+     * FailedBatchResponse
+     * @description A failed batch available for polling.
+     */
+    FailedBatchResponse: {
+      /** Batch Number */
+      batch_number: number
+      /** Source */
+      source: string
+      /** Signals Count */
+      signals_count: number
+      /** Error */
+      error?: string | null
+    }
+    /**
+     * FailedBatchesResponse
+     * @description Response containing failed batches for a job.
+     */
+    FailedBatchesResponse: {
+      /** Job Id */
+      job_id: string
+      /** Failed Batches */
+      failed_batches: components['schemas']['FailedBatchResponse'][]
+      /** Total Failed */
+      total_failed: number
+    }
+    /**
+     * FetchSignalsResponse
+     * @description Response from fetching politician trading signals.
+     * @example {
+     *       "fetched_at": "2026-01-16T04:29:14.928373Z",
+     *       "signals": [
+     *         {
+     *           "meta": {
+     *             "scraped_at": "2026-01-16T04:29:12Z",
+     *             "source_id": "ct_abc123"
+     *           },
+     *           "politician": {
+     *             "chamber": "house",
+     *             "name": "Nancy Pelosi",
+     *             "party": "D",
+     *             "state": "CA"
+     *           },
+     *           "source": "capitol_trades",
+     *           "trade": {
+     *             "action": "buy",
+     *             "asset_type": "stock",
+     *             "disclosure_date": "2026-01-15",
+     *             "ticker": "NVDA",
+     *             "trade_date": "2026-01-10"
+     *           }
+     *         }
+     *       ],
+     *       "sources_failed": {},
+     *       "sources_fetched": [
+     *         "capitol_trades",
+     *         "senate_stock_watcher"
+     *       ],
+     *       "total_signals": 1
+     *     }
+     */
+    FetchSignalsResponse: {
+      /**
+       * Signals
+       * @description List of trading signals
+       */
+      signals: components['schemas']['Signal'][]
+      /**
+       * Sources Fetched
+       * @description Sources that were successfully fetched
+       */
+      sources_fetched: string[]
+      /**
+       * Sources Failed
+       * @description Sources that failed with error messages
+       */
+      sources_failed: Record<string, string>
+      /**
+       * Total Signals
+       * @description Total number of signals returned
+       */
+      total_signals: number
+      /**
+       * Fetched At
+       * @description ISO8601 timestamp of when the fetch completed
+       */
+      fetched_at: string
+    }
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][]
+    }
+    /**
+     * HealthChecks
+     * @description Individual health check results.
+     */
+    HealthChecks: {
+      /** @description Queue health status */
+      queue: components['schemas']['QueueHealthCheck']
+    }
+    /**
+     * HealthResponse
+     * @description Health check response.
+     * @example {
+     *       "checks": {
+     *         "queue": {
+     *           "depth": 5,
+     *           "status": "ok"
+     *         }
+     *       },
+     *       "status": "healthy"
+     *     }
+     */
+    HealthResponse: {
+      /**
+       * Status
+       * @description Overall health status
+       * @enum {string}
+       */
+      status: 'healthy' | 'degraded' | 'unhealthy'
+      /** @description Individual health check results */
+      checks: components['schemas']['HealthChecks']
+    }
+    /**
+     * JobSubmitRequest
+     * @description Request body for job submission.
+     */
+    JobSubmitRequest: {
+      /** Url */
+      url: string
+      /** Scraper Hint */
+      scraper_hint?: string | null
+      /** Options */
+      options?: Record<string, unknown>
+      /**
+       * Priority
+       * @default normal
+       */
+      priority: string
+      /**
+       * Project
+       * @default default
+       */
+      project: string
+      /** Callback Url */
+      callback_url?: string | null
+      /** Callback Secret */
+      callback_secret?: string | null
+    }
+    /**
+     * ManualPostPlatform
+     * @description Platforms that only support manual posting (formatted output).
+     * @enum {string}
+     */
+    ManualPostPlatform: 'twitter' | 'linkedin' | 'medium'
+    /**
+     * MediaItem
+     * @description Media attachment for crosspost.
+     */
+    MediaItem: {
+      /**
+       * Url
+       * Format: uri
+       */
+      url: string
+      /**
+       * Alt
+       * @default
+       */
+      alt: string
+      /**
+       * Type
+       * @enum {string}
+       */
+      type: 'image/png' | 'image/jpeg'
+    }
+    /**
+     * PaginatedBackfillResponse
+     * @description Response for paginated backfill (simple GET-based).
+     */
+    PaginatedBackfillResponse: {
+      /**
+       * Signals
+       * @description List of trading signals
+       */
+      signals: components['schemas']['Signal'][]
+      /**
+       * Page
+       * @description Current page number (1-indexed)
+       */
+      page: number
+      /**
+       * Page Size
+       * @description Number of signals per page
+       */
+      page_size: number
+      /**
+       * Total Count
+       * @description Total signals available for this query
+       */
+      total_count: number
+      /**
+       * Total Pages
+       * @description Total number of pages
+       */
+      total_pages: number
+      /**
+       * Has Next
+       * @description Whether more pages are available
+       */
+      has_next: boolean
+    }
+    /**
+     * Politician
+     * @description Politician information from trading disclosure.
+     * @example {
+     *       "chamber": "house",
+     *       "name": "Nancy Pelosi",
+     *       "party": "D",
+     *       "state": "CA"
+     *     }
+     */
+    Politician: {
+      /**
+       * Name
+       * @description Full name of the politician
+       */
+      name: string
+      /**
+       * @description Congressional chamber: 'house', 'senate', or 'unknown'
+       * @default unknown
+       */
+      chamber: components['schemas']['Chamber']
+      /**
+       * Party
+       * @description Party affiliation: 'D' (Democrat), 'R' (Republican), 'I' (Independent), or null
+       */
+      party?: string | null
+      /**
+       * State
+       * @description Two-letter US state code (e.g., 'CA', 'TX')
+       */
+      state?: string | null
+    }
+    /**
+     * QueueHealthCheck
+     * @description Queue health check result.
+     */
+    QueueHealthCheck: {
+      /**
+       * Status
+       * @description Queue health status
+       * @enum {string}
+       */
+      status: 'ok' | 'degraded' | 'error'
+      /**
+       * Depth
+       * @description Number of pending jobs in queue
+       */
+      depth: number
+    }
+    /**
+     * RetryRequest
+     * @description Request body for retry endpoint.
+     */
+    RetryRequest: {
+      /** Platforms */
+      platforms?: string[] | null
+    }
+    /**
+     * Signal
+     * @description A single politician trading signal.
+     *
+     *     This is the canonical signal schema used throughout the system.
+     *     All scrapers produce Signal objects, and all API responses use this model.
+     * @example {
+     *       "meta": {
+     *         "scraped_at": "2026-01-16T04:29:12.103014Z",
+     *         "source_id": "ct_abc123def456",
+     *         "source_url": "https://www.capitoltrades.com/trades/..."
+     *       },
+     *       "politician": {
+     *         "chamber": "house",
+     *         "name": "Nancy Pelosi",
+     *         "party": "D",
+     *         "state": "CA"
+     *       },
+     *       "source": "capitol_trades",
+     *       "trade": {
+     *         "action": "buy",
+     *         "asset_type": "stock",
+     *         "current_price": 148.25,
+     *         "disclosure_date": "2026-01-15",
+     *         "disclosure_price": 142.5,
+     *         "position_size": "$100,001 - $250,000",
+     *         "position_size_max": 250000,
+     *         "position_size_min": 100001,
+     *         "ticker": "NVDA",
+     *         "trade_date": "2026-01-10",
+     *         "trade_price": 135.87
+     *       }
+     *     }
+     */
+    Signal: {
+      /** @description Data source that provided this signal */
+      source: components['schemas']['SignalSource']
+      /** @description Information about the politician */
+      politician: components['schemas']['Politician']
+      /** @description Details of the trade */
+      trade: components['schemas']['Trade']
+      /** @description Metadata for tracking and deduplication */
+      meta: components['schemas']['SignalMeta']
+      /**
+       * Extra
+       * @description Optional catch-all for source-specific data or future extensions
+       */
+      extra?: Record<string, unknown> | null
+    }
+    /**
+     * SignalMeta
+     * @description Signal metadata for tracking and deduplication.
+     * @example {
+     *       "scraped_at": "2026-01-16T04:29:12.103014Z",
+     *       "source_id": "ct_abc123def456",
+     *       "source_url": "https://efdsearch.senate.gov/..."
+     *     }
+     */
+    SignalMeta: {
+      /**
+       * Source Url
+       * @description URL to the original filing or disclosure
+       */
+      source_url?: string | null
+      /**
+       * Source Id
+       * @description Unique identifier from source for deduplication
+       */
+      source_id: string
+      /**
+       * Scraped At
+       * @description ISO8601 timestamp when the signal was scraped
+       */
+      scraped_at: string
+    }
+    /**
+     * SignalSource
+     * @description Data source for politician trading signals.
+     * @enum {string}
+     */
+    SignalSource:
+      | 'house_stock_watcher'
+      | 'senate_stock_watcher'
+      | 'capitol_trades'
+      | 'unusual_whales'
+      | 'quiver_quant'
+      | 'sec_13f'
+    /**
+     * SignalsPullResponse
+     * @description Response for incremental signal pull.
+     */
+    SignalsPullResponse: {
+      /**
+       * Signals
+       * @description List of trading signals
+       */
+      signals: components['schemas']['Signal'][]
+      /**
+       * Next Cursor
+       * @description Cursor for next page (if has_more is true)
+       */
+      next_cursor?: string | null
+      /**
+       * Has More
+       * @description Whether more signals are available
+       */
+      has_more: boolean
+      /**
+       * Fetched At
+       * @description ISO8601 timestamp of when the fetch completed
+       */
+      fetched_at: string
+    }
+    /**
+     * SourceStatusResponse
+     * @description Status of a single source in backfill.
+     */
+    SourceStatusResponse: {
+      /**
+       * Status
+       * @description Source status
+       */
+      status: string
+      /**
+       * Signals
+       * @description Signals fetched from this source
+       * @default 0
+       */
+      signals: number
+      /**
+       * Pages Scraped
+       * @description Pages scraped (for paginated sources)
+       */
+      pages_scraped?: number | null
+      /**
+       * Last Page
+       * @description Last page number processed
+       */
+      last_page?: number | null
+      /**
+       * Oldest Date Seen
+       * @description Oldest trade date seen so far (YYYY-MM-DD)
+       */
+      oldest_date_seen?: string | null
+      /**
+       * Estimated Pages Remaining
+       * @description Estimated pages remaining
+       */
+      estimated_pages_remaining?: number | null
+      /**
+       * Estimated Completion Pct
+       * @description Estimated completion percentage (0-100)
+       */
+      estimated_completion_pct?: number | null
+      /**
+       * Error
+       * @description Error message if failed
+       */
+      error?: string | null
+    }
+    /**
+     * Trade
+     * @description Trade details from disclosure.
+     * @example {
+     *       "action": "buy",
+     *       "asset_type": "stock",
+     *       "current_price": 148.25,
+     *       "disclosure_date": "2026-01-15",
+     *       "disclosure_price": 142.5,
+     *       "position_size": "$100,001 - $250,000",
+     *       "position_size_max": 250000,
+     *       "position_size_min": 100001,
+     *       "ticker": "NVDA",
+     *       "trade_date": "2026-01-10",
+     *       "trade_price": 135.87
+     *     }
+     */
+    Trade: {
+      /**
+       * Ticker
+       * @description Stock ticker symbol (e.g., 'NVDA', 'AAPL')
+       */
+      ticker?: string | null
+      /** @description Trade action: 'buy', 'sell', 'exchange', or 'unknown' */
+      action: components['schemas']['TradeAction']
+      /**
+       * @description Type of asset traded
+       * @default stock
+       */
+      asset_type: components['schemas']['AssetType']
+      /**
+       * Trade Date
+       * @description Date the trade was executed (YYYY-MM-DD)
+       */
+      trade_date?: string | null
+      /**
+       * Disclosure Date
+       * @description Date the disclosure was filed/published (YYYY-MM-DD)
+       */
+      disclosure_date?: string | null
+      /**
+       * Disclosure Lag Days
+       * @description Days between trade_date and disclosure_date
+       */
+      disclosure_lag_days?: number | null
+      /**
+       * Position Size
+       * @description Original position size range string (e.g., '$1,001 - $15,000')
+       */
+      position_size?: string | null
+      /**
+       * Position Size Min
+       * @description Lower bound of position size in dollars
+       */
+      position_size_min?: number | null
+      /**
+       * Position Size Max
+       * @description Upper bound of position size in dollars
+       */
+      position_size_max?: number | null
+      /**
+       * Trade Price
+       * @description Stock price on trade_date (politician's cost basis)
+       */
+      trade_price?: number | null
+      /**
+       * Disclosure Price
+       * @description Stock price on disclosure_date (when public learned)
+       */
+      disclosure_price?: number | null
+      /**
+       * Current Price
+       * @description Current stock price
+       */
+      current_price?: number | null
+      /**
+       * Option Type
+       * @description Option type: 'call' or 'put' (only for stock_option)
+       */
+      option_type?: string | null
+      /**
+       * Strike Price
+       * @description Strike price for options
+       */
+      strike_price?: number | null
+      /**
+       * Expiration Date
+       * @description Option expiration date (YYYY-MM-DD)
+       */
+      expiration_date?: string | null
+    }
+    /**
+     * TradeAction
+     * @description Type of trade action.
+     * @enum {string}
+     */
+    TradeAction: 'buy' | 'sell' | 'exchange' | 'unknown'
+    /** ValidationError */
+    ValidationError: {
+      /** Location */
+      loc: (string | number)[]
+      /** Message */
+      msg: string
+      /** Error Type */
+      type: string
+    }
+  }
+  responses: never
+  parameters: never
+  requestBodies: never
+  headers: never
+  pathItems: never
 }
-export type $defs = Record<string, never>;
+export type $defs = Record<string, never>
 export interface operations {
-    list_jobs_api_v1_jobs_get: {
-        parameters: {
-            query?: {
-                status?: string | null;
-                project?: string | null;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    submit_job_api_v1_jobs_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["JobSubmitRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_job_api_v1_jobs__job_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_job_api_v1_jobs__job_id__delete: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_job_children_api_v1_jobs__job_id__children_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_scrapers_api_v1_scrapers_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-        };
-    };
-    submit_crosspost_api_v1_crosspost_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CrosspostRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_crosspost_status_api_v1_crosspost__batch_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                batch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    retry_crosspost_api_v1_crosspost__batch_id__retry_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                batch_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: {
-            content: {
-                "application/json": components["schemas"]["RetryRequest"] | null;
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_sources_api_v1_politrades_sources_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-        };
-    };
-    pull_signals_api_v1_politrades_signals_pull_get: {
-        parameters: {
-            query?: {
-                /** @description ISO8601 timestamp to fetch signals from (e.g., 2026-01-15T00:00:00Z) */
-                since?: string | null;
-                /** @description Cursor from previous response for pagination */
-                cursor?: string | null;
-                /** @description Maximum number of signals to return */
-                limit?: number;
-                /** @description Comma-separated list of sources to fetch from */
-                sources?: string | null;
-                /** @description Whether to add price data from Yahoo Finance */
-                enrich_prices?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["SignalsPullResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    paginated_backfill_api_v1_politrades_signals_backfill_get: {
-        parameters: {
-            query: {
-                /** @description Start date in YYYY-MM-DD format */
-                start_date: string;
-                /** @description End date in YYYY-MM-DD format. Defaults to today. */
-                end_date?: string | null;
-                /** @description Page number (1-indexed) */
-                page?: number;
-                /** @description Number of signals per page */
-                page_size?: number;
-                /** @description Comma-separated list of sources to fetch from */
-                sources?: string | null;
-                /** @description Whether to add price data (disabled by default for performance) */
-                enrich_prices?: boolean;
-                /** @description Filter by stock ticker symbol */
-                ticker?: string | null;
-                /** @description Filter by politician name */
-                politician?: string | null;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["PaginatedBackfillResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    fetch_signals_api_v1_politrades_signals_get: {
-        parameters: {
-            query?: {
-                /** @description Comma-separated list of sources to fetch from. If not provided, fetches from all sources. */
-                sources?: string | null;
-                /** @description Filter by stock ticker symbol */
-                ticker?: string | null;
-                /** @description Filter by politician name (case-insensitive partial match) */
-                politician?: string | null;
-                /** @description Maximum number of signals to return per source */
-                limit?: number;
-                /** @description Whether to add price data from Yahoo Finance */
-                enrich_prices?: boolean;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FetchSignalsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    fetch_signals_from_source_api_v1_politrades_signals__source__get: {
-        parameters: {
-            query?: {
-                /** @description Filter by stock ticker symbol */
-                ticker?: string | null;
-                /** @description Filter by politician name */
-                politician?: string | null;
-                /** @description Maximum signals to return */
-                limit?: number;
-                /** @description Add price data from Yahoo Finance */
-                enrich_prices?: boolean;
-            };
-            header?: never;
-            path: {
-                source: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FetchSignalsResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_backfill_jobs_api_v1_politrades_backfill_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by status: pending, running, paused, completed, failed */
-                status?: string | null;
-                /** @description Maximum number of jobs to return */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    submit_backfill_api_v1_politrades_backfill_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BackfillRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackfillJobResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_backfill_status_api_v1_politrades_backfill__job_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["BackfillStatusResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    cancel_backfill_job_api_v1_politrades_backfill__job_id__delete: {
-        parameters: {
-            query?: {
-                /** @description Reason for cancellation */
-                reason?: string;
-            };
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_failed_batches_api_v1_politrades_backfill__job_id__failed_batches_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["FailedBatchesResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_failed_batch_api_v1_politrades_backfill__job_id__failed_batches__batch_number__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                job_id: string;
-                batch_number: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    recover_backfill_jobs_api_v1_politrades_backfill_admin_recover_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-        };
-    };
-    clear_stale_backfill_jobs_api_v1_politrades_backfill_admin_clear_stale_post: {
-        parameters: {
-            query?: {
-                /** @description Jobs running longer than this (in hours) are considered stale */
-                max_age_hours?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    fail_stale_backfill_jobs_api_v1_politrades_backfill_admin_fail_stale_post: {
-        parameters: {
-            query?: {
-                /** @description Jobs inactive for longer than this (in minutes) are considered stale */
-                max_inactive_minutes?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_quotes_api_v1_market_quotes_get: {
-        parameters: {
-            query: {
-                /** @description Comma-separated list of ticker symbols (max 100) */
-                tickers: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_quotes_batch_post_api_v1_market_quotes_batch_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BatchQuotesRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_price_api_v1_market_price_get: {
-        parameters: {
-            query: {
-                /** @description Stock ticker symbol */
-                ticker: string;
-                /** @description Date in YYYY-MM-DD format */
-                date: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    get_historical_api_v1_market_historical_get: {
-        parameters: {
-            query: {
-                /** @description Stock ticker symbol */
-                ticker: string;
-                /** @description Start date in YYYY-MM-DD format */
-                start_date: string;
-                /** @description End date in YYYY-MM-DD format */
-                end_date: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    post_historical_bulk_api_v1_market_historical_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["BulkHistoricalRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["APIResponse"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    health_check_api_v1_health_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HealthResponse"];
-                };
-            };
-        };
-    };
-    metrics_api_v1_metrics_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "text/plain": string;
-                };
-            };
-        };
-    };
+  list_jobs_api_v1_jobs_get: {
+    parameters: {
+      query?: {
+        status?: string | null
+        project?: string | null
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  submit_job_api_v1_jobs_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['JobSubmitRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_job_api_v1_jobs__job_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_job_api_v1_jobs__job_id__delete: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_job_children_api_v1_jobs__job_id__children_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_scrapers_api_v1_scrapers_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+    }
+  }
+  submit_crosspost_api_v1_crosspost_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CrosspostRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_crosspost_status_api_v1_crosspost__batch_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        batch_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  retry_crosspost_api_v1_crosspost__batch_id__retry_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        batch_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: {
+      content: {
+        'application/json': components['schemas']['RetryRequest'] | null
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_sources_api_v1_politrades_sources_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+    }
+  }
+  pull_signals_api_v1_politrades_signals_pull_get: {
+    parameters: {
+      query?: {
+        /** @description ISO8601 timestamp to fetch signals from (e.g., 2026-01-15T00:00:00Z) */
+        since?: string | null
+        /** @description Cursor from previous response for pagination */
+        cursor?: string | null
+        /** @description Maximum number of signals to return */
+        limit?: number
+        /** @description Comma-separated list of sources to fetch from */
+        sources?: string | null
+        /** @description Whether to add price data from Yahoo Finance */
+        enrich_prices?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['SignalsPullResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  paginated_backfill_api_v1_politrades_signals_backfill_get: {
+    parameters: {
+      query: {
+        /** @description Start date in YYYY-MM-DD format */
+        start_date: string
+        /** @description End date in YYYY-MM-DD format. Defaults to today. */
+        end_date?: string | null
+        /** @description Page number (1-indexed) */
+        page?: number
+        /** @description Number of signals per page */
+        page_size?: number
+        /** @description Comma-separated list of sources to fetch from */
+        sources?: string | null
+        /** @description Whether to add price data (disabled by default for performance) */
+        enrich_prices?: boolean
+        /** @description Filter by stock ticker symbol */
+        ticker?: string | null
+        /** @description Filter by politician name */
+        politician?: string | null
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['PaginatedBackfillResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  fetch_signals_api_v1_politrades_signals_get: {
+    parameters: {
+      query?: {
+        /** @description Comma-separated list of sources to fetch from. If not provided, fetches from all sources. */
+        sources?: string | null
+        /** @description Filter by stock ticker symbol */
+        ticker?: string | null
+        /** @description Filter by politician name (case-insensitive partial match) */
+        politician?: string | null
+        /** @description Maximum number of signals to return per source */
+        limit?: number
+        /** @description Whether to add price data from Yahoo Finance */
+        enrich_prices?: boolean
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['FetchSignalsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  fetch_signals_from_source_api_v1_politrades_signals__source__get: {
+    parameters: {
+      query?: {
+        /** @description Filter by stock ticker symbol */
+        ticker?: string | null
+        /** @description Filter by politician name */
+        politician?: string | null
+        /** @description Maximum signals to return */
+        limit?: number
+        /** @description Add price data from Yahoo Finance */
+        enrich_prices?: boolean
+      }
+      header?: never
+      path: {
+        source: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['FetchSignalsResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  list_backfill_jobs_api_v1_politrades_backfill_get: {
+    parameters: {
+      query?: {
+        /** @description Filter by status: pending, running, paused, completed, failed */
+        status?: string | null
+        /** @description Maximum number of jobs to return */
+        limit?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  submit_backfill_api_v1_politrades_backfill_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BackfillRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['BackfillJobResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_backfill_status_api_v1_politrades_backfill__job_id__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['BackfillStatusResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  cancel_backfill_job_api_v1_politrades_backfill__job_id__delete: {
+    parameters: {
+      query?: {
+        /** @description Reason for cancellation */
+        reason?: string
+      }
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_failed_batches_api_v1_politrades_backfill__job_id__failed_batches_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['FailedBatchesResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_failed_batch_api_v1_politrades_backfill__job_id__failed_batches__batch_number__get: {
+    parameters: {
+      query?: never
+      header?: never
+      path: {
+        job_id: string
+        batch_number: number
+      }
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  recover_backfill_jobs_api_v1_politrades_backfill_admin_recover_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+    }
+  }
+  clear_stale_backfill_jobs_api_v1_politrades_backfill_admin_clear_stale_post: {
+    parameters: {
+      query?: {
+        /** @description Jobs running longer than this (in hours) are considered stale */
+        max_age_hours?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  fail_stale_backfill_jobs_api_v1_politrades_backfill_admin_fail_stale_post: {
+    parameters: {
+      query?: {
+        /** @description Jobs inactive for longer than this (in minutes) are considered stale */
+        max_inactive_minutes?: number
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_quotes_api_v1_market_quotes_get: {
+    parameters: {
+      query: {
+        /** @description Comma-separated list of ticker symbols (max 100) */
+        tickers: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_quotes_batch_post_api_v1_market_quotes_batch_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BatchQuotesRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_price_api_v1_market_price_get: {
+    parameters: {
+      query: {
+        /** @description Stock ticker symbol */
+        ticker: string
+        /** @description Date in YYYY-MM-DD format */
+        date: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  get_historical_api_v1_market_historical_get: {
+    parameters: {
+      query: {
+        /** @description Stock ticker symbol */
+        ticker: string
+        /** @description Start date in YYYY-MM-DD format */
+        start_date: string
+        /** @description End date in YYYY-MM-DD format */
+        end_date: string
+      }
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  post_historical_bulk_api_v1_market_historical_post: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['BulkHistoricalRequest']
+      }
+    }
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['APIResponse']
+        }
+      }
+      /** @description Validation Error */
+      422: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HTTPValidationError']
+        }
+      }
+    }
+  }
+  health_check_api_v1_health_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'application/json': components['schemas']['HealthResponse']
+        }
+      }
+    }
+  }
+  metrics_api_v1_metrics_get: {
+    parameters: {
+      query?: never
+      header?: never
+      path?: never
+      cookie?: never
+    }
+    requestBody?: never
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: Record<string, unknown>
+        content: {
+          'text/plain': string
+        }
+      }
+    }
+  }
 }

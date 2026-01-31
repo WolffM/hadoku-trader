@@ -2,33 +2,33 @@
  * Scheduled task handlers for the trader worker.
  */
 
-import { TraderEnv, Signal } from "./types";
-import { insertSignal } from "./utils";
-import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from "./agents";
+import type { TraderEnv, Signal } from './types'
+import { insertSignal } from './utils'
+import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from './agents'
 
 // =============================================================================
 // Market Prices Types
 // =============================================================================
 
 interface MarketPriceRecord {
-  ticker: string;
-  date: string;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume?: number;
+  ticker: string
+  date: string
+  open: number
+  high: number
+  low: number
+  close: number
+  volume?: number
 }
 
 interface MarketHistoricalResponse {
-  success: boolean;
+  success: boolean
   data: {
-    records: MarketPriceRecord[];
-    record_count: number;
-    ticker_count: number;
-    start_date: string;
-    end_date: string;
-  };
+    records: MarketPriceRecord[]
+    record_count: number
+    ticker_count: number
+    start_date: string
+    end_date: string
+  }
 }
 
 /**
@@ -46,23 +46,21 @@ interface MarketHistoricalResponse {
  * }
  * ```
  */
-export function createScheduledHandler(
-  env: TraderEnv
-): (cron: string) => Promise<void> {
+export function createScheduledHandler(env: TraderEnv): (cron: string) => Promise<void> {
   return async (cron: string): Promise<void> => {
-    console.log("Scheduled task running:", cron);
+    console.log('Scheduled task running:', cron)
 
     // Main sync: fetch data, process signals, update performance, handle monthly budget
-    if (cron === "0 */8 * * *") {
-      await runFullSync(env);
+    if (cron === '0 */8 * * *') {
+      await runFullSync(env)
     }
 
     // Monitor positions every 15 minutes during market hours (9am-4pm ET, Mon-Fri)
     // Note: Cloudflare cron uses UTC, adjust times accordingly
-    if (cron === "*/15 14-21 * * 1-5") {
-      await monitorAllPositions(env);
+    if (cron === '*/15 14-21 * * 1-5') {
+      await monitorAllPositions(env)
     }
-  };
+  }
 }
 
 /**
@@ -70,62 +68,62 @@ export function createScheduledHandler(
  * This is the main scheduled job that runs every 8 hours.
  */
 export async function runFullSync(env: TraderEnv): Promise<void> {
-  const startTime = Date.now();
-  console.log("=== Starting full sync ===");
+  const startTime = Date.now()
+  console.log('=== Starting full sync ===')
 
   try {
     // 1. Fetch signals and market data from scraper
-    await fetchFromScraper(env);
+    await fetchFromScraper(env)
 
     // 2. Sync historical market prices
-    await syncMarketPrices(env);
+    await syncMarketPrices(env)
 
     // 3. Process pending signals through agents
-    await processSignals(env);
+    await processSignals(env)
 
     // 4. Update performance history
-    await updatePerformanceHistory(env);
+    await updatePerformanceHistory(env)
 
     // 5. Check if we need to add monthly budget (1st of month)
-    const today = new Date();
+    const today = new Date()
     if (today.getUTCDate() === 1) {
       // Only run once on the 1st - check if we already did it today
       const lastBudgetAdd = await env.TRADER_DB.prepare(
         "SELECT value FROM config WHERE key = 'last_budget_add_date'"
-      ).first();
+      ).first()
 
-      const todayStr = today.toISOString().split("T")[0];
+      const todayStr = today.toISOString().split('T')[0]
       if (lastBudgetAdd?.value !== todayStr) {
-        await resetBudgets(env);
+        await resetBudgets(env)
         await env.TRADER_DB.prepare(
-          "INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)"
+          'INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)'
         )
-          .bind("last_budget_add_date", todayStr, new Date().toISOString())
-          .run();
+          .bind('last_budget_add_date', todayStr, new Date().toISOString())
+          .run()
       }
     }
 
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-    console.log(`=== Full sync completed in ${elapsed}s ===`);
+    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
+    console.log(`=== Full sync completed in ${elapsed}s ===`)
   } catch (error) {
-    console.error("Full sync error:", error);
+    console.error('Full sync error:', error)
   }
 }
 
 // Use generated types from scraper OpenAPI
-import type { components } from "./generated/scraper-api";
+import type { components } from './generated/scraper-api'
 
 /**
  * Response from scraper /api/v1/politrades/signals endpoint.
  * Generated from scraper's OpenAPI spec.
  */
-type ScraperSignalsResponse = components["schemas"]["FetchSignalsResponse"];
+type ScraperSignalsResponse = components['schemas']['FetchSignalsResponse']
 
 /**
  * Scraper's Signal type from OpenAPI spec.
  * More permissive than our internal Signal type (allows null/optional fields).
  */
-type ScraperSignal = components["schemas"]["Signal"];
+type ScraperSignal = components['schemas']['Signal']
 
 /**
  * Convert a scraper signal to our internal Signal format.
@@ -136,34 +134,34 @@ function toInternalSignal(scraperSignal: ScraperSignal): Signal {
     source: scraperSignal.source,
     politician: {
       name: scraperSignal.politician.name,
-      chamber: scraperSignal.politician.chamber ?? "unknown",
-      party: scraperSignal.politician.party ?? "unknown",
-      state: scraperSignal.politician.state ?? "unknown",
+      chamber: scraperSignal.politician.chamber ?? 'unknown',
+      party: scraperSignal.politician.party ?? 'unknown',
+      state: scraperSignal.politician.state ?? 'unknown'
     },
     trade: {
-      ticker: scraperSignal.trade.ticker ?? "",
+      ticker: scraperSignal.trade.ticker ?? '',
       action: scraperSignal.trade.action,
-      asset_type: scraperSignal.trade.asset_type ?? "stock",
-      trade_date: scraperSignal.trade.trade_date ?? "",
+      asset_type: scraperSignal.trade.asset_type ?? 'stock',
+      trade_date: scraperSignal.trade.trade_date ?? '',
       trade_price: scraperSignal.trade.trade_price ?? null,
-      disclosure_date: scraperSignal.trade.disclosure_date ?? "",
+      disclosure_date: scraperSignal.trade.disclosure_date ?? '',
       disclosure_price: scraperSignal.trade.disclosure_price ?? null,
       disclosure_lag_days: scraperSignal.trade.disclosure_lag_days ?? undefined,
       current_price: scraperSignal.trade.current_price ?? null,
       current_price_at: null,
-      position_size: scraperSignal.trade.position_size ?? "",
+      position_size: scraperSignal.trade.position_size ?? '',
       position_size_min: scraperSignal.trade.position_size_min ?? 0,
       position_size_max: scraperSignal.trade.position_size_max ?? 0,
-      option_type: (scraperSignal.trade.option_type as "call" | "put" | null) ?? null,
+      option_type: (scraperSignal.trade.option_type as 'call' | 'put' | null) ?? null,
       strike_price: scraperSignal.trade.strike_price ?? null,
-      expiration_date: scraperSignal.trade.expiration_date ?? null,
+      expiration_date: scraperSignal.trade.expiration_date ?? null
     },
     meta: {
-      source_url: scraperSignal.meta.source_url ?? "",
+      source_url: scraperSignal.meta.source_url ?? '',
       source_id: scraperSignal.meta.source_id,
-      scraped_at: scraperSignal.meta.scraped_at,
-    },
-  };
+      scraped_at: scraperSignal.meta.scraped_at
+    }
+  }
 }
 
 /**
@@ -171,39 +169,41 @@ function toInternalSignal(scraperSignal: ScraperSignal): Signal {
  */
 export async function fetchFromScraper(env: TraderEnv): Promise<void> {
   try {
-    console.log("Fetching data from hadoku-scraper...");
+    console.log('Fetching data from hadoku-scraper...')
 
     const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
       headers: {
         Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-        Accept: "application/json",
-      },
-    });
+        Accept: 'application/json'
+      }
+    })
 
     if (!resp.ok) {
-      console.error("Scraper fetch failed:", resp.status, await resp.text());
-      return;
+      console.error('Scraper fetch failed:', resp.status, await resp.text())
+      return
     }
 
-    const data: ScraperSignalsResponse = await resp.json();
+    const data: ScraperSignalsResponse = await resp.json()
 
-    console.log(`Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(", ")})`);
+    console.log(
+      `Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(', ')})`
+    )
 
     // Log any failed sources
-    const failedSources = Object.keys(data.sources_failed);
+    const failedSources = Object.keys(data.sources_failed)
     if (failedSources.length > 0) {
-      console.warn(`Failed to fetch from sources: ${failedSources.join(", ")}`);
+      console.warn(`Failed to fetch from sources: ${failedSources.join(', ')}`)
     }
 
     // Store new signals - convert from scraper format to internal format
-    const signals = data.signals.map(toInternalSignal);
+    const signals = data.signals.map(toInternalSignal)
     for (const signal of signals) {
-      await storeSignal(env, signal);
+      await storeSignal(env, signal)
     }
 
-    console.log("Scraper data sync completed");
+    console.log('Scraper data sync completed')
   } catch (error) {
-    console.error("Scraper fetch error:", error);
+    console.error('Scraper fetch error:', error)
   }
 }
 
@@ -211,9 +211,9 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
  * Store a signal in the database, handling duplicates.
  */
 async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
-  const result = await insertSignal(env, signal);
+  const result = await insertSignal(env, signal)
   if (!result.duplicate) {
-    console.log(`Stored new signal: ${signal.trade.ticker} from ${signal.source}`);
+    console.log(`Stored new signal: ${signal.trade.ticker} from ${signal.source}`)
   }
 }
 
@@ -225,9 +225,9 @@ async function storeSignal(env: TraderEnv, signal: Signal): Promise<void> {
  * Result of syncing signals from the scraper.
  */
 export interface SignalSyncResult {
-  inserted: number;
-  skipped: number;
-  errors: string[];
+  inserted: number
+  skipped: number
+  errors: string[]
 }
 
 /**
@@ -239,57 +239,57 @@ export interface SignalSyncResult {
  * @param env - Environment with SCRAPER_URL, SCRAPER_API_KEY, and TRADER_DB
  * @returns Counts of inserted, skipped (duplicates), and any errors
  */
-export async function syncSignalsFromScraper(
-  env: TraderEnv
-): Promise<SignalSyncResult> {
-  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] };
+export async function syncSignalsFromScraper(env: TraderEnv): Promise<SignalSyncResult> {
+  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] }
 
   try {
-    console.log("Fetching signals from hadoku-scraper...");
+    console.log('Fetching signals from hadoku-scraper...')
 
     const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
       headers: {
         Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-        Accept: "application/json",
-      },
-    });
+        Accept: 'application/json'
+      }
+    })
 
     if (!resp.ok) {
-      const errorText = await resp.text();
-      result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`);
-      return result;
+      const errorText = await resp.text()
+      result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`)
+      return result
     }
 
-    const data: ScraperSignalsResponse = await resp.json();
+    const data: ScraperSignalsResponse = await resp.json()
 
-    console.log(`Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(", ")})`);
+    console.log(
+      `Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(', ')})`
+    )
 
     // Log any failed sources as warnings
-    const failedSources = Object.keys(data.sources_failed);
+    const failedSources = Object.keys(data.sources_failed)
     if (failedSources.length > 0) {
-      console.warn(`Failed to fetch from sources: ${failedSources.join(", ")}`);
+      console.warn(`Failed to fetch from sources: ${failedSources.join(', ')}`)
       for (const [source, error] of Object.entries(data.sources_failed)) {
-        result.errors.push(`Source ${source} failed: ${error}`);
+        result.errors.push(`Source ${source} failed: ${error}`)
       }
     }
 
     // Ingest all signals using the batch function - convert from scraper format
-    const signals = data.signals.map(toInternalSignal);
-    const batchResult = await ingestSignalBatch(env, signals);
-    result.inserted = batchResult.inserted;
-    result.skipped = batchResult.skipped;
-    result.errors.push(...batchResult.errors);
+    const signals = data.signals.map(toInternalSignal)
+    const batchResult = await ingestSignalBatch(env, signals)
+    result.inserted = batchResult.inserted
+    result.skipped = batchResult.skipped
+    result.errors.push(...batchResult.errors)
 
     console.log(
       `Signal sync complete: ${result.inserted} inserted, ${result.skipped} skipped, ${result.errors.length} errors`
-    );
+    )
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    result.errors.push(`Scraper sync error: ${errorMsg}`);
-    console.error("Scraper sync error:", error);
+    const errorMsg = error instanceof Error ? error.message : String(error)
+    result.errors.push(`Scraper sync error: ${errorMsg}`)
+    console.error('Scraper sync error:', error)
   }
 
-  return result;
+  return result
 }
 
 /**
@@ -305,35 +305,35 @@ export async function ingestSignalBatch(
   env: TraderEnv,
   signals: Signal[]
 ): Promise<SignalSyncResult> {
-  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] };
+  const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] }
 
   for (const signal of signals) {
     // Skip signals without a ticker - they're not actionable
     if (!signal.trade?.ticker) {
-      console.log(`Skipping signal without ticker: ${signal.meta?.source_id ?? "unknown"}`);
-      result.skipped++;
-      continue;
+      console.log(`Skipping signal without ticker: ${signal.meta?.source_id ?? 'unknown'}`)
+      result.skipped++
+      continue
     }
 
     try {
-      const insertResult = await insertSignal(env, signal);
+      const insertResult = await insertSignal(env, signal)
 
       if (insertResult.duplicate) {
-        result.skipped++;
+        result.skipped++
       } else {
-        result.inserted++;
-        console.log(`Stored signal: ${signal.trade.ticker} from ${signal.source}`);
+        result.inserted++
+        console.log(`Stored signal: ${signal.trade.ticker} from ${signal.source}`)
       }
     } catch (error) {
-      const errorMsg = error instanceof Error ? error.message : String(error);
+      const errorMsg = error instanceof Error ? error.message : String(error)
       result.errors.push(
-        `Failed to insert signal ${signal.meta?.source_id ?? "unknown"}: ${errorMsg}`
-      );
-      console.error("Error inserting signal:", error);
+        `Failed to insert signal ${signal.meta?.source_id ?? 'unknown'}: ${errorMsg}`
+      )
+      console.error('Error inserting signal:', error)
     }
   }
 
-  return result;
+  return result
 }
 
 /**
@@ -341,28 +341,30 @@ export async function ingestSignalBatch(
  * Called daily at midnight.
  */
 export async function updatePerformanceHistory(env: TraderEnv): Promise<void> {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split('T')[0]
 
   // Calculate signals % return (theoretical return if following all signals)
-  const signalsReturn = await calculateSignalsReturn(env);
+  const signalsReturn = await calculateSignalsReturn(env)
 
   // Calculate hadoku % return (our executed trades)
-  const hadokuReturn = await calculateHadokuReturn(env);
+  const hadokuReturn = await calculateHadokuReturn(env)
 
   // Get S&P 500 % return (from stored reference)
-  const sp500Return = await calculateSP500Return(env);
+  const sp500Return = await calculateSP500Return(env)
 
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     INSERT OR REPLACE INTO performance_history
     (date, signals_return_pct, hadoku_return_pct, sp500_return_pct)
     VALUES (?, ?, ?, ?)
-  `)
+  `
+  )
     .bind(today, signalsReturn, hadokuReturn, sp500Return)
-    .run();
+    .run()
 
   console.log(
     `Performance history updated for ${today}: signals=${signalsReturn.toFixed(2)}%, hadoku=${hadokuReturn.toFixed(2)}%, sp500=${sp500Return.toFixed(2)}%`
-  );
+  )
 }
 
 /**
@@ -370,7 +372,8 @@ export async function updatePerformanceHistory(env: TraderEnv): Promise<void> {
  */
 async function calculateSignalsReturn(env: TraderEnv): Promise<number> {
   // Get all signals with trade prices and current prices
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT
       s.ticker,
       s.action,
@@ -380,34 +383,35 @@ async function calculateSignalsReturn(env: TraderEnv): Promise<number> {
     LEFT JOIN positions p ON s.ticker = p.ticker
     WHERE s.trade_price IS NOT NULL
       AND p.current_price IS NOT NULL
-  `).all();
+  `
+  ).all()
 
   if (results.results.length === 0) {
-    return 0;
+    return 0
   }
 
   // Calculate average return across all signals
-  let totalReturn = 0;
-  let count = 0;
+  let totalReturn = 0
+  let count = 0
 
   for (const row of results.results as any[]) {
-    const entryPrice = row.trade_price;
-    const currentPrice = row.current_price;
+    const entryPrice = row.trade_price
+    const currentPrice = row.current_price
 
     if (entryPrice > 0 && currentPrice > 0) {
       // For buy signals: positive when price goes up
       // For sell signals: positive when price goes down
       const returnPct =
-        row.action === "buy"
+        row.action === 'buy'
           ? ((currentPrice - entryPrice) / entryPrice) * 100
-          : ((entryPrice - currentPrice) / entryPrice) * 100;
+          : ((entryPrice - currentPrice) / entryPrice) * 100
 
-      totalReturn += returnPct;
-      count++;
+      totalReturn += returnPct
+      count++
     }
   }
 
-  return count > 0 ? totalReturn / count : 0;
+  return count > 0 ? totalReturn / count : 0
 }
 
 /**
@@ -415,7 +419,8 @@ async function calculateSignalsReturn(env: TraderEnv): Promise<number> {
  */
 async function calculateHadokuReturn(env: TraderEnv): Promise<number> {
   // Get all executed trades with current prices
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT
       t.ticker,
       t.action,
@@ -427,33 +432,34 @@ async function calculateHadokuReturn(env: TraderEnv): Promise<number> {
     WHERE t.status = 'executed'
       AND t.price > 0
       AND p.current_price IS NOT NULL
-  `).all();
+  `
+  ).all()
 
   if (results.results.length === 0) {
-    return 0;
+    return 0
   }
 
   // Calculate weighted average return
-  let totalWeightedReturn = 0;
-  let totalWeight = 0;
+  let totalWeightedReturn = 0
+  let totalWeight = 0
 
   for (const row of results.results as any[]) {
-    const entryPrice = row.entry_price;
-    const currentPrice = row.current_price;
-    const weight = row.quantity * entryPrice; // Weight by position size
+    const entryPrice = row.entry_price
+    const currentPrice = row.current_price
+    const weight = row.quantity * entryPrice // Weight by position size
 
     if (entryPrice > 0 && currentPrice > 0) {
       const returnPct =
-        row.action === "buy"
+        row.action === 'buy'
           ? ((currentPrice - entryPrice) / entryPrice) * 100
-          : ((entryPrice - currentPrice) / entryPrice) * 100;
+          : ((entryPrice - currentPrice) / entryPrice) * 100
 
-      totalWeightedReturn += returnPct * weight;
-      totalWeight += weight;
+      totalWeightedReturn += returnPct * weight
+      totalWeight += weight
     }
   }
 
-  return totalWeight > 0 ? totalWeightedReturn / totalWeight : 0;
+  return totalWeight > 0 ? totalWeightedReturn / totalWeight : 0
 }
 
 /**
@@ -461,31 +467,37 @@ async function calculateHadokuReturn(env: TraderEnv): Promise<number> {
  */
 async function calculateSP500Return(env: TraderEnv): Promise<number> {
   // Get starting SP500 price (first recorded)
-  const startPrice = await env.TRADER_DB.prepare(`
+  const startPrice = await env.TRADER_DB.prepare(
+    `
     SELECT value FROM config WHERE key = 'sp500_start_price'
-  `).first();
+  `
+  ).first()
 
   // Get current SP500 price
-  const currentPrice = await env.TRADER_DB.prepare(`
+  const currentPrice = await env.TRADER_DB.prepare(
+    `
     SELECT value FROM config WHERE key = 'sp500_price'
-  `).first();
+  `
+  ).first()
 
   if (!startPrice?.value || !currentPrice?.value) {
     // If no start price set, use current as start
     if (currentPrice?.value && !startPrice?.value) {
-      await env.TRADER_DB.prepare(`
+      await env.TRADER_DB.prepare(
+        `
         INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)
-      `)
-        .bind("sp500_start_price", currentPrice.value, new Date().toISOString())
-        .run();
+      `
+      )
+        .bind('sp500_start_price', currentPrice.value, new Date().toISOString())
+        .run()
     }
-    return 0;
+    return 0
   }
 
-  const start = parseFloat(startPrice.value as string);
-  const current = parseFloat(currentPrice.value as string);
+  const start = parseFloat(startPrice.value as string)
+  const current = parseFloat(currentPrice.value as string)
 
-  return start > 0 ? ((current - start) / start) * 100 : 0;
+  return start > 0 ? ((current - start) / start) * 100 : 0
 }
 
 /**
@@ -494,34 +506,32 @@ async function calculateSP500Return(env: TraderEnv): Promise<number> {
  */
 async function processSignals(env: TraderEnv): Promise<void> {
   try {
-    console.log("Processing pending signals through agents...");
+    console.log('Processing pending signals through agents...')
 
-    const result = await processAllPendingSignals(env);
+    const result = await processAllPendingSignals(env)
 
-    console.log(
-      `Processed ${result.processed_count} signals through agents`
-    );
+    console.log(`Processed ${result.processed_count} signals through agents`)
 
     // Log summary of decisions
-    const executeCounts: Record<string, number> = {};
-    const skipCounts: Record<string, number> = {};
+    const executeCounts: Record<string, number> = {}
+    const skipCounts: Record<string, number> = {}
 
     for (const signalResult of result.results) {
       for (const decision of signalResult.decisions) {
-        if (decision.action === "execute" || decision.action === "execute_half") {
-          executeCounts[decision.agent_id] = (executeCounts[decision.agent_id] || 0) + 1;
+        if (decision.action === 'execute' || decision.action === 'execute_half') {
+          executeCounts[decision.agent_id] = (executeCounts[decision.agent_id] || 0) + 1
         } else {
-          skipCounts[decision.agent_id] = (skipCounts[decision.agent_id] || 0) + 1;
+          skipCounts[decision.agent_id] = (skipCounts[decision.agent_id] || 0) + 1
         }
       }
     }
 
-    console.log("Agent decisions summary:", {
+    console.log('Agent decisions summary:', {
       execute: executeCounts,
-      skip: skipCounts,
-    });
+      skip: skipCounts
+    })
   } catch (error) {
-    console.error("Error processing signals:", error);
+    console.error('Error processing signals:', error)
   }
 }
 
@@ -531,13 +541,13 @@ async function processSignals(env: TraderEnv): Promise<void> {
  */
 async function resetBudgets(env: TraderEnv): Promise<void> {
   try {
-    console.log("Resetting monthly budgets for all agents...");
+    console.log('Resetting monthly budgets for all agents...')
 
-    await resetMonthlyBudgets(env);
+    await resetMonthlyBudgets(env)
 
-    console.log("Monthly budgets reset successfully");
+    console.log('Monthly budgets reset successfully')
   } catch (error) {
-    console.error("Error resetting budgets:", error);
+    console.error('Error resetting budgets:', error)
   }
 }
 
@@ -547,27 +557,27 @@ async function resetBudgets(env: TraderEnv): Promise<void> {
  */
 async function monitorAllPositions(env: TraderEnv): Promise<void> {
   try {
-    console.log("Monitoring positions for exit conditions...");
+    console.log('Monitoring positions for exit conditions...')
 
-    const result = await monitorPositions(env);
+    const result = await monitorPositions(env)
 
     console.log(
       `Position monitoring complete: ${result.positions_checked} checked, ${result.exits_triggered} exits`
-    );
+    )
 
     if (result.exits.length > 0) {
-      console.log("Exits executed:", result.exits);
+      console.log('Exits executed:', result.exits)
     }
 
     if (result.highest_price_updates > 0) {
-      console.log(`Updated ${result.highest_price_updates} highest prices`);
+      console.log(`Updated ${result.highest_price_updates} highest prices`)
     }
 
     if (result.errors.length > 0) {
-      console.warn("Monitoring errors:", result.errors);
+      console.warn('Monitoring errors:', result.errors)
     }
   } catch (error) {
-    console.error("Error monitoring positions:", error);
+    console.error('Error monitoring positions:', error)
   }
 }
 
@@ -582,10 +592,11 @@ async function monitorAllPositions(env: TraderEnv): Promise<void> {
  */
 export async function syncMarketPrices(env: TraderEnv): Promise<void> {
   try {
-    console.log("Syncing market prices from hadoku-scrape...");
+    console.log('Syncing market prices from hadoku-scrape...')
 
     // Get unique tickers from signals and positions
-    const tickersResult = await env.TRADER_DB.prepare(`
+    const tickersResult = await env.TRADER_DB.prepare(
+      `
       SELECT DISTINCT ticker FROM (
         SELECT ticker FROM signals
         UNION
@@ -594,72 +605,66 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
         SELECT ticker FROM agent_positions WHERE status = 'open'
       )
       ORDER BY ticker
-    `).all();
+    `
+    ).all()
 
-    const allTickers = tickersResult.results.map((r) => r.ticker as string);
+    const allTickers = tickersResult.results.map(r => r.ticker as string)
 
     if (allTickers.length === 0) {
-      console.log("No tickers to sync");
-      return;
+      console.log('No tickers to sync')
+      return
     }
 
-    console.log(`Found ${allTickers.length} tickers to sync`);
+    console.log(`Found ${allTickers.length} tickers to sync`)
 
     // Determine date range: last 30 days to catch gaps from infrequent tickers
-    const endDate = new Date().toISOString().split("T")[0];
-    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-      .toISOString()
-      .split("T")[0];
+    const endDate = new Date().toISOString().split('T')[0]
+    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
 
     // Batch into groups of 100 (API limit)
-    const batchSize = 100;
-    let totalInserted = 0;
-    let totalErrors = 0;
+    const batchSize = 100
+    let totalInserted = 0
+    let totalErrors = 0
 
     for (let i = 0; i < allTickers.length; i += batchSize) {
-      const batch = allTickers.slice(i, i + batchSize);
-      console.log(
-        `Fetching batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
-      );
+      const batch = allTickers.slice(i, i + batchSize)
+      console.log(`Fetching batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`)
 
       try {
-        const response = await fetch(
-          `${env.SCRAPER_URL}/api/v1/market/historical`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-            },
-            body: JSON.stringify({
-              tickers: batch,
-              start_date: startDate,
-              end_date: endDate,
-            }),
-          }
-        );
+        const response = await fetch(`${env.SCRAPER_URL}/api/v1/market/historical`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${env.SCRAPER_API_KEY}`
+          },
+          body: JSON.stringify({
+            tickers: batch,
+            start_date: startDate,
+            end_date: endDate
+          })
+        })
 
         if (!response.ok) {
-          console.error(
-            `Market prices fetch failed for batch: ${response.status}`
-          );
-          totalErrors += batch.length;
-          continue;
+          console.error(`Market prices fetch failed for batch: ${response.status}`)
+          totalErrors += batch.length
+          continue
         }
 
-        const result: MarketHistoricalResponse = await response.json();
+        const result: MarketHistoricalResponse = await response.json()
         console.log(
           `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
-        );
+        )
 
         // Store prices in D1
         for (const price of result.data.records) {
           try {
-            await env.TRADER_DB.prepare(`
+            await env.TRADER_DB.prepare(
+              `
               INSERT OR REPLACE INTO market_prices
               (ticker, date, open, high, low, close, volume, source)
               VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')
-            `)
+            `
+            )
               .bind(
                 price.ticker,
                 price.date,
@@ -669,25 +674,23 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
                 price.close,
                 price.volume ?? null
               )
-              .run();
+              .run()
 
-            totalInserted++;
+            totalInserted++
           } catch (error) {
-            console.error(`Error inserting price for ${price.ticker}:`, error);
-            totalErrors++;
+            console.error(`Error inserting price for ${price.ticker}:`, error)
+            totalErrors++
           }
         }
       } catch (error) {
-        console.error(`Error fetching batch:`, error);
-        totalErrors += batch.length;
+        console.error(`Error fetching batch:`, error)
+        totalErrors += batch.length
       }
     }
 
-    console.log(
-      `Market prices sync complete: ${totalInserted} inserted, ${totalErrors} errors`
-    );
+    console.log(`Market prices sync complete: ${totalInserted} inserted, ${totalErrors} errors`)
   } catch (error) {
-    console.error("Error syncing market prices:", error);
+    console.error('Error syncing market prices:', error)
   }
 }
 
@@ -706,105 +709,103 @@ export async function backfillMarketPrices(
   endDate: string,
   tickers?: string[]
 ): Promise<{ inserted: number; errors: number }> {
-  console.log(`Backfilling market prices from ${startDate} to ${endDate}...`);
+  console.log(`Backfilling market prices from ${startDate} to ${endDate}...`)
 
   // Get tickers from signals if not provided
   if (!tickers || tickers.length === 0) {
-    const tickersResult = await env.TRADER_DB.prepare(`
+    const tickersResult = await env.TRADER_DB.prepare(
+      `
       SELECT DISTINCT ticker FROM signals ORDER BY ticker
-    `).all();
-    tickers = tickersResult.results.map((r) => r.ticker as string);
+    `
+    ).all()
+    tickers = tickersResult.results.map(r => r.ticker as string)
   }
 
   if (tickers.length === 0) {
-    console.log("No tickers to backfill");
-    return { inserted: 0, errors: 0 };
+    console.log('No tickers to backfill')
+    return { inserted: 0, errors: 0 }
   }
 
-  console.log(`Backfilling ${tickers.length} tickers`);
+  console.log(`Backfilling ${tickers.length} tickers`)
 
   // Reduced from 100 to 20 tickers per fetch to stay under subrequest limits
-  const batchSize = 20;
-  const maxRetries = 3;
+  const batchSize = 20
+  const maxRetries = 3
   // Batch D1 inserts to reduce operations
-  const d1BatchSize = 50;
-  let totalInserted = 0;
-  let totalErrors = 0;
+  const d1BatchSize = 50
+  let totalInserted = 0
+  let totalErrors = 0
 
   // Helper for exponential backoff retry
-  async function fetchWithRetry(
-    batch: string[],
-    attempt: number = 1
-  ): Promise<Response | null> {
+  async function fetchWithRetry(batch: string[], attempt = 1): Promise<Response | null> {
     try {
-      const response = await fetch(
-        `${env.SCRAPER_URL}/api/v1/market/historical`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-          },
-          body: JSON.stringify({
-            tickers: batch,
-            start_date: startDate,
-            end_date: endDate,
-          }),
-        }
-      );
+      const response = await fetch(`${env.SCRAPER_URL}/api/v1/market/historical`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${env.SCRAPER_API_KEY}`
+        },
+        body: JSON.stringify({
+          tickers: batch,
+          start_date: startDate,
+          end_date: endDate
+        })
+      })
 
       // Retry on rate limit (429) or server error (5xx)
       if (response.status === 429 || response.status >= 500) {
         if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000; // 2s, 4s, 8s
-          console.log(`Rate limited/error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-          await new Promise((r) => setTimeout(r, delay));
-          return fetchWithRetry(batch, attempt + 1);
+          const delay = Math.pow(2, attempt) * 1000 // 2s, 4s, 8s
+          console.log(
+            `Rate limited/error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`
+          )
+          await new Promise(r => setTimeout(r, delay))
+          return fetchWithRetry(batch, attempt + 1)
         }
       }
 
-      return response;
+      return response
     } catch (error) {
       if (attempt < maxRetries) {
-        const delay = Math.pow(2, attempt) * 1000;
-        console.log(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`);
-        await new Promise((r) => setTimeout(r, delay));
-        return fetchWithRetry(batch, attempt + 1);
+        const delay = Math.pow(2, attempt) * 1000
+        console.log(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`)
+        await new Promise(r => setTimeout(r, delay))
+        return fetchWithRetry(batch, attempt + 1)
       }
-      throw error;
+      throw error
     }
   }
 
   for (let i = 0; i < tickers.length; i += batchSize) {
-    const batch = tickers.slice(i, i + batchSize);
-    console.log(
-      `Backfilling batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`
-    );
+    const batch = tickers.slice(i, i + batchSize)
+    console.log(`Backfilling batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`)
 
     try {
-      const response = await fetchWithRetry(batch);
+      const response = await fetchWithRetry(batch)
 
       if (!response || !response.ok) {
-        console.error(`Backfill fetch failed: ${response?.status ?? "network error"}`);
-        totalErrors += batch.length;
-        continue;
+        console.error(`Backfill fetch failed: ${response?.status ?? 'network error'}`)
+        totalErrors += batch.length
+        continue
       }
 
-      const result: MarketHistoricalResponse = await response.json();
+      const result: MarketHistoricalResponse = await response.json()
       console.log(
         `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
-      );
+      )
 
       // Batch D1 inserts to reduce operations
-      const records = result.data.records;
+      const records = result.data.records
       for (let j = 0; j < records.length; j += d1BatchSize) {
-        const insertBatch = records.slice(j, j + d1BatchSize);
-        const statements = insertBatch.map((price) =>
-          env.TRADER_DB.prepare(`
+        const insertBatch = records.slice(j, j + d1BatchSize)
+        const statements = insertBatch.map(price =>
+          env.TRADER_DB.prepare(
+            `
             INSERT OR REPLACE INTO market_prices
             (ticker, date, open, high, low, close, volume, source)
             VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')
-          `).bind(
+          `
+          ).bind(
             price.ticker,
             price.date,
             price.open,
@@ -813,24 +814,22 @@ export async function backfillMarketPrices(
             price.close,
             price.volume ?? null
           )
-        );
+        )
 
         try {
-          await env.TRADER_DB.batch(statements);
-          totalInserted += insertBatch.length;
+          await env.TRADER_DB.batch(statements)
+          totalInserted += insertBatch.length
         } catch (error) {
-          console.error(`Error inserting batch of ${insertBatch.length} prices:`, error);
-          totalErrors += insertBatch.length;
+          console.error(`Error inserting batch of ${insertBatch.length} prices:`, error)
+          totalErrors += insertBatch.length
         }
       }
     } catch (error) {
-      console.error(`Error fetching batch:`, error);
-      totalErrors += batch.length;
+      console.error(`Error fetching batch:`, error)
+      totalErrors += batch.length
     }
   }
 
-  console.log(
-    `Backfill complete: ${totalInserted} inserted, ${totalErrors} errors`
-  );
-  return { inserted: totalInserted, errors: totalErrors };
+  console.log(`Backfill complete: ${totalInserted} inserted, ${totalErrors} errors`)
+  return { inserted: totalInserted, errors: totalErrors }
 }

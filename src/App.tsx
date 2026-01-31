@@ -3,12 +3,7 @@ import { ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-component
 import { THEME_ICON_MAP } from '@wolffm/themes'
 import { useTheme } from './hooks/useTheme'
 import type { TraderProps } from './entry'
-import type {
-  Signal,
-  PerformanceData,
-  ExecutedTrade,
-  SourcePerformance
-} from './types/api'
+import type { Signal, PerformanceData, ExecutedTrade, SourcePerformance } from './types/api'
 
 // Dashboard Components
 import {
@@ -24,12 +19,7 @@ import {
 import { fetchDashboardData } from './services/api'
 
 // Mock Data (fallback for development)
-import {
-  mockPerformanceData,
-  mockSignals,
-  mockTrades,
-  mockSources
-} from './data/mockData'
+import { mockPerformanceData, mockSignals, mockTrades, mockSources } from './data/mockData'
 
 interface DashboardState {
   signals: Signal[]
@@ -47,7 +37,7 @@ function getCachedData(): Partial<DashboardState> | null {
   try {
     const cached = sessionStorage.getItem(SESSION_CACHE_KEY)
     if (cached) {
-      const data = JSON.parse(cached)
+      const data = JSON.parse(cached) as Partial<DashboardState>
       console.log('[trader] Using cached data from sessionStorage')
       return data
     }
@@ -85,7 +75,7 @@ export default function App(props: TraderProps = {}) {
       trades: cached?.trades ?? mockTrades,
       sources: cached?.sources ?? mockSources,
       isLoading: !cached, // Don't show loading if we have cached data
-      error: null,
+      error: null
     }
   })
 
@@ -99,21 +89,21 @@ export default function App(props: TraderProps = {}) {
         const result = await fetchDashboardData()
         if (mounted) {
           // Merge with existing data (keep current data for any failed endpoints)
-          setData((prev) => {
+          setData(prev => {
             const newData = {
               signals: result.signals ?? prev.signals,
               performance: result.performance ?? prev.performance,
               trades: result.trades ?? prev.trades,
               sources: result.sources ?? prev.sources,
               isLoading: false,
-              error: null,
+              error: null
             }
             // Cache successful data
             setCachedData({
               signals: newData.signals,
               performance: newData.performance,
               trades: newData.trades,
-              sources: newData.sources,
+              sources: newData.sources
             })
             console.log('[trader] Data loaded and cached')
             return newData
@@ -123,16 +113,16 @@ export default function App(props: TraderProps = {}) {
         console.error('[trader] Failed to fetch dashboard data:', err)
         if (mounted) {
           // Keep existing data on error, just clear loading state
-          setData((prev) => ({
+          setData(prev => ({
             ...prev,
             isLoading: false,
-            error: err instanceof Error ? err.message : 'Failed to load data',
+            error: err instanceof Error ? err.message : 'Failed to load data'
           }))
         }
       }
     }
 
-    loadData()
+    void loadData()
 
     return () => {
       console.log('[trader] Component unmounting')
@@ -183,9 +173,7 @@ export default function App(props: TraderProps = {}) {
           )}
 
           {/* Loading Indicator */}
-          {data.isLoading && (
-            <div className="trader__loading">Loading live data...</div>
-          )}
+          {data.isLoading && <div className="trader__loading">Loading live data...</div>}
 
           {/* Overview KPI Cards */}
           <OverviewCards performance={data.performance} />

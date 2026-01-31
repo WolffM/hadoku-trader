@@ -3,21 +3,23 @@
  * These can be used directly or through createTraderHandler.
  */
 
+import type { TraderEnv, Signal, ExecuteTradeRequest, ExecuteTradeResponse } from './types'
 import {
-  TraderEnv,
-  Signal,
-  ExecuteTradeRequest,
-  ExecuteTradeResponse,
-} from "./types";
-import { jsonResponse, verifyApiKey, generateId, insertSignal, checkSignalExists, checkLogicalDuplicate, insertSignalRow } from "./utils";
-import { daysBetween } from "./agents";
+  jsonResponse,
+  verifyApiKey,
+  generateId,
+  insertSignal,
+  checkSignalExists,
+  checkLogicalDuplicate,
+  insertSignalRow
+} from './utils'
 import {
+  daysBetween,
   getActiveAgents,
   getAgent,
   getAgentBudget,
   getAgentPositions,
   processAllPendingSignals,
-  getCurrentMonth,
   CHATGPT_CONFIG,
   CLAUDE_CONFIG,
   GEMINI_CONFIG,
@@ -25,20 +27,25 @@ import {
   scoreTimeDecay,
   scorePriceMovement,
   scorePositionSize,
-} from "./agents";
-import type { EnrichedSignal, ScoringConfig, AgentConfig, ScoringBreakdown } from "./agents";
-import { backfillMarketPrices } from "./scheduled";
+  type EnrichedSignal,
+  type ScoringConfig,
+  type AgentConfig,
+  type ScoringBreakdown
+} from './agents'
+import { backfillMarketPrices } from './scheduled'
 
 // =============================================================================
 // Signal Handlers
 // =============================================================================
 
 export async function handleGetSignals(env: TraderEnv): Promise<Response> {
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM signals
     ORDER BY scraped_at DESC
     LIMIT 100
-  `).all();
+  `
+  ).all()
 
   const signals = results.results.map((row: any) => ({
     id: row.id,
@@ -47,7 +54,7 @@ export async function handleGetSignals(env: TraderEnv): Promise<Response> {
       name: row.politician_name,
       chamber: row.politician_chamber,
       party: row.politician_party,
-      state: row.politician_state,
+      state: row.politician_state
     },
     trade: {
       ticker: row.ticker,
@@ -62,48 +69,45 @@ export async function handleGetSignals(env: TraderEnv): Promise<Response> {
       current_price_at: row.current_price_at,
       position_size: row.position_size,
       position_size_min: row.position_size_min,
-      position_size_max: row.position_size_max,
+      position_size_max: row.position_size_max
     },
     meta: {
       source_url: row.source_url,
       source_id: row.source_id,
-      scraped_at: row.scraped_at,
-    },
-  }));
+      scraped_at: row.scraped_at
+    }
+  }))
 
   return jsonResponse({
     signals,
-    last_updated: new Date().toISOString(),
-  });
+    last_updated: new Date().toISOString()
+  })
 }
 
-export async function handlePostSignal(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
+export async function handlePostSignal(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, "SCRAPER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const signal: Signal = await request.json();
+  const signal: Signal = await request.json()
 
-  const result = await insertSignal(env, signal);
+  const result = await insertSignal(env, signal)
 
   if (result.duplicate) {
     return jsonResponse({
       success: true,
-      message: "Signal already exists",
+      message: 'Signal already exists',
       id: result.id,
-      duplicate: true,
-    });
+      duplicate: true
+    })
   }
 
   return jsonResponse({
     success: true,
-    message: "Signal received",
-    id: result.id,
-  });
+    message: 'Signal received',
+    id: result.id
+  })
 }
 
 // =============================================================================
@@ -123,58 +127,42 @@ export async function handlePostSignal(
  *   "is_last_batch": false
  * }
  */
-export async function handleBackfillBatch(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
+export async function handleBackfillBatch(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, "SCRAPER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const payload = await request.json() as {
-    event: string;
-    job_id?: string;
-    batch_number?: number;
-    source?: string;
-    signals?: Signal[];
-    data?: {
-      signals?: Signal[];
-      job_id?: string;
-      batch_number?: number;
-      source?: string;
-    };
-    is_last_batch?: boolean;
-  };
+  const payload = await request.json()
 
   // Extract fields from either payload.data or top-level (scraper uses payload.data)
-  const jobId = payload.data?.job_id ?? payload.job_id;
-  const batchNumber = payload.data?.batch_number ?? payload.batch_number;
-  const source = payload.data?.source ?? payload.source;
+  const jobId = payload.data?.job_id ?? payload.job_id
+  const batchNumber = payload.data?.batch_number ?? payload.batch_number
+  const source = payload.data?.source ?? payload.source
 
   // Validate event type
-  if (payload.event !== "backfill.batch" && payload.event !== "backfill.completed") {
+  if (payload.event !== 'backfill.batch' && payload.event !== 'backfill.completed') {
     return jsonResponse({
       success: true,
-      message: `Ignored event: ${payload.event}`,
-    });
+      message: `Ignored event: ${payload.event}`
+    })
   }
 
   // Handle completion event
-  if (payload.event === "backfill.completed") {
-    console.log(`Backfill job ${jobId} completed`);
+  if (payload.event === 'backfill.completed') {
+    console.log(`Backfill job ${jobId} completed`)
     return jsonResponse({
       success: true,
-      message: "Backfill completed acknowledged",
-      job_id: jobId,
-    });
+      message: 'Backfill completed acknowledged',
+      job_id: jobId
+    })
   }
 
   // Process batch of signals (support both payload.data.signals and payload.signals)
-  const signals = payload.data?.signals || payload.signals || [];
-  let inserted = 0;
-  let duplicates = 0;
-  let errors = 0;
+  const signals = payload.data?.signals || payload.signals || []
+  let inserted = 0
+  let duplicates = 0
+  let errors = 0
 
   for (const signal of signals) {
     try {
@@ -183,11 +171,11 @@ export async function handleBackfillBatch(
         env,
         signal.source ?? null,
         signal.meta?.source_id ?? null
-      );
+      )
 
       if (existing) {
-        duplicates++;
-        continue;
+        duplicates++
+        continue
       }
 
       // Check for logical duplicate (same ticker, politician, trade_date, action)
@@ -197,28 +185,28 @@ export async function handleBackfillBatch(
         signal.politician?.name,
         signal.trade?.trade_date,
         signal.trade?.action
-      );
+      )
 
       if (logicalDupe) {
-        duplicates++;
-        continue;
+        duplicates++
+        continue
       }
 
       // Insert new signal using shared function with lenient mode for backfill data
-      const id = generateId("sig");
-      await insertSignalRow(env, id, signal, { lenient: true });
+      const id = generateId('sig')
+      await insertSignalRow(env, id, signal, { lenient: true })
 
-      inserted++;
+      inserted++
     } catch (error) {
-      console.error("Error inserting signal:", error);
-      errors++;
+      console.error('Error inserting signal:', error)
+      errors++
     }
   }
 
   console.log(
     `Backfill batch ${batchNumber} from ${source}: ` +
-    `${inserted} inserted, ${duplicates} duplicates, ${errors} errors`
-  );
+      `${inserted} inserted, ${duplicates} duplicates, ${errors} errors`
+  )
 
   return jsonResponse({
     success: true,
@@ -227,8 +215,8 @@ export async function handleBackfillBatch(
     inserted,
     duplicates,
     errors,
-    total_received: signals.length,
-  });
+    total_received: signals.length
+  })
 }
 
 // =============================================================================
@@ -255,61 +243,55 @@ export async function handleMarketPricesBackfill(
   env: TraderEnv
 ): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, "SCRAPER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
   interface PriceData {
-    ticker: string;
-    date: string;
-    open: number;
-    high: number;
-    low: number;
-    close: number;
-    volume?: number;
-    source?: string;
+    ticker: string
+    date: string
+    open: number
+    high: number
+    low: number
+    close: number
+    volume?: number
+    source?: string
   }
 
-  const payload = await request.json() as {
-    event?: string;
-    data?: {
-      prices?: PriceData[];
-      source?: string;
-    };
-    prices?: PriceData[];
-    source?: string;
-  };
+  const payload = await request.json()
 
   // Extract prices from payload.data or top-level
-  const prices = payload.data?.prices || payload.prices || [];
-  const source = payload.data?.source || payload.source || "yahoo";
+  const prices: PriceData[] = payload.data?.prices ?? payload.prices ?? []
+  const source = payload.data?.source ?? payload.source ?? 'yahoo'
 
   if (prices.length === 0) {
     return jsonResponse({
       success: true,
-      message: "No prices to insert",
-      inserted: 0,
-    });
+      message: 'No prices to insert',
+      inserted: 0
+    })
   }
 
-  let inserted = 0;
-  let updated = 0;
-  let errors = 0;
+  let inserted = 0
+  let updated = 0
+  let errors = 0
 
   for (const price of prices) {
     try {
       // Validate required fields
       if (!price.ticker || !price.date || price.close === undefined) {
-        errors++;
-        continue;
+        errors++
+        continue
       }
 
       // Use INSERT OR REPLACE to handle duplicates
-      await env.TRADER_DB.prepare(`
+      await env.TRADER_DB.prepare(
+        `
         INSERT OR REPLACE INTO market_prices
         (ticker, date, open, high, low, close, volume, source)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+      `
+      )
         .bind(
           price.ticker,
           price.date,
@@ -320,26 +302,24 @@ export async function handleMarketPricesBackfill(
           price.volume ?? null,
           price.source || source
         )
-        .run();
+        .run()
 
-      inserted++;
+      inserted++
     } catch (error) {
-      console.error(`Error inserting price for ${price.ticker}:`, error);
-      errors++;
+      console.error(`Error inserting price for ${price.ticker}:`, error)
+      errors++
     }
   }
 
-  console.log(
-    `Market prices backfill: ${inserted} inserted/updated, ${errors} errors`
-  );
+  console.log(`Market prices backfill: ${inserted} inserted/updated, ${errors} errors`)
 
   return jsonResponse({
     success: true,
     inserted,
     updated,
     errors,
-    total_received: prices.length,
-  });
+    total_received: prices.length
+  })
 }
 
 /**
@@ -350,55 +330,55 @@ export async function handleMarketPricesBackfill(
  * - start_date: YYYY-MM-DD
  * - end_date: YYYY-MM-DD
  */
-export async function handleGetMarketPrices(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
-  const url = new URL(request.url);
-  const ticker = url.searchParams.get("ticker");
-  const startDate = url.searchParams.get("start_date");
-  const endDate = url.searchParams.get("end_date");
+export async function handleGetMarketPrices(request: Request, env: TraderEnv): Promise<Response> {
+  const url = new URL(request.url)
+  const ticker = url.searchParams.get('ticker')
+  const startDate = url.searchParams.get('start_date')
+  const endDate = url.searchParams.get('end_date')
 
-  let query = "SELECT * FROM market_prices WHERE 1=1";
-  const params: (string | null)[] = [];
+  let query = 'SELECT * FROM market_prices WHERE 1=1'
+  const params: (string | null)[] = []
 
   if (ticker) {
-    const tickers = ticker.split(",").map((t) => t.trim());
+    const tickers = ticker.split(',').map(t => t.trim())
     if (tickers.length === 1) {
-      query += " AND ticker = ?";
-      params.push(tickers[0]);
+      query += ' AND ticker = ?'
+      params.push(tickers[0])
     } else {
-      const placeholders = tickers.map(() => "?").join(",");
-      query += ` AND ticker IN (${placeholders})`;
-      params.push(...tickers);
+      const placeholders = tickers.map(() => '?').join(',')
+      query += ` AND ticker IN (${placeholders})`
+      params.push(...tickers)
     }
   }
 
   if (startDate) {
-    query += " AND date >= ?";
-    params.push(startDate);
+    query += ' AND date >= ?'
+    params.push(startDate)
   }
 
   if (endDate) {
-    query += " AND date <= ?";
-    params.push(endDate);
+    query += ' AND date <= ?'
+    params.push(endDate)
   }
 
-  query += " ORDER BY ticker, date LIMIT 10000";
+  query += ' ORDER BY ticker, date LIMIT 10000'
 
-  const results = await env.TRADER_DB.prepare(query).bind(...params).all();
+  const results = await env.TRADER_DB.prepare(query)
+    .bind(...params)
+    .all()
 
   return jsonResponse({
     prices: results.results,
-    count: results.results.length,
-  });
+    count: results.results.length
+  })
 }
 
 /**
  * GET /market/tickers - Get list of unique tickers with price data
  */
 export async function handleGetMarketTickers(env: TraderEnv): Promise<Response> {
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT
       ticker,
       COUNT(*) as price_count,
@@ -407,12 +387,13 @@ export async function handleGetMarketTickers(env: TraderEnv): Promise<Response> 
     FROM market_prices
     GROUP BY ticker
     ORDER BY ticker
-  `).all();
+  `
+  ).all()
 
   return jsonResponse({
     tickers: results.results,
-    count: results.results.length,
-  });
+    count: results.results.length
+  })
 }
 
 /**
@@ -430,36 +411,29 @@ export async function handleMarketBackfillTrigger(
   env: TraderEnv
 ): Promise<Response> {
   // Verify API key
-  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'TRADER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const body = await request.json() as {
-    start_date?: string;
-    end_date?: string;
-    tickers?: string[];
-  };
+  const body = await request.json()
 
-  const startDate = body.start_date || "2025-10-01";
-  const endDate = body.end_date || new Date().toISOString().split("T")[0];
-  const tickers = body.tickers;
+  const startDate = body.start_date || '2025-10-01'
+  const endDate = body.end_date || new Date().toISOString().split('T')[0]
+  const tickers = body.tickers
 
   try {
-    const result = await backfillMarketPrices(env, startDate, endDate, tickers);
+    const result = await backfillMarketPrices(env, startDate, endDate, tickers)
 
     return jsonResponse({
       success: true,
       message: `Backfill completed: ${result.inserted} inserted, ${result.errors} errors`,
       ...result,
       start_date: startDate,
-      end_date: endDate,
-    });
+      end_date: endDate
+    })
   } catch (error) {
-    console.error("Backfill error:", error);
-    return jsonResponse(
-      { success: false, error: "Backfill failed" },
-      500
-    );
+    console.error('Backfill error:', error)
+    return jsonResponse({ success: false, error: 'Backfill failed' }, 500)
   }
 }
 
@@ -469,66 +443,70 @@ export async function handleMarketBackfillTrigger(
 
 export async function handleGetPerformance(env: TraderEnv): Promise<Response> {
   // Fetch performance history (stores % returns directly)
-  const history = await env.TRADER_DB.prepare(`
+  const history = await env.TRADER_DB.prepare(
+    `
     SELECT date, signals_return_pct, hadoku_return_pct, sp500_return_pct
     FROM performance_history
     ORDER BY date ASC
-  `).all();
+  `
+  ).all()
 
-  const data = history.results as any[];
+  const data = history.results as any[]
 
   // Calculate cumulative metrics from daily % returns
   const calcMetrics = (key: string) => {
     if (data.length === 0) {
-      return { total_return_pct: 0, mtd_return_pct: 0, ytd_return_pct: 0 };
+      return { total_return_pct: 0, mtd_return_pct: 0, ytd_return_pct: 0 }
     }
 
     // Total return is the latest value (already cumulative)
-    const total_return_pct = data.length > 0 ? data[data.length - 1][key] : 0;
+    const total_return_pct = data.length > 0 ? data[data.length - 1][key] : 0
 
     // MTD: from start of month
-    const now = new Date();
-    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-    const mtdData = data.filter((d) => new Date(d.date) >= monthStart);
-    const mtd_return_pct = mtdData.length > 0 ? mtdData[mtdData.length - 1][key] - (mtdData[0][key] || 0) : 0;
+    const now = new Date()
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1)
+    const mtdData = data.filter(d => new Date(d.date) >= monthStart)
+    const mtd_return_pct =
+      mtdData.length > 0 ? mtdData[mtdData.length - 1][key] - (mtdData[0][key] || 0) : 0
 
     // YTD: from start of year
-    const yearStart = new Date(now.getFullYear(), 0, 1);
-    const ytdData = data.filter((d) => new Date(d.date) >= yearStart);
-    const ytd_return_pct = ytdData.length > 0 ? ytdData[ytdData.length - 1][key] - (ytdData[0][key] || 0) : 0;
+    const yearStart = new Date(now.getFullYear(), 0, 1)
+    const ytdData = data.filter(d => new Date(d.date) >= yearStart)
+    const ytd_return_pct =
+      ytdData.length > 0 ? ytdData[ytdData.length - 1][key] - (ytdData[0][key] || 0) : 0
 
-    return { total_return_pct, mtd_return_pct, ytd_return_pct };
-  };
+    return { total_return_pct, mtd_return_pct, ytd_return_pct }
+  }
 
   // Build history arrays for charting (value = % return for that day)
-  const signalsHistory = data.map((d) => ({
+  const signalsHistory = data.map(d => ({
     date: d.date,
-    value: d.signals_return_pct,
-  }));
-  const hadokuHistory = data.map((d) => ({
+    value: d.signals_return_pct
+  }))
+  const hadokuHistory = data.map(d => ({
     date: d.date,
-    value: d.hadoku_return_pct,
-  }));
-  const sp500History = data.map((d) => ({
+    value: d.hadoku_return_pct
+  }))
+  const sp500History = data.map(d => ({
     date: d.date,
-    value: d.sp500_return_pct,
-  }));
+    value: d.sp500_return_pct
+  }))
 
   return jsonResponse({
     signals_performance: {
-      ...calcMetrics("signals_return_pct"),
-      history: signalsHistory,
+      ...calcMetrics('signals_return_pct'),
+      history: signalsHistory
     },
     hadoku_performance: {
-      ...calcMetrics("hadoku_return_pct"),
-      history: hadokuHistory,
+      ...calcMetrics('hadoku_return_pct'),
+      history: hadokuHistory
     },
     sp500_performance: {
-      ...calcMetrics("sp500_return_pct"),
-      history: sp500History,
+      ...calcMetrics('sp500_return_pct'),
+      history: sp500History
     },
-    last_updated: new Date().toISOString(),
-  });
+    last_updated: new Date().toISOString()
+  })
 }
 
 // =============================================================================
@@ -536,11 +514,13 @@ export async function handleGetPerformance(env: TraderEnv): Promise<Response> {
 // =============================================================================
 
 export async function handleGetTrades(env: TraderEnv): Promise<Response> {
-  const trades = await env.TRADER_DB.prepare(`
+  const trades = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM trades
     ORDER BY executed_at DESC
     LIMIT 100
-  `).all();
+  `
+  ).all()
 
   const formattedTrades = trades.results.map((t: any) => ({
     id: t.id,
@@ -552,13 +532,13 @@ export async function handleGetTrades(env: TraderEnv): Promise<Response> {
     total: t.total,
     signal_id: t.signal_id,
     reasoning: t.reasoning_json ? JSON.parse(t.reasoning_json) : null,
-    status: t.status,
-  }));
+    status: t.status
+  }))
 
   return jsonResponse({
     trades: formattedTrades,
-    last_updated: new Date().toISOString(),
-  });
+    last_updated: new Date().toISOString()
+  })
 }
 
 // =============================================================================
@@ -567,17 +547,20 @@ export async function handleGetTrades(env: TraderEnv): Promise<Response> {
 
 export async function handleGetSources(env: TraderEnv): Promise<Response> {
   // Get signal counts per source
-  const stats = await env.TRADER_DB.prepare(`
+  const stats = await env.TRADER_DB.prepare(
+    `
     SELECT
       source as name,
       COUNT(*) as total_signals,
       SUM(CASE WHEN id IN (SELECT signal_id FROM trades WHERE status = 'executed') THEN 1 ELSE 0 END) as executed_signals
     FROM signals
     GROUP BY source
-  `).all();
+  `
+  ).all()
 
   // Get trade outcomes per source for calculating returns and win rate
-  const tradeOutcomes = await env.TRADER_DB.prepare(`
+  const tradeOutcomes = await env.TRADER_DB.prepare(
+    `
     SELECT
       s.source,
       COUNT(*) as trade_count,
@@ -592,93 +575,93 @@ export async function handleGetSources(env: TraderEnv): Promise<Response> {
     LEFT JOIN positions p ON p.signal_id = s.id
     WHERE t.status = 'executed'
     GROUP BY s.source
-  `).all();
+  `
+  ).all()
 
   // Build a map of source -> outcomes
-  const outcomeMap = new Map<string, { avg_return_pct: number; win_rate: number }>();
+  const outcomeMap = new Map<string, { avg_return_pct: number; win_rate: number }>()
   for (const outcome of tradeOutcomes.results as any[]) {
-    const winRate = outcome.trade_count > 0 ? outcome.winning_trades / outcome.trade_count : 0;
+    const winRate = outcome.trade_count > 0 ? outcome.winning_trades / outcome.trade_count : 0
     outcomeMap.set(outcome.source, {
       avg_return_pct: outcome.avg_return_pct ?? 0,
-      win_rate: winRate,
-    });
+      win_rate: winRate
+    })
   }
 
   // Combine stats with outcomes
   const sources = stats.results.map((s: any) => {
-    const outcomes = outcomeMap.get(s.name) ?? { avg_return_pct: 0, win_rate: 0 };
+    const outcomes = outcomeMap.get(s.name) ?? { avg_return_pct: 0, win_rate: 0 }
     return {
       name: s.name,
       total_signals: s.total_signals,
       executed_signals: s.executed_signals || 0,
       avg_return_pct: Math.round(outcomes.avg_return_pct * 100) / 100,
-      win_rate: Math.round(outcomes.win_rate * 100) / 100,
-    };
-  });
+      win_rate: Math.round(outcomes.win_rate * 100) / 100
+    }
+  })
 
   return jsonResponse({
     sources,
-    last_updated: new Date().toISOString(),
-  });
+    last_updated: new Date().toISOString()
+  })
 }
 
 // =============================================================================
 // Trade Execution Handler
 // =============================================================================
 
-export async function handleExecuteTrade(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
+export async function handleExecuteTrade(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key
-  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'TRADER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
-  const tradeRequest: ExecuteTradeRequest = await request.json();
+  const tradeRequest: ExecuteTradeRequest = await request.json()
 
   // Forward to local trader-worker via tunnel
   try {
     const tunnelResponse = await fetch(`${env.TUNNEL_URL}/execute-trade`, {
-      method: "POST",
+      method: 'POST',
       headers: {
-        "Content-Type": "application/json",
-        "X-API-Key": env.TRADER_API_KEY,
+        'Content-Type': 'application/json',
+        'X-API-Key': env.TRADER_API_KEY
       },
-      body: JSON.stringify(tradeRequest),
-    });
+      body: JSON.stringify(tradeRequest)
+    })
 
-    const result: ExecuteTradeResponse = await tunnelResponse.json();
+    const result: ExecuteTradeResponse = await tunnelResponse.json()
 
     // Log the trade attempt
     if (result.success && !tradeRequest.dry_run) {
-      await env.TRADER_DB.prepare(`
+      await env.TRADER_DB.prepare(
+        `
         INSERT INTO trades (id, ticker, action, quantity, price, total, status, executed_at)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `)
+      `
+      )
         .bind(
-          generateId("trade"),
+          generateId('trade'),
           tradeRequest.ticker,
           tradeRequest.action,
           tradeRequest.quantity,
           result.details?.price || 0,
           ((result.details?.price as number) || 0) * tradeRequest.quantity,
-          "executed",
+          'executed',
           new Date().toISOString()
         )
-        .run();
+        .run()
     }
 
-    return jsonResponse(result);
+    return jsonResponse(result)
   } catch (error) {
-    console.error("Tunnel error:", error);
+    console.error('Tunnel error:', error)
     return jsonResponse(
       {
         success: false,
-        message: "Failed to connect to trade execution service",
+        message: 'Failed to connect to trade execution service'
       },
       503
-    );
+    )
   }
 }
 
@@ -688,43 +671,43 @@ export async function handleExecuteTrade(
 
 export async function handleHealth(env: TraderEnv): Promise<Response> {
   // Debug: log env keys to diagnose missing bindings
-  console.log("[health] env keys:", Object.keys(env));
-  console.log("[health] TRADER_API_KEY exists:", !!env.TRADER_API_KEY);
-  console.log("[health] TUNNEL_URL:", env.TUNNEL_URL);
+  console.log('[health] env keys:', Object.keys(env))
+  console.log('[health] TRADER_API_KEY exists:', !!env.TRADER_API_KEY)
+  console.log('[health] TUNNEL_URL:', env.TUNNEL_URL)
 
   // Check DB connection
-  let dbOk = false;
+  let dbOk = false
   try {
-    await env.TRADER_DB.prepare("SELECT 1").first();
-    dbOk = true;
+    await env.TRADER_DB.prepare('SELECT 1').first()
+    dbOk = true
   } catch {
-    dbOk = false;
+    dbOk = false
   }
 
   // Check tunnel connectivity
-  let tunnelOk = false;
+  let tunnelOk = false
   if (!env.TRADER_API_KEY) {
-    console.error("[health] TRADER_API_KEY is missing from env! Add it to wrangler.toml secrets.");
+    console.error('[health] TRADER_API_KEY is missing from env! Add it to wrangler.toml secrets.')
   }
   try {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
-      method: "GET",
+      method: 'GET',
       headers: {
-        "X-API-Key": env.TRADER_API_KEY || "",
+        'X-API-Key': env.TRADER_API_KEY || ''
       },
-      signal: AbortSignal.timeout(5000),
-    });
-    tunnelOk = resp.ok;
+      signal: AbortSignal.timeout(5000)
+    })
+    tunnelOk = resp.ok
   } catch {
-    tunnelOk = false;
+    tunnelOk = false
   }
 
   return jsonResponse({
-    status: dbOk && tunnelOk ? "healthy" : "degraded",
-    database: dbOk ? "connected" : "disconnected",
-    trader_worker: tunnelOk ? "connected" : "disconnected",
-    timestamp: new Date().toISOString(),
-  });
+    status: dbOk && tunnelOk ? 'healthy' : 'degraded',
+    database: dbOk ? 'connected' : 'disconnected',
+    trader_worker: tunnelOk ? 'connected' : 'disconnected',
+    timestamp: new Date().toISOString()
+  })
 }
 
 // =============================================================================
@@ -737,16 +720,13 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function calculatePositionsReturnPct(positions: any[]): number {
-  let totalCostBasis = 0;
-  let totalCurrentValue = 0;
+  let totalCostBasis = 0
+  let totalCurrentValue = 0
   for (const pos of positions) {
-    totalCostBasis += (pos.cost_basis as number) || 0;
-    totalCurrentValue +=
-      ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0);
+    totalCostBasis += (pos.cost_basis as number) || 0
+    totalCurrentValue += ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0)
   }
-  return totalCostBasis > 0
-    ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100
-    : 0;
+  return totalCostBasis > 0 ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100 : 0
 }
 
 /**
@@ -754,15 +734,14 @@ function calculatePositionsReturnPct(positions: any[]): number {
  */
 export async function handleGetAgents(env: TraderEnv): Promise<Response> {
   try {
-    const agents = await getActiveAgents(env);
-    const month = getCurrentMonth();
+    const agents = await getActiveAgents(env)
 
     const agentSummaries = await Promise.all(
-      agents.map(async (agent) => {
-        const budget = await getAgentBudget(env, agent.id);
-        const positions = await getAgentPositions(env, agent.id);
+      agents.map(async agent => {
+        const budget = await getAgentBudget(env, agent.id)
+        const positions = await getAgentPositions(env, agent.id)
 
-        const totalReturnPct = calculatePositionsReturnPct(positions);
+        const totalReturnPct = calculatePositionsReturnPct(positions)
 
         return {
           id: agent.id,
@@ -772,64 +751,56 @@ export async function handleGetAgents(env: TraderEnv): Promise<Response> {
           budget_spent: budget.spent,
           budget_remaining: budget.remaining,
           positions_count: positions.length,
-          total_return_pct: Math.round(totalReturnPct * 100) / 100,
-        };
+          total_return_pct: Math.round(totalReturnPct * 100) / 100
+        }
       })
-    );
+    )
 
     return jsonResponse({
       agents: agentSummaries,
-      last_updated: new Date().toISOString(),
-    });
+      last_updated: new Date().toISOString()
+    })
   } catch (error) {
-    console.error("Error fetching agents:", error);
-    return jsonResponse(
-      { success: false, error: "Failed to fetch agents" },
-      500
-    );
+    console.error('Error fetching agents:', error)
+    return jsonResponse({ success: false, error: 'Failed to fetch agents' }, 500)
   }
 }
 
 /**
  * GET /agents/:id - Get agent detail with config and positions
  */
-export async function handleGetAgentById(
-  env: TraderEnv,
-  agentId: string
-): Promise<Response> {
+export async function handleGetAgentById(env: TraderEnv, agentId: string): Promise<Response> {
   try {
-    const agent = await getAgent(env, agentId);
+    const agent = await getAgent(env, agentId)
     if (!agent) {
-      return jsonResponse({ success: false, error: "Agent not found" }, 404);
+      return jsonResponse({ success: false, error: 'Agent not found' }, 404)
     }
 
-    const budget = await getAgentBudget(env, agentId);
-    const positions = await getAgentPositions(env, agentId);
+    const budget = await getAgentBudget(env, agentId)
+    const positions = await getAgentPositions(env, agentId)
 
     // Get recent trades for this agent
-    const tradesResult = await env.TRADER_DB.prepare(`
+    const tradesResult = await env.TRADER_DB.prepare(
+      `
       SELECT * FROM trades
       WHERE agent_id = ?
       ORDER BY created_at DESC
       LIMIT 20
-    `)
+    `
+    )
       .bind(agentId)
-      .all();
+      .all()
 
-    const totalReturnPct = calculatePositionsReturnPct(positions);
+    const totalReturnPct = calculatePositionsReturnPct(positions)
 
     // Format positions for response
     const formattedPositions = positions.map((pos: any) => {
-      const entryPrice = pos.avg_cost || pos.entry_price || 0;
-      const currentPrice = pos.current_price || entryPrice;
-      const returnPct =
-        entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0;
+      const entryPrice = pos.avg_cost || pos.entry_price || 0
+      const currentPrice = pos.current_price || entryPrice
+      const returnPct = entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0
       const daysHeld = pos.entry_date
-        ? Math.floor(
-            (Date.now() - new Date(pos.entry_date).getTime()) /
-              (1000 * 60 * 60 * 24)
-          )
-        : 0;
+        ? Math.floor((Date.now() - new Date(pos.entry_date).getTime()) / (1000 * 60 * 60 * 24))
+        : 0
 
       return {
         ticker: pos.ticker,
@@ -838,9 +809,9 @@ export async function handleGetAgentById(
         current_price: currentPrice,
         cost_basis: pos.cost_basis || entryPrice * pos.quantity,
         return_pct: Math.round(returnPct * 100) / 100,
-        days_held: daysHeld,
-      };
-    });
+        days_held: daysHeld
+      }
+    })
 
     // Format trades for response
     const formattedTrades = tradesResult.results.map((t: any) => ({
@@ -851,8 +822,8 @@ export async function handleGetAgentById(
       decision: t.decision,
       score: t.score,
       position_size: t.total,
-      executed_at: t.executed_at,
-    }));
+      executed_at: t.executed_at
+    }))
 
     return jsonResponse({
       agent: {
@@ -863,46 +834,37 @@ export async function handleGetAgentById(
         budget_spent: budget.spent,
         budget_remaining: budget.remaining,
         positions_count: positions.length,
-        total_return_pct: Math.round(totalReturnPct * 100) / 100,
+        total_return_pct: Math.round(totalReturnPct * 100) / 100
       },
       config: agent,
       positions: formattedPositions,
-      recent_trades: formattedTrades,
-    });
+      recent_trades: formattedTrades
+    })
   } catch (error) {
-    console.error("Error fetching agent:", error);
-    return jsonResponse(
-      { success: false, error: "Failed to fetch agent" },
-      500
-    );
+    console.error('Error fetching agent:', error)
+    return jsonResponse({ success: false, error: 'Failed to fetch agent' }, 500)
   }
 }
 
 /**
  * POST /signals/process - Manually trigger signal processing
  */
-export async function handleProcessSignals(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
+export async function handleProcessSignals(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key
-  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'TRADER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
   try {
-    const result = await processAllPendingSignals(env);
+    const result = await processAllPendingSignals(env)
 
     return jsonResponse({
       success: true,
-      ...result,
-    });
+      ...result
+    })
   } catch (error) {
-    console.error("Error processing signals:", error);
-    return jsonResponse(
-      { success: false, error: "Failed to process signals" },
-      500
-    );
+    console.error('Error processing signals:', error)
+    return jsonResponse({ success: false, error: 'Failed to process signals' }, 500)
   }
 }
 
@@ -911,54 +873,54 @@ export async function handleProcessSignals(
 // =============================================================================
 
 interface SimulateRequest {
-  signals: Array<{
-    id: string;
-    source: string;
-    politician_name: string;
-    politician_chamber?: string;
-    politician_party?: string;
-    politician_state?: string;
-    ticker: string;
-    action: "buy" | "sell";
-    asset_type?: string;
-    position_size_min?: number;
-    trade_date: string;
-    trade_price: number;
-    disclosure_date: string;
-    disclosure_price: number | null;
-  }>;
-  budget?: number;
-  agents?: string[];
+  signals: {
+    id: string
+    source: string
+    politician_name: string
+    politician_chamber?: string
+    politician_party?: string
+    politician_state?: string
+    ticker: string
+    action: 'buy' | 'sell'
+    asset_type?: string
+    position_size_min?: number
+    trade_date: string
+    trade_price: number
+    disclosure_date: string
+    disclosure_price: number | null
+  }[]
+  budget?: number
+  agents?: string[]
 }
 
 // ScoringBreakdown is imported from ./agents
 
 interface SimulationDecision {
-  signal_id: string;
-  ticker: string;
-  politician: string;
-  action: string;
-  days_since_trade: number;
-  price_change_pct: number;
-  score: number | null;
-  score_breakdown: ScoringBreakdown | null;
-  decision: "execute" | "skip";
-  position_size: number | null;
-  reason: string;
+  signal_id: string
+  ticker: string
+  politician: string
+  action: string
+  days_since_trade: number
+  price_change_pct: number
+  score: number | null
+  score_breakdown: ScoringBreakdown | null
+  decision: 'execute' | 'skip'
+  position_size: number | null
+  reason: string
 }
 
 interface SimulationAgentResult {
-  id: string;
-  name: string;
-  decisions: SimulationDecision[];
+  id: string
+  name: string
+  decisions: SimulationDecision[]
   summary: {
-    total_signals: number;
-    executed: number;
-    skipped: number;
-    total_invested: number;
-    cash_remaining: number;
-    open_positions: number;
-  };
+    total_signals: number
+    executed: number
+    skipped: number
+    total_invested: number
+    cash_remaining: number
+    open_positions: number
+  }
 }
 
 // daysBetween is imported from ./agents (originally from filters.ts)
@@ -968,170 +930,182 @@ function getDetailedScoring(
   signal: EnrichedSignal,
   winRate: number
 ): ScoringBreakdown {
-  const components = config.components;
+  const components = config.components
   const breakdown: ScoringBreakdown = {
     time_decay: { raw: 0, weight: 0, contribution: 0 },
     price_movement: { raw: 0, weight: 0, contribution: 0 },
     position_size: { raw: 0, weight: 0, contribution: 0 },
     politician_skill: { raw: 0, weight: 0, contribution: 0 },
     source_quality: { raw: 0, weight: 0, contribution: 0 },
-    final_score: 0,
-  };
+    final_score: 0
+  }
 
-  let totalWeight = 0;
-  let weightedSum = 0;
+  let totalWeight = 0
+  let weightedSum = 0
 
   if (components.time_decay) {
-    const raw = scoreTimeDecay(components.time_decay, signal);
-    const weight = components.time_decay.weight;
-    breakdown.time_decay = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw = scoreTimeDecay(components.time_decay, signal)
+    const weight = components.time_decay.weight
+    breakdown.time_decay = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.price_movement) {
-    const raw = scorePriceMovement(components.price_movement, signal);
-    const weight = components.price_movement.weight;
-    breakdown.price_movement = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw = scorePriceMovement(components.price_movement, signal)
+    const weight = components.price_movement.weight
+    breakdown.price_movement = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.position_size) {
-    const raw = scorePositionSize(components.position_size, signal);
-    const weight = components.position_size.weight;
-    breakdown.position_size = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw = scorePositionSize(components.position_size, signal)
+    const weight = components.position_size.weight
+    breakdown.position_size = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.politician_skill) {
-    const raw = winRate !== undefined
-      ? Math.max(0.4, Math.min(0.7, winRate))
-      : components.politician_skill.default_score;
-    const weight = components.politician_skill.weight;
-    breakdown.politician_skill = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw =
+      winRate !== undefined
+        ? Math.max(0.4, Math.min(0.7, winRate))
+        : components.politician_skill.default_score
+    const weight = components.politician_skill.weight
+    breakdown.politician_skill = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.source_quality) {
-    const raw = components.source_quality.scores[signal.source]
-      ?? components.source_quality.scores["default"]
-      ?? 0.8;
-    const weight = components.source_quality.weight;
-    breakdown.source_quality = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw =
+      components.source_quality.scores[signal.source] ??
+      components.source_quality.scores.default ??
+      0.8
+    const weight = components.source_quality.weight
+    breakdown.source_quality = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.filing_speed) {
-    let raw = 1.0;
+    let raw = 1.0
     if (signal.days_since_filing <= 7) {
-      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05);
+      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05)
     } else if (signal.days_since_filing >= 30) {
-      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1);
+      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1)
     }
-    const weight = components.filing_speed.weight;
-    breakdown.filing_speed = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const weight = components.filing_speed.weight
+    breakdown.filing_speed = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
   if (components.cross_confirmation) {
-    const raw = 0.5;
-    const weight = components.cross_confirmation.weight;
-    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight };
-    weightedSum += raw * weight;
-    totalWeight += weight;
+    const raw = 0.5
+    const weight = components.cross_confirmation.weight
+    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
   }
 
-  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0;
+  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0
 
-  return breakdown;
+  return breakdown
 }
 
-function calculateSimPositionSize(config: AgentConfig, score: number, availableCash: number): number {
-  const sizing = config.sizing;
+function calculateSimPositionSize(
+  config: AgentConfig,
+  score: number,
+  availableCash: number
+): number {
+  const sizing = config.sizing
 
-  let size: number;
-  if (sizing.mode === "score_squared") {
-    size = score * score * (sizing.base_multiplier ?? 0.15) * config.monthly_budget;
-  } else if (sizing.mode === "score_linear") {
-    size = (sizing.base_amount ?? 15) * score * (availableCash / config.monthly_budget);
-  } else if (sizing.mode === "smart_budget") {
-    size = Math.min(200, availableCash * 0.2);
+  let size: number
+  if (sizing.mode === 'score_squared') {
+    size = score * score * (sizing.base_multiplier ?? 0.15) * config.monthly_budget
+  } else if (sizing.mode === 'score_linear') {
+    size = (sizing.base_amount ?? 15) * score * (availableCash / config.monthly_budget)
+  } else if (sizing.mode === 'smart_budget') {
+    size = Math.min(200, availableCash * 0.2)
   } else {
-    size = 100;
+    size = 100
   }
 
-  size = Math.min(size, sizing.max_position_amount ?? 1000);
-  size = Math.min(size, availableCash * (sizing.max_position_pct ?? 1.0));
-  size = Math.max(0, size);
+  size = Math.min(size, sizing.max_position_amount ?? 1000)
+  size = Math.min(size, availableCash * (sizing.max_position_pct ?? 1.0))
+  size = Math.max(0, size)
 
-  return Math.round(size * 100) / 100;
+  return Math.round(size * 100) / 100
 }
 
 function runAgentSimulation(
   config: AgentConfig,
-  signals: SimulateRequest["signals"],
+  signals: SimulateRequest['signals'],
   budget: number
 ): SimulationAgentResult {
   const sortedSignals = [...signals].sort((a, b) =>
     a.disclosure_date.localeCompare(b.disclosure_date)
-  );
+  )
 
-  const validSignals = sortedSignals.filter(s => s.disclosure_price && s.disclosure_price > 0);
+  const validSignals = sortedSignals.filter(s => s.disclosure_price && s.disclosure_price > 0)
 
   // Compute politician win rates
-  const winRateStats = new Map<string, { wins: number; total: number }>();
+  const winRateStats = new Map<string, { wins: number; total: number }>()
   for (const signal of validSignals) {
-    if (signal.action !== "buy") continue;
-    const existing = winRateStats.get(signal.politician_name) || { wins: 0, total: 0 };
-    existing.total++;
+    if (signal.action !== 'buy') continue
+    const existing = winRateStats.get(signal.politician_name) || { wins: 0, total: 0 }
+    existing.total++
     if (signal.disclosure_price! > signal.trade_price) {
-      existing.wins++;
+      existing.wins++
     }
-    winRateStats.set(signal.politician_name, existing);
+    winRateStats.set(signal.politician_name, existing)
   }
-  const politicianWinRates = new Map<string, number>();
+  const politicianWinRates = new Map<string, number>()
   for (const [name, { wins, total }] of winRateStats) {
-    politicianWinRates.set(name, total > 0 ? wins / total : 0.5);
+    politicianWinRates.set(name, total > 0 ? wins / total : 0.5)
   }
 
-  let cash = budget;
-  const decisions: SimulationDecision[] = [];
-  let openPositions = 0;
-  let totalInvested = 0;
+  let cash = budget
+  const decisions: SimulationDecision[] = []
+  let openPositions = 0
+  let totalInvested = 0
 
   for (const simSignal of validSignals) {
-    const currentPrice = simSignal.disclosure_price!;
-    const tradePrice = simSignal.trade_price ?? currentPrice;
-    const daysSinceTrade = daysBetween(simSignal.trade_date, simSignal.disclosure_date);
-    const priceChangePct = tradePrice > 0 ? ((currentPrice - tradePrice) / tradePrice) * 100 : 0;
+    const currentPrice = simSignal.disclosure_price!
+    const tradePrice = simSignal.trade_price ?? currentPrice
+    const daysSinceTrade = daysBetween(simSignal.trade_date, simSignal.disclosure_date)
+    const priceChangePct = tradePrice > 0 ? ((currentPrice - tradePrice) / tradePrice) * 100 : 0
 
-    let decision: "execute" | "skip" = "skip";
-    let reason = "";
-    let score: number | null = null;
-    let breakdown: ScoringBreakdown | null = null;
-    let positionSize: number | null = null;
+    let decision: 'execute' | 'skip' = 'skip'
+    let reason = ''
+    let score: number | null = null
+    let breakdown: ScoringBreakdown | null = null
+    let positionSize: number | null = null
 
-    if (simSignal.action === "sell") {
-      reason = "Sell signal (simulation only tracks buys)";
-    } else if (config.politician_whitelist && !config.politician_whitelist.includes(simSignal.politician_name)) {
-      reason = "Not in politician whitelist";
-    } else if (simSignal.asset_type && !config.allowed_asset_types.includes(simSignal.asset_type as any)) {
-      reason = `Asset type ${simSignal.asset_type} not allowed`;
+    if (simSignal.action === 'sell') {
+      reason = 'Sell signal (simulation only tracks buys)'
+    } else if (
+      config.politician_whitelist &&
+      !config.politician_whitelist.includes(simSignal.politician_name)
+    ) {
+      reason = 'Not in politician whitelist'
+    } else if (
+      simSignal.asset_type &&
+      !config.allowed_asset_types.includes(simSignal.asset_type as any)
+    ) {
+      reason = `Asset type ${simSignal.asset_type} not allowed`
     } else if (daysSinceTrade > config.max_signal_age_days) {
-      reason = `Too old (${daysSinceTrade}d > ${config.max_signal_age_days}d)`;
+      reason = `Too old (${daysSinceTrade}d > ${config.max_signal_age_days}d)`
     } else if (Math.abs(priceChangePct) > config.max_price_move_pct) {
-      reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`;
+      reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`
     } else if (config.scoring) {
       const enrichedSignal: EnrichedSignal = {
         id: simSignal.id,
         ticker: simSignal.ticker,
         action: simSignal.action,
-        asset_type: (simSignal.asset_type || "stock") as any,
+        asset_type: (simSignal.asset_type || 'stock') as any,
         trade_price: tradePrice,
         current_price: currentPrice,
         trade_date: simSignal.trade_date,
@@ -1141,45 +1115,45 @@ function runAgentSimulation(
         source: simSignal.source,
         days_since_trade: daysSinceTrade,
         days_since_filing: daysSinceTrade,
-        price_change_pct: priceChangePct,
-      };
+        price_change_pct: priceChangePct
+      }
 
-      const winRate = politicianWinRates.get(simSignal.politician_name) ?? 0.5;
-      const scoreResult = calculateScoreSync(config.scoring, enrichedSignal, winRate);
-      score = scoreResult.score;
-      breakdown = getDetailedScoring(config.scoring, enrichedSignal, winRate);
+      const winRate = politicianWinRates.get(simSignal.politician_name) ?? 0.5
+      const scoreResult = calculateScoreSync(config.scoring, enrichedSignal, winRate)
+      score = scoreResult.score
+      breakdown = getDetailedScoring(config.scoring, enrichedSignal, winRate)
 
       if (score < config.execute_threshold) {
-        reason = `Score ${score.toFixed(3)} < threshold ${config.execute_threshold}`;
+        reason = `Score ${score.toFixed(3)} < threshold ${config.execute_threshold}`
       } else {
-        const size = calculateSimPositionSize(config, score, cash);
+        const size = calculateSimPositionSize(config, score, cash)
         if (size < 1) {
-          reason = `Position size too small ($${size.toFixed(2)})`;
+          reason = `Position size too small ($${size.toFixed(2)})`
         } else if (size > cash) {
-          reason = `Insufficient cash ($${size.toFixed(0)} > $${cash.toFixed(0)})`;
+          reason = `Insufficient cash ($${size.toFixed(0)} > $${cash.toFixed(0)})`
         } else {
-          decision = "execute";
-          positionSize = size;
-          cash -= size;
-          openPositions++;
-          totalInvested += size;
-          reason = `Executed @ $${currentPrice.toFixed(2)}`;
+          decision = 'execute'
+          positionSize = size
+          cash -= size
+          openPositions++
+          totalInvested += size
+          reason = `Executed @ $${currentPrice.toFixed(2)}`
         }
       }
     } else {
       // No scoring (Gemini-style)
-      const size = calculateSimPositionSize(config, 1.0, cash);
+      const size = calculateSimPositionSize(config, 1.0, cash)
       if (size < 1) {
-        reason = "Position size too small";
+        reason = 'Position size too small'
       } else if (size > cash) {
-        reason = "Insufficient cash";
+        reason = 'Insufficient cash'
       } else {
-        decision = "execute";
-        positionSize = size;
-        cash -= size;
-        openPositions++;
-        totalInvested += size;
-        reason = `Executed @ $${currentPrice.toFixed(2)}`;
+        decision = 'execute'
+        positionSize = size
+        cash -= size
+        openPositions++
+        totalInvested += size
+        reason = `Executed @ $${currentPrice.toFixed(2)}`
       }
     }
 
@@ -1194,12 +1168,12 @@ function runAgentSimulation(
       score_breakdown: breakdown,
       decision,
       position_size: positionSize,
-      reason,
-    });
+      reason
+    })
   }
 
-  const executed = decisions.filter(d => d.decision === "execute").length;
-  const skipped = decisions.filter(d => d.decision === "skip").length;
+  const executed = decisions.filter(d => d.decision === 'execute').length
+  const skipped = decisions.filter(d => d.decision === 'skip').length
 
   return {
     id: config.id,
@@ -1211,9 +1185,9 @@ function runAgentSimulation(
       skipped,
       total_invested: Math.round(totalInvested * 100) / 100,
       cash_remaining: Math.round(cash * 100) / 100,
-      open_positions: openPositions,
-    },
-  };
+      open_positions: openPositions
+    }
+  }
 }
 
 /**
@@ -1222,48 +1196,42 @@ function runAgentSimulation(
  * This endpoint runs the full scoring and decision pipeline without
  * actually executing any trades. Useful for testing and verification.
  */
-export async function handleSimulateSignals(
-  request: Request,
-  env: TraderEnv
-): Promise<Response> {
+export async function handleSimulateSignals(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key
-  if (!verifyApiKey(request, env, "TRADER_API_KEY")) {
-    return jsonResponse({ success: false, error: "Unauthorized" }, 401);
+  if (!verifyApiKey(request, env, 'TRADER_API_KEY')) {
+    return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
   try {
-    const payload: SimulateRequest = await request.json();
-    const budget = payload.budget ?? 1000;
-    const requestedAgents = payload.agents ?? ["chatgpt"];
+    const payload: SimulateRequest = await request.json()
+    const budget = payload.budget ?? 1000
+    const requestedAgents = payload.agents ?? ['chatgpt']
 
     const agentConfigs: Record<string, AgentConfig> = {
       chatgpt: CHATGPT_CONFIG,
       claude: CLAUDE_CONFIG,
-      gemini: GEMINI_CONFIG,
-    };
+      gemini: GEMINI_CONFIG
+    }
 
-    const results: SimulationAgentResult[] = [];
+    const results: SimulationAgentResult[] = []
 
     for (const agentId of requestedAgents) {
-      const config = agentConfigs[agentId];
+      const config = agentConfigs[agentId]
       if (!config) {
-        continue;
+        continue
       }
-      const result = runAgentSimulation(config, payload.signals, budget);
-      results.push(result);
+      const result = runAgentSimulation(config, payload.signals, budget)
+      results.push(result)
     }
 
     return jsonResponse({
       success: true,
       simulation_date: new Date().toISOString(),
       budget,
-      agents: results,
-    });
+      agents: results
+    })
   } catch (error) {
-    console.error("Error running simulation:", error);
-    return jsonResponse(
-      { success: false, error: "Failed to run simulation" },
-      500
-    );
+    console.error('Error running simulation:', error)
+    return jsonResponse({ success: false, error: 'Failed to run simulation' }, 500)
   }
 }

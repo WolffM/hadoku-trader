@@ -3,32 +3,27 @@
  * Routes incoming signals to all applicable agents and records decisions
  */
 
-import type { TraderEnv } from "../types";
+import type { TraderEnv } from '../types'
 import type {
   AgentConfig,
   EnrichedSignal,
   AgentDecision,
   DecisionReason,
-  TradeAction,
-} from "./types";
+  TradeAction
+} from './types'
 import {
   getActiveAgents,
   getAgentBudget,
   countAgentPositions,
   countAgentTickerPositions,
-  getAgentTickerPosition,
-} from "./loader";
-import { closePosition } from "./monitor";
-import {
-  shouldAgentProcessSignal,
-  enrichSignal,
-  generateId,
-  type RawSignalRow,
-} from "./filters";
-import { calculateScore } from "./scoring";
-import { calculatePositionSize, calculateShares } from "./sizing";
-import { executeTrade } from "./execution";
-import { MIN_POSITION_AGE_DAYS } from "./tradingConfig";
+  getAgentTickerPosition
+} from './loader'
+import { closePosition } from './monitor'
+import { shouldAgentProcessSignal, enrichSignal, generateId, type RawSignalRow } from './filters'
+import { calculateScore } from './scoring'
+import { calculatePositionSize, calculateShares } from './sizing'
+import { executeTrade } from './execution'
+import { MIN_POSITION_AGE_DAYS } from './tradingConfig'
 
 // =============================================================================
 // Main Routing Functions
@@ -45,87 +40,89 @@ export async function routeSignalToAgents(
   env: TraderEnv,
   signalRow: RawSignalRow,
   currentPrice: number,
-  executeImmediately: boolean = true
+  executeImmediately = true
 ): Promise<AgentDecision[]> {
-  console.log(`\n${"=".repeat(80)}`);
-  console.log(`[ROUTER] Processing signal: ${signalRow.id}`);
-  console.log(`[ROUTER]   Ticker: ${signalRow.ticker}, Action: ${signalRow.action}`);
-  console.log(`[ROUTER]   Politician: ${signalRow.politician_name}`);
-  console.log(`[ROUTER]   Trade Date: ${signalRow.trade_date}, Trade Price: $${signalRow.trade_price}`);
-  console.log(`[ROUTER]   Position Size: $${signalRow.position_size_min?.toLocaleString()}`);
-  console.log(`[ROUTER]   Current Price: $${currentPrice}`);
-  console.log(`[ROUTER]   Execute Immediately: ${executeImmediately}`);
-  console.log(`${"=".repeat(80)}`);
+  console.log(`\n${'='.repeat(80)}`)
+  console.log(`[ROUTER] Processing signal: ${signalRow.id}`)
+  console.log(`[ROUTER]   Ticker: ${signalRow.ticker}, Action: ${signalRow.action}`)
+  console.log(`[ROUTER]   Politician: ${signalRow.politician_name}`)
+  console.log(
+    `[ROUTER]   Trade Date: ${signalRow.trade_date}, Trade Price: $${signalRow.trade_price}`
+  )
+  console.log(`[ROUTER]   Position Size: $${signalRow.position_size_min?.toLocaleString()}`)
+  console.log(`[ROUTER]   Current Price: $${currentPrice}`)
+  console.log(`[ROUTER]   Execute Immediately: ${executeImmediately}`)
+  console.log(`${'='.repeat(80)}`)
 
-  const signal = enrichSignal(signalRow, currentPrice);
-  const agents = await getActiveAgents(env);
-  const decisions: AgentDecision[] = [];
+  const signal = enrichSignal(signalRow, currentPrice)
+  const agents = await getActiveAgents(env)
+  const decisions: AgentDecision[] = []
 
-  console.log(`[ROUTER] Routing to ${agents.length} active agents: ${agents.map(a => a.id).join(", ")}`);
+  console.log(
+    `[ROUTER] Routing to ${agents.length} active agents: ${agents.map(a => a.id).join(', ')}`
+  )
 
   for (const agent of agents) {
-    console.log(`\n[ROUTER] --- Agent: ${agent.id} (${agent.name}) ---`);
+    console.log(`\n[ROUTER] --- Agent: ${agent.id} (${agent.name}) ---`)
 
     // Handle SELL signals: close existing positions
-    if (signal.action === "sell") {
-      console.log(`[ROUTER]   Processing SELL signal for ${agent.id}`);
+    if (signal.action === 'sell') {
+      console.log(`[ROUTER]   Processing SELL signal for ${agent.id}`)
       const sellDecision = await processSellSignalForAgent(
         env,
         agent,
         signal,
         currentPrice,
         executeImmediately
-      );
-      console.log(`[ROUTER]   SELL Decision: ${sellDecision.action} (${sellDecision.decision_reason})`);
-      decisions.push(sellDecision);
-      continue;
+      )
+      console.log(
+        `[ROUTER]   SELL Decision: ${sellDecision.action} (${sellDecision.decision_reason})`
+      )
+      decisions.push(sellDecision)
+      continue
     }
 
     // Handle BUY signals: normal processing
-    console.log(`[ROUTER]   Processing BUY signal for ${agent.id}`);
-    const decision = await processSignalForAgent(env, agent, signal);
+    console.log(`[ROUTER]   Processing BUY signal for ${agent.id}`)
+    const decision = await processSignalForAgent(env, agent, signal)
 
-    console.log(`[ROUTER]   Decision: ${decision.action}`);
-    console.log(`[ROUTER]   Reason: ${decision.decision_reason}`);
+    console.log(`[ROUTER]   Decision: ${decision.action}`)
+    console.log(`[ROUTER]   Reason: ${decision.decision_reason}`)
     if (decision.score !== null) {
-      console.log(`[ROUTER]   Score: ${decision.score.toFixed(3)}`);
+      console.log(`[ROUTER]   Score: ${decision.score.toFixed(3)}`)
       if (decision.score_breakdown) {
-        console.log(`[ROUTER]   Score Breakdown: ${JSON.stringify(decision.score_breakdown)}`);
+        console.log(`[ROUTER]   Score Breakdown: ${JSON.stringify(decision.score_breakdown)}`)
       }
     }
 
     // Log the decision to database first
-    const tradeId = await logAgentDecision(env, decision, signal);
-    console.log(`[ROUTER]   Trade ID: ${tradeId}`);
+    const tradeId = await logAgentDecision(env, decision, signal)
+    console.log(`[ROUTER]   Trade ID: ${tradeId}`)
 
     // If decision is to execute, calculate size and execute trade
     if (
       executeImmediately &&
-      (decision.action === "execute" || decision.action === "execute_half")
+      (decision.action === 'execute' || decision.action === 'execute_half')
     ) {
-      console.log(`[ROUTER]   Executing trade...`);
-      const executionResult = await executeDecision(
-        env,
-        agent,
-        signal,
-        decision,
-        tradeId
-      );
+      console.log(`[ROUTER]   Executing trade...`)
+      const executionResult = await executeDecision(env, agent, signal, decision, tradeId)
 
-      console.log(`[ROUTER]   Execution Result: ${executionResult.success ? "SUCCESS" : "FAILED"}`);
-      console.log(`[ROUTER]   Position Size: $${executionResult.positionSize.toFixed(2)}`);
+      console.log(`[ROUTER]   Execution Result: ${executionResult.success ? 'SUCCESS' : 'FAILED'}`)
+      console.log(`[ROUTER]   Position Size: $${executionResult.positionSize.toFixed(2)}`)
 
       // Update decision with position size from execution
-      decision.position_size = executionResult.positionSize;
+      decision.position_size = executionResult.positionSize
     }
 
-    decisions.push(decision);
+    decisions.push(decision)
   }
 
-  console.log(`\n[ROUTER] Routing complete. Decisions: ${decisions.map(d => `${d.agent_id}:${d.action}`).join(", ")}`);
-  console.log(`${"=".repeat(80)}\n`);
+  console.log(
+    `\n[ROUTER] Routing complete. Decisions: ${decisions.map(d => `${d.agent_id}:${d.action}`).join(', ')}`
+  )
+  console.log(`${'='.repeat(80)}\n`)
 
-  return decisions;
+  return decisions
 }
 
 /**
@@ -141,48 +138,48 @@ async function processSellSignalForAgent(
   executeImmediately: boolean
 ): Promise<AgentDecision> {
   // Check if agent has an open position for this ticker
-  const position = await getAgentTickerPosition(env, agent.id, signal.ticker);
+  const position = await getAgentTickerPosition(env, agent.id, signal.ticker)
 
   if (!position) {
     // No position to sell - skip (no shorting allowed)
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "skip",
-      decision_reason: "skip_no_position",
+      action: 'skip',
+      decision_reason: 'skip_no_position',
       score: null,
       score_breakdown: null,
-      position_size: null,
-    };
+      position_size: null
+    }
   }
 
   // Check if position is old enough to sell (>= 1 year for long-term capital gains)
-  const entryDate = new Date(position.entry_date);
-  const sellDate = new Date(signal.disclosure_date);
-  const ageMs = sellDate.getTime() - entryDate.getTime();
-  const ageDays = ageMs / (1000 * 60 * 60 * 24);
+  const entryDate = new Date(position.entry_date)
+  const sellDate = new Date(signal.disclosure_date)
+  const ageMs = sellDate.getTime() - entryDate.getTime()
+  const ageDays = ageMs / (1000 * 60 * 60 * 24)
 
   if (ageDays < MIN_POSITION_AGE_DAYS) {
     // Position is too young - don't sell yet
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "skip",
-      decision_reason: "skip_position_young",
+      action: 'skip',
+      decision_reason: 'skip_position_young',
       score: null,
       score_breakdown: null,
-      position_size: null,
-    };
+      position_size: null
+    }
   }
 
   // We have a position that's old enough - close it based on congress sell signal
   if (executeImmediately) {
-    await closePosition(env, position.id, "sell_signal", currentPrice);
+    await closePosition(env, position.id, 'sell_signal', currentPrice)
   }
 
   // Log the sell decision
-  const tradeId = generateId("trade");
-  const now = new Date().toISOString();
+  const tradeId = generateId('trade')
+  const now = new Date().toISOString()
 
   await env.TRADER_DB.prepare(
     `
@@ -199,27 +196,27 @@ async function processSellSignalForAgent(
       agent.id,
       signal.id,
       signal.ticker,
-      "sell",
-      "execute_sell",
+      'sell',
+      'execute_sell',
       null,
       null,
       position.shares,
       currentPrice,
       position.shares * currentPrice,
-      executeImmediately ? "executed" : "pending",
+      executeImmediately ? 'executed' : 'pending',
       now
     )
-    .run();
+    .run()
 
   return {
     agent_id: agent.id,
     signal_id: signal.id,
-    action: "execute",
-    decision_reason: "execute_sell",
+    action: 'execute',
+    decision_reason: 'execute_sell',
     score: null,
     score_breakdown: null,
-    position_size: position.shares * currentPrice,
-  };
+    position_size: position.shares * currentPrice
+  }
 }
 
 /**
@@ -233,7 +230,7 @@ async function executeDecision(
   tradeId: string
 ): Promise<{ positionSize: number; success: boolean }> {
   // Get current budget
-  const budget = await getAgentBudget(env, agent.id);
+  const budget = await getAgentBudget(env, agent.id)
 
   // Calculate position size
   const positionSize = calculatePositionSize(
@@ -241,9 +238,9 @@ async function executeDecision(
     decision.score,
     budget,
     1, // acceptedSignalsCount - for equal_split mode
-    decision.action === "execute_half",
+    decision.action === 'execute_half',
     signal.position_size_min // Congressional position size for smart_budget mode
-  );
+  )
 
   // Check if position size is valid
   if (positionSize === 0) {
@@ -252,22 +249,15 @@ async function executeDecision(
       `UPDATE trades SET decision = 'skip_size_zero', status = 'skipped' WHERE id = ?`
     )
       .bind(tradeId)
-      .run();
+      .run()
 
-    return { positionSize: 0, success: false };
+    return { positionSize: 0, success: false }
   }
 
   // Execute the trade
-  const result = await executeTrade(
-    env,
-    agent,
-    signal,
-    decision,
-    positionSize,
-    tradeId
-  );
+  const result = await executeTrade(env, agent, signal, decision, positionSize, tradeId)
 
-  return { positionSize, success: result.success };
+  return { positionSize, success: result.success }
 }
 
 /**
@@ -280,42 +270,42 @@ async function processSignalForAgent(
   signal: EnrichedSignal
 ): Promise<AgentDecision> {
   // Step 1: Check hard filters
-  const filterResult = shouldAgentProcessSignal(agent, signal);
+  const filterResult = shouldAgentProcessSignal(agent, signal)
 
   if (!filterResult.passes) {
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "skip",
+      action: 'skip',
       decision_reason: filterResult.reason as DecisionReason,
       score: null,
       score_breakdown: null,
-      position_size: null,
-    };
+      position_size: null
+    }
   }
 
   // Step 2: Check position limits
-  const positionCheck = await checkPositionLimits(env, agent, signal.ticker);
+  const positionCheck = await checkPositionLimits(env, agent, signal.ticker)
   if (!positionCheck.allowed) {
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "skip",
+      action: 'skip',
       decision_reason: positionCheck.reason!,
       score: null,
       score_breakdown: null,
-      position_size: null,
-    };
+      position_size: null
+    }
   }
 
   // Step 3: Scoring
-  let score: number | null = null;
-  let breakdown: Record<string, number> | null = null;
+  let score: number | null = null
+  let breakdown: Record<string, number> | null = null
 
   if (agent.scoring) {
-    const scoreResult = await calculateScore(env, agent.scoring, signal);
-    score = scoreResult.score;
-    breakdown = scoreResult.breakdown;
+    const scoreResult = await calculateScore(env, agent.scoring, signal)
+    score = scoreResult.score
+    breakdown = scoreResult.breakdown
   }
 
   // Step 4: Decision based on threshold
@@ -325,12 +315,12 @@ async function processSignalForAgent(
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "execute",
-      decision_reason: "execute",
+      action: 'execute',
+      decision_reason: 'execute',
       score: null,
       score_breakdown: null,
-      position_size: null, // Will be calculated during execution
-    };
+      position_size: null // Will be calculated during execution
+    }
   }
 
   // For scoring agents, check threshold
@@ -338,41 +328,37 @@ async function processSignalForAgent(
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "execute",
-      decision_reason: "execute",
+      action: 'execute',
+      decision_reason: 'execute',
       score,
       score_breakdown: breakdown,
-      position_size: null, // Will be calculated during execution
-    };
+      position_size: null // Will be calculated during execution
+    }
   }
 
   // Check half-size threshold (REBALANCE)
-  if (
-    score !== null &&
-    agent.half_size_threshold !== null &&
-    score >= agent.half_size_threshold
-  ) {
+  if (score !== null && agent.half_size_threshold !== null && score >= agent.half_size_threshold) {
     return {
       agent_id: agent.id,
       signal_id: signal.id,
-      action: "execute_half",
-      decision_reason: "execute_half",
+      action: 'execute_half',
+      decision_reason: 'execute_half',
       score,
       score_breakdown: breakdown,
-      position_size: null,
-    };
+      position_size: null
+    }
   }
 
   // Score too low
   return {
     agent_id: agent.id,
     signal_id: signal.id,
-    action: "skip",
-    decision_reason: "skip_score",
+    action: 'skip',
+    decision_reason: 'skip_score',
     score,
     score_breakdown: breakdown,
-    position_size: null,
-  };
+    position_size: null
+  }
 }
 
 // =============================================================================
@@ -388,28 +374,24 @@ async function checkPositionLimits(
   ticker: string
 ): Promise<{ allowed: boolean; reason?: DecisionReason }> {
   // Check max open positions
-  const totalPositions = await countAgentPositions(env, agent.id);
+  const totalPositions = await countAgentPositions(env, agent.id)
   if (totalPositions >= agent.sizing.max_open_positions) {
     return {
       allowed: false,
-      reason: "skip_max_positions",
-    };
+      reason: 'skip_max_positions'
+    }
   }
 
   // Check max per ticker
-  const tickerPositions = await countAgentTickerPositions(
-    env,
-    agent.id,
-    ticker
-  );
+  const tickerPositions = await countAgentTickerPositions(env, agent.id, ticker)
   if (tickerPositions >= agent.sizing.max_per_ticker) {
     return {
       allowed: false,
-      reason: "skip_max_ticker",
-    };
+      reason: 'skip_max_ticker'
+    }
   }
 
-  return { allowed: true };
+  return { allowed: true }
 }
 
 // =============================================================================
@@ -425,16 +407,16 @@ async function logAgentDecision(
   decision: AgentDecision,
   signal: EnrichedSignal
 ): Promise<string> {
-  const now = new Date().toISOString();
-  const tradeId = generateId("trade");
+  const now = new Date().toISOString()
+  const tradeId = generateId('trade')
 
   // Determine status based on decision
   const status =
-    decision.action === "skip"
-      ? "skipped"
-      : decision.action === "execute" || decision.action === "execute_half"
-        ? "pending"
-        : "skipped";
+    decision.action === 'skip'
+      ? 'skipped'
+      : decision.action === 'execute' || decision.action === 'execute_half'
+        ? 'pending'
+        : 'skipped'
 
   await env.TRADER_DB.prepare(
     `
@@ -458,9 +440,9 @@ async function logAgentDecision(
       status,
       now
     )
-    .run();
+    .run()
 
-  return tradeId;
+  return tradeId
 }
 
 // =============================================================================
@@ -471,9 +453,7 @@ async function logAgentDecision(
  * Get signals that haven't been processed by agents yet.
  * Returns signals where processed_at is NULL.
  */
-export async function getUnprocessedSignals(
-  env: TraderEnv
-): Promise<RawSignalRow[]> {
+export async function getUnprocessedSignals(env: TraderEnv): Promise<RawSignalRow[]> {
   const results = await env.TRADER_DB.prepare(
     `
     SELECT
@@ -493,103 +473,92 @@ export async function getUnprocessedSignals(
     ORDER BY scraped_at ASC
     LIMIT 50
   `
-  ).all();
+  ).all()
 
-  return results.results as unknown as RawSignalRow[];
+  return results.results as unknown as RawSignalRow[]
 }
 
 /**
  * Mark a signal as processed.
  */
-export async function markSignalProcessed(
-  env: TraderEnv,
-  signalId: string
-): Promise<void> {
+export async function markSignalProcessed(env: TraderEnv, signalId: string): Promise<void> {
   await env.TRADER_DB.prepare(
     `
     UPDATE signals SET processed_at = ? WHERE id = ?
   `
   )
     .bind(new Date().toISOString(), signalId)
-    .run();
+    .run()
 }
 
 /**
  * Get current price for a ticker from positions table or return null.
  */
-export async function getCurrentPrice(
-  env: TraderEnv,
-  ticker: string
-): Promise<number | null> {
+export async function getCurrentPrice(env: TraderEnv, ticker: string): Promise<number | null> {
   const row = await env.TRADER_DB.prepare(
     `
     SELECT current_price FROM positions WHERE ticker = ?
   `
   )
     .bind(ticker)
-    .first();
+    .first()
 
-  return (row?.current_price as number) ?? null;
+  return (row?.current_price as number) ?? null
 }
 
 /**
  * Batch process all unprocessed signals.
  * Called by scheduled job or manual trigger.
  */
-export async function processAllPendingSignals(
-  env: TraderEnv
-): Promise<{
-  processed_count: number;
-  results: Array<{
-    signal_id: string;
-    ticker: string;
-    decisions: Array<{ agent_id: string; action: string; reason: string }>;
-  }>;
+export async function processAllPendingSignals(env: TraderEnv): Promise<{
+  processed_count: number
+  results: {
+    signal_id: string
+    ticker: string
+    decisions: { agent_id: string; action: string; reason: string }[]
+  }[]
 }> {
-  const unprocessed = await getUnprocessedSignals(env);
-  const results: Array<{
-    signal_id: string;
-    ticker: string;
-    decisions: Array<{ agent_id: string; action: string; reason: string }>;
-  }> = [];
+  const unprocessed = await getUnprocessedSignals(env)
+  const results: {
+    signal_id: string
+    ticker: string
+    decisions: { agent_id: string; action: string; reason: string }[]
+  }[] = []
 
   for (const signal of unprocessed) {
     // Get current price: prefer signal's stored current_price, then positions table, then trade_price
     const currentPrice =
-      signal.current_price ??
-      (await getCurrentPrice(env, signal.ticker)) ??
-      signal.trade_price ??
-      0;
+      signal.current_price ?? (await getCurrentPrice(env, signal.ticker)) ?? signal.trade_price ?? 0
 
-    console.log(`[PROCESS] Signal ${signal.id} (${signal.ticker}):`);
-    console.log(`[PROCESS]   signal.current_price: ${signal.current_price}`);
-    console.log(`[PROCESS]   signal.trade_price: ${signal.trade_price}`);
-    console.log(`[PROCESS]   Using currentPrice: $${currentPrice}`);
+    console.log(`[PROCESS] Signal ${signal.id} (${signal.ticker}):`)
+    console.log(`[PROCESS]   signal.current_price: ${signal.current_price}`)
+    console.log(`[PROCESS]   signal.trade_price: ${signal.trade_price}`)
+    console.log(`[PROCESS]   Using currentPrice: $${currentPrice}`)
 
     if (currentPrice === 0) {
-      console.warn(`[PROCESS] No price available for ${signal.ticker}, skipping signal`);
-      await markSignalProcessed(env, signal.id);
-      continue;
+      console.warn(`[PROCESS] No price available for ${signal.ticker}, skipping signal`)
+      await markSignalProcessed(env, signal.id)
+      continue
     }
 
-    const decisions = await routeSignalToAgents(env, signal, currentPrice);
-    await markSignalProcessed(env, signal.id);
+    const decisions = await routeSignalToAgents(env, signal, currentPrice)
+    await markSignalProcessed(env, signal.id)
 
     results.push({
       signal_id: signal.id,
       ticker: signal.ticker,
-      decisions: decisions.map((d) => ({
+      decisions: decisions.map(d => ({
         agent_id: d.agent_id,
         action: d.action,
-        reason: d.decision_reason,
-      })),
-    });
+        reason: d.decision_reason
+      }))
+    })
   }
 
   return {
     processed_count: results.length,
-    results,
-  };
+    results
+  }
 }
 
 // =============================================================================
@@ -608,29 +577,29 @@ export async function analyzeSignals(
   env: TraderEnv,
   signals: EnrichedSignal[]
 ): Promise<TradeAction[]> {
-  const actions: TradeAction[] = [];
-  const agents = await getActiveAgents(env);
+  const actions: TradeAction[] = []
+  const agents = await getActiveAgents(env)
 
   for (const signal of signals) {
     for (const agent of agents) {
       // Get decision from existing logic
-      const decision = await processSignalForAgent(env, agent, signal);
+      const decision = await processSignalForAgent(env, agent, signal)
 
       // Calculate position size if executing
-      let quantity = 0;
-      let positionSize = 0;
+      let quantity = 0
+      let positionSize = 0
 
-      if (decision.action === "execute" || decision.action === "execute_half") {
-        const budget = await getAgentBudget(env, agent.id);
+      if (decision.action === 'execute' || decision.action === 'execute_half') {
+        const budget = await getAgentBudget(env, agent.id)
         positionSize = calculatePositionSize(
           agent,
           decision.score ?? 0,
           budget,
           1, // signalCount for equal_split mode
-          decision.action === "execute_half",
+          decision.action === 'execute_half',
           signal.position_size_min // Congressional position size for smart_budget mode
-        );
-        quantity = calculateShares(positionSize, signal.current_price, true); // Fractional shares
+        )
+        quantity = calculateShares(positionSize, signal.current_price, true) // Fractional shares
       }
 
       actions.push({
@@ -645,10 +614,10 @@ export async function analyzeSignals(
         current_price: signal.current_price,
         score: decision.score,
         score_breakdown: decision.score_breakdown,
-        reasoning: decision.decision_reason,
-      });
+        reasoning: decision.decision_reason
+      })
     }
   }
 
-  return actions;
+  return actions
 }

@@ -105,14 +105,14 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
             <XAxis
               dataKey="date"
               tick={{ fill: colors.text, fontSize: 12 }}
-              tickFormatter={value => {
+              tickFormatter={(value: string | number | Date) => {
                 const date = new Date(value)
                 return `${date.getMonth() + 1}/${date.getDate()}`
               }}
             />
             <YAxis
               tick={{ fill: colors.text, fontSize: 12 }}
-              tickFormatter={value => `${value.toFixed(1)}%`}
+              tickFormatter={(value: number) => `${value.toFixed(1)}%`}
               domain={['dataMin - 1', 'dataMax + 1']}
             />
             <Tooltip
@@ -126,17 +126,19 @@ export function PerformanceChart({ data, isDarkTheme }: PerformanceChartProps) {
                 value !== undefined ? `${value.toFixed(2)}%` : 'N/A',
                 ''
               ]}
-              labelFormatter={label => new Date(label).toLocaleDateString()}
+              labelFormatter={(label: string | number | Date) =>
+                new Date(label).toLocaleDateString()
+              }
             />
             <Legend
               wrapperStyle={{ paddingTop: '20px' }}
-              formatter={value => {
+              formatter={(value: string) => {
                 const labels: Record<string, string> = {
                   hadoku: 'Hadoku',
                   signals: 'Signals',
                   sp500: 'S&P 500'
                 }
-                return <span style={{ color: colors.text }}>{labels[value] || value}</span>
+                return <span style={{ color: colors.text }}>{labels[value] ?? value}</span>
               }}
             />
             <Area

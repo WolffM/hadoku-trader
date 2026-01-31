@@ -9,7 +9,7 @@ import {
   type ExecutedTrade,
   type SourcePerformance,
   type AgentSummary,
-  type AgentDetail,
+  type AgentDetail
 } from '../types/api'
 
 // Re-export for convenience
@@ -24,8 +24,8 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     ...options,
     headers: {
       'Content-Type': 'application/json',
-      ...options?.headers,
-    },
+      ...options?.headers
+    }
   })
 
   if (!response.ok) {
@@ -33,7 +33,7 @@ async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> 
     throw new Error(`API Error (${response.status}): ${error}`)
   }
 
-  return response.json()
+  return response.json() as Promise<T>
 }
 
 /**
@@ -93,7 +93,7 @@ export async function fetchDashboardData() {
     fetchSignals(),
     fetchPerformance(),
     fetchTrades(),
-    fetchSources(),
+    fetchSources()
   ])
 
   const [signalsResult, performanceResult, tradesResult, sourcesResult] = results
@@ -120,7 +120,7 @@ export async function fetchDashboardData() {
     signals: signals?.length ?? 'failed',
     performance: performance ? 'ok' : 'failed',
     trades: trades?.length ?? 'failed',
-    sources: sources?.length ?? 'failed',
+    sources: sources?.length ?? 'failed'
   })
 
   return { signals, performance, trades, sources }

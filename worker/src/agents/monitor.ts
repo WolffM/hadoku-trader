@@ -3,17 +3,11 @@
  * Implements exit conditions: stop-loss, take-profit, time exit, soft stop.
  */
 
-import type { TraderEnv } from "../types";
-import type {
-  AgentConfig,
-  PositionRow,
-  CloseReason,
-  ExitDecision,
-  MonitorResult,
-} from "./types";
-import { daysBetween, getCurrentDate } from "./filters";
-import { getAgent } from "./loader";
-import { executeSellOrder } from "./execution";
+import type { TraderEnv } from '../types'
+import type { AgentConfig, PositionRow, CloseReason, ExitDecision, MonitorResult } from './types'
+import { daysBetween, getCurrentDate } from './filters'
+import { getAgent } from './loader'
+import { executeSellOrder } from './execution'
 
 // =============================================================================
 // Main Monitoring Function
@@ -29,81 +23,69 @@ export async function monitorPositions(env: TraderEnv): Promise<MonitorResult> {
     exits_triggered: 0,
     exits: [],
     highest_price_updates: 0,
-    errors: [],
-  };
+    errors: []
+  }
 
   try {
     // Get all open positions
-    const positions = await getAllOpenPositions(env);
-    result.positions_checked = positions.length;
+    const positions = await getAllOpenPositions(env)
+    result.positions_checked = positions.length
 
     for (const position of positions) {
       try {
         // Get current price for the ticker
-        const currentPrice = await getCurrentPriceForTicker(env, position.ticker);
+        const currentPrice = await getCurrentPriceForTicker(env, position.ticker)
         if (currentPrice === null) {
-          result.errors.push(
-            `No price available for ${position.ticker} (position ${position.id})`
-          );
-          continue;
+          result.errors.push(`No price available for ${position.ticker} (position ${position.id})`)
+          continue
         }
 
         // Update highest price if new high
         if (currentPrice > position.highest_price) {
-          await updateHighestPrice(env, position.id, currentPrice);
-          result.highest_price_updates++;
-          position.highest_price = currentPrice; // Update local copy for exit check
+          await updateHighestPrice(env, position.id, currentPrice)
+          result.highest_price_updates++
+          position.highest_price = currentPrice // Update local copy for exit check
         }
 
         // Get agent config for exit rules
-        const agent = await getAgent(env, position.agent_id);
+        const agent = await getAgent(env, position.agent_id)
         if (!agent) {
-          result.errors.push(
-            `Agent not found: ${position.agent_id} (position ${position.id})`
-          );
-          continue;
+          result.errors.push(`Agent not found: ${position.agent_id} (position ${position.id})`)
+          continue
         }
 
         // Check exit conditions
-        const exitDecision = checkExitConditions(position, agent, currentPrice);
+        const exitDecision = checkExitConditions(position, agent, currentPrice)
         if (exitDecision) {
           // Execute the exit
-          const closeResult = await executeExit(
-            env,
-            position,
-            agent,
-            exitDecision,
-            currentPrice
-          );
+          const closeResult = await executeExit(env, position, agent, exitDecision, currentPrice)
 
           if (closeResult.success) {
-            result.exits_triggered++;
+            result.exits_triggered++
             result.exits.push({
               position_id: position.id,
               ticker: position.ticker,
               agent_id: position.agent_id,
               reason: exitDecision.reason,
-              sell_pct: exitDecision.sell_pct,
-            });
+              sell_pct: exitDecision.sell_pct
+            })
           } else {
-            result.errors.push(
-              `Exit failed for ${position.ticker}: ${closeResult.error}`
-            );
+            result.errors.push(`Exit failed for ${position.ticker}: ${closeResult.error}`)
           }
         }
       } catch (posError) {
         result.errors.push(
-          `Error processing position ${position.id}: ${posError instanceof Error ? posError.message : "Unknown error"}`
-        );
+          `Error processing position ${position.id}: ${posError instanceof Error ? posError.message : 'Unknown error'}`
+        )
       }
     }
   } catch (error) {
     result.errors.push(
-      `Monitoring error: ${error instanceof Error ? error.message : "Unknown error"}`
-    );
+      `Monitoring error: ${error instanceof Error ? error.message : 'Unknown error'}`
+    )
   }
 
-  return result;
+  return result
 }
 
 // =============================================================================
@@ -119,37 +101,35 @@ export function checkExitConditions(
   agent: AgentConfig,
   currentPrice: number
 ): ExitDecision | null {
-  const returnPct =
-    ((currentPrice - position.entry_price) / position.entry_price) * 100;
-  const dropFromHigh =
-    ((position.highest_price - currentPrice) / position.highest_price) * 100;
-  const daysHeld = daysBetween(position.entry_date, getCurrentDate());
+  const returnPct = ((currentPrice - position.entry_price) / position.entry_price) * 100
+  const dropFromHigh = ((position.highest_price - currentPrice) / position.highest_price) * 100
+  const daysHeld = daysBetween(position.entry_date, getCurrentDate())
 
   // 1. Check stop-loss (highest priority)
-  const stopLossResult = checkStopLoss(agent, returnPct, dropFromHigh);
+  const stopLossResult = checkStopLoss(agent, returnPct, dropFromHigh)
   if (stopLossResult) {
-    return stopLossResult;
+    return stopLossResult
   }
 
   // 2. Check take-profit (Claude only)
-  const takeProfitResult = checkTakeProfit(agent, returnPct, position.partial_sold === 1);
+  const takeProfitResult = checkTakeProfit(agent, returnPct, position.partial_sold === 1)
   if (takeProfitResult) {
-    return takeProfitResult;
+    return takeProfitResult
   }
 
   // 3. Check time exit
-  const timeExitResult = checkTimeExit(agent, daysHeld);
+  const timeExitResult = checkTimeExit(agent, daysHeld)
   if (timeExitResult) {
-    return timeExitResult;
+    return timeExitResult
   }
 
   // 4. Check soft stop (ChatGPT only)
-  const softStopResult = checkSoftStop(agent, position.asset_type, daysHeld, returnPct);
+  const softStopResult = checkSoftStop(agent, position.asset_type, daysHeld, returnPct)
   if (softStopResult) {
-    return softStopResult;
+    return softStopResult
   }
 
-  return null;
+  return null
 }
 
 /**
@@ -160,21 +140,21 @@ function checkStopLoss(
   returnPct: number,
   dropFromHigh: number
 ): ExitDecision | null {
-  const { stop_loss } = agent.exit;
+  const { stop_loss } = agent.exit
 
-  if (stop_loss.mode === "fixed") {
+  if (stop_loss.mode === 'fixed') {
     // Fixed stop-loss: exit if return drops below -threshold
     if (returnPct <= -stop_loss.threshold_pct) {
-      return { action: "close", reason: "stop_loss", sell_pct: 100 };
+      return { action: 'close', reason: 'stop_loss', sell_pct: 100 }
     }
-  } else if (stop_loss.mode === "trailing") {
+  } else if (stop_loss.mode === 'trailing') {
     // Trailing stop-loss: exit if price drops threshold% from highest
     if (dropFromHigh >= stop_loss.threshold_pct) {
-      return { action: "close", reason: "stop_loss", sell_pct: 100 };
+      return { action: 'close', reason: 'stop_loss', sell_pct: 100 }
     }
   }
 
-  return null;
+  return null
 }
 
 /**
@@ -185,39 +165,39 @@ function checkTakeProfit(
   returnPct: number,
   alreadyPartialSold: boolean
 ): ExitDecision | null {
-  const { take_profit } = agent.exit;
+  const { take_profit } = agent.exit
   if (!take_profit) {
-    return null;
+    return null
   }
 
   // Check second tier (full exit at 40%+)
   if (returnPct >= take_profit.second_threshold_pct) {
-    return { action: "close", reason: "take_profit", sell_pct: 100 };
+    return { action: 'close', reason: 'take_profit', sell_pct: 100 }
   }
 
   // Check first tier (partial sell at 25%+) - only if not already done
   if (returnPct >= take_profit.first_threshold_pct && !alreadyPartialSold) {
     return {
-      action: "partial",
-      reason: "take_profit",
-      sell_pct: take_profit.first_sell_pct,
-    };
+      action: 'partial',
+      reason: 'take_profit',
+      sell_pct: take_profit.first_sell_pct
+    }
   }
 
-  return null;
+  return null
 }
 
 /**
  * Check time-based exit condition.
  */
 function checkTimeExit(agent: AgentConfig, daysHeld: number): ExitDecision | null {
-  const { max_hold_days } = agent.exit;
+  const { max_hold_days } = agent.exit
 
   if (max_hold_days !== null && daysHeld >= max_hold_days) {
-    return { action: "close", reason: "time_exit", sell_pct: 100 };
+    return { action: 'close', reason: 'time_exit', sell_pct: 100 }
   }
 
-  return null;
+  return null
 }
 
 /**
@@ -230,22 +210,20 @@ function checkSoftStop(
   daysHeld: number,
   returnPct: number
 ): ExitDecision | null {
-  const { soft_stop } = agent.exit;
+  const { soft_stop } = agent.exit
   if (!soft_stop) {
-    return null;
+    return null
   }
 
   const noProgressDays =
-    assetType === "option"
-      ? soft_stop.no_progress_days_option
-      : soft_stop.no_progress_days_stock;
+    assetType === 'option' ? soft_stop.no_progress_days_option : soft_stop.no_progress_days_stock
 
   // Exit if held for noProgressDays and return is still <= 0
   if (daysHeld >= noProgressDays && returnPct <= 0) {
-    return { action: "close", reason: "soft_stop", sell_pct: 100 };
+    return { action: 'close', reason: 'soft_stop', sell_pct: 100 }
   }
 
-  return null;
+  return null
 }
 
 // =============================================================================
@@ -262,10 +240,10 @@ async function executeExit(
   decision: ExitDecision,
   currentPrice: number
 ): Promise<{ success: boolean; error?: string }> {
-  const sharesToSell = Math.floor((position.shares * decision.sell_pct) / 100);
+  const sharesToSell = Math.floor((position.shares * decision.sell_pct) / 100)
 
   if (sharesToSell === 0) {
-    return { success: false, error: "No shares to sell" };
+    return { success: false, error: 'No shares to sell' }
   }
 
   // Execute sell order via Fidelity API
@@ -276,32 +254,22 @@ async function executeExit(
     sharesToSell,
     currentPrice,
     decision.reason
-  );
+  )
 
   if (!sellResult.success) {
-    return { success: false, error: sellResult.error };
+    return { success: false, error: sellResult.error }
   }
 
   // Update position in database
-  if (decision.action === "close" || sharesToSell >= position.shares) {
+  if (decision.action === 'close' || sharesToSell >= position.shares) {
     // Full close
-    await closePosition(
-      env,
-      position.id,
-      decision.reason,
-      currentPrice
-    );
+    await closePosition(env, position.id, decision.reason, currentPrice)
   } else {
     // Partial sell - update shares and mark as partial sold
-    await partialClosePosition(
-      env,
-      position.id,
-      sharesToSell,
-      currentPrice
-    );
+    await partialClosePosition(env, position.id, sharesToSell, currentPrice)
   }
 
-  return { success: true };
+  return { success: true }
 }
 
 // =============================================================================
@@ -312,27 +280,28 @@ async function executeExit(
  * Get all open positions from database.
  */
 export async function getAllOpenPositions(env: TraderEnv): Promise<PositionRow[]> {
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM positions WHERE status = 'open'
-  `).all();
+  `
+  ).all()
 
-  return results.results as unknown as PositionRow[];
+  return results.results as unknown as PositionRow[]
 }
 
 /**
  * Get current price for a ticker from positions table.
  */
-async function getCurrentPriceForTicker(
-  env: TraderEnv,
-  ticker: string
-): Promise<number | null> {
-  const row = await env.TRADER_DB.prepare(`
+async function getCurrentPriceForTicker(env: TraderEnv, ticker: string): Promise<number | null> {
+  const row = await env.TRADER_DB.prepare(
+    `
     SELECT current_price FROM positions WHERE ticker = ? AND current_price IS NOT NULL LIMIT 1
-  `)
+  `
+  )
     .bind(ticker)
-    .first();
+    .first()
 
-  return (row?.current_price as number) ?? null;
+  return (row?.current_price as number) ?? null
 }
 
 /**
@@ -343,11 +312,13 @@ export async function updateHighestPrice(
   positionId: string,
   newHighestPrice: number
 ): Promise<void> {
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     UPDATE positions SET highest_price = ? WHERE id = ?
-  `)
+  `
+  )
     .bind(newHighestPrice, positionId)
-    .run();
+    .run()
 }
 
 /**
@@ -359,15 +330,17 @@ export async function closePosition(
   reason: CloseReason,
   closePrice: number
 ): Promise<void> {
-  const now = new Date().toISOString();
+  const now = new Date().toISOString()
 
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     UPDATE positions
     SET status = 'closed', closed_at = ?, close_price = ?, close_reason = ?
     WHERE id = ?
-  `)
+  `
+  )
     .bind(now, closePrice, reason, positionId)
-    .run();
+    .run()
 }
 
 /**
@@ -377,15 +350,17 @@ export async function partialClosePosition(
   env: TraderEnv,
   positionId: string,
   sharesSold: number,
-  salePrice: number
+  _salePrice: number
 ): Promise<void> {
-  await env.TRADER_DB.prepare(`
+  await env.TRADER_DB.prepare(
+    `
     UPDATE positions
     SET shares = shares - ?, partial_sold = 1
     WHERE id = ?
-  `)
+  `
+  )
     .bind(sharesSold, positionId)
-    .run();
+    .run()
 }
 
 /**
@@ -395,11 +370,13 @@ export async function getAgentOpenPositions(
   env: TraderEnv,
   agentId: string
 ): Promise<PositionRow[]> {
-  const results = await env.TRADER_DB.prepare(`
+  const results = await env.TRADER_DB.prepare(
+    `
     SELECT * FROM positions WHERE agent_id = ? AND status = 'open'
-  `)
+  `
+  )
     .bind(agentId)
-    .all();
+    .all()
 
-  return results.results as unknown as PositionRow[];
+  return results.results as unknown as PositionRow[]
 }

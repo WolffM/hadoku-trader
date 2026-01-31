@@ -3,7 +3,7 @@
  * Implements all 7 scoring components per FINAL_ENGINE_SPEC.md
  */
 
-import type { TraderEnv } from "../types";
+import type { TraderEnv } from '../types'
 import type {
   ScoringConfig,
   TimeDecayConfig,
@@ -14,19 +14,19 @@ import type {
   FilingSpeedConfig,
   CrossConfirmationConfig,
   EnrichedSignal,
-  ScoreResult,
-} from "./types";
-import { lerp, clamp } from "./filters";
-import { getPoliticianStats } from "./loader";
+  ScoreResult
+} from './types'
+import { lerp, clamp } from './filters'
+import { getPoliticianStats } from './loader'
 
 // =============================================================================
 // Shared Weighting Helper
 // =============================================================================
 
 interface ComponentScore {
-  name: string;
-  score: number;
-  weight: number;
+  name: string
+  score: number
+  weight: number
 }
 
 /**
@@ -34,22 +34,22 @@ interface ComponentScore {
  * Shared logic used by both async and sync scoring functions.
  */
 function calculateWeightedScore(components: ComponentScore[]): ScoreResult {
-  const breakdown: Record<string, number> = {};
-  let totalWeight = 0;
-  let weightedSum = 0;
+  const breakdown: Record<string, number> = {}
+  let totalWeight = 0
+  let weightedSum = 0
 
   for (const { name, score, weight } of components) {
-    breakdown[name] = score;
-    weightedSum += score * weight;
-    totalWeight += weight;
+    breakdown[name] = score
+    weightedSum += score * weight
+    totalWeight += weight
   }
 
-  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0;
+  const finalScore = totalWeight > 0 ? weightedSum / totalWeight : 0
 
   return {
     score: clamp(finalScore, 0, 1),
-    breakdown,
-  };
+    breakdown
+  }
 }
 
 // =============================================================================
@@ -65,73 +65,73 @@ export async function calculateScore(
   config: ScoringConfig,
   signal: EnrichedSignal
 ): Promise<ScoreResult> {
-  const components = config.components;
-  const scores: ComponentScore[] = [];
+  const components = config.components
+  const scores: ComponentScore[] = []
 
   // 1. Time Decay
   if (components.time_decay) {
     scores.push({
-      name: "time_decay",
+      name: 'time_decay',
       score: scoreTimeDecay(components.time_decay, signal),
-      weight: components.time_decay.weight,
-    });
+      weight: components.time_decay.weight
+    })
   }
 
   // 2. Price Movement
   if (components.price_movement) {
     scores.push({
-      name: "price_movement",
+      name: 'price_movement',
       score: scorePriceMovement(components.price_movement, signal),
-      weight: components.price_movement.weight,
-    });
+      weight: components.price_movement.weight
+    })
   }
 
   // 3. Position Size
   if (components.position_size) {
     scores.push({
-      name: "position_size",
+      name: 'position_size',
       score: scorePositionSize(components.position_size, signal),
-      weight: components.position_size.weight,
-    });
+      weight: components.position_size.weight
+    })
   }
 
   // 4. Politician Skill (async - DB lookup)
   if (components.politician_skill) {
     scores.push({
-      name: "politician_skill",
+      name: 'politician_skill',
       score: await scorePoliticianSkill(env, components.politician_skill, signal),
-      weight: components.politician_skill.weight,
-    });
+      weight: components.politician_skill.weight
+    })
   }
 
   // 5. Source Quality (async - DB lookup for confirmations)
   if (components.source_quality) {
     scores.push({
-      name: "source_quality",
+      name: 'source_quality',
       score: await scoreSourceQuality(env, components.source_quality, signal),
-      weight: components.source_quality.weight,
-    });
+      weight: components.source_quality.weight
+    })
   }
 
   // 6. Filing Speed (Claude only)
   if (components.filing_speed) {
     scores.push({
-      name: "filing_speed",
+      name: 'filing_speed',
       score: scoreFilingSpeed(components.filing_speed, signal),
-      weight: components.filing_speed.weight,
-    });
+      weight: components.filing_speed.weight
+    })
   }
 
   // 7. Cross Confirmation (Claude only, async)
   if (components.cross_confirmation) {
     scores.push({
-      name: "cross_confirmation",
+      name: 'cross_confirmation',
       score: await scoreCrossConfirmation(env, components.cross_confirmation, signal),
-      weight: components.cross_confirmation.weight,
-    });
+      weight: components.cross_confirmation.weight
+    })
   }
 
-  return calculateWeightedScore(scores);
+  return calculateWeightedScore(scores)
 }
 
 /**
@@ -144,86 +144,88 @@ export function calculateScoreSync(
   politicianWinRate?: number,
   confirmationCount?: number
 ): ScoreResult {
-  const components = config.components;
-  const scores: ComponentScore[] = [];
+  const components = config.components
+  const scores: ComponentScore[] = []
 
   // 1. Time Decay
   if (components.time_decay) {
     scores.push({
-      name: "time_decay",
+      name: 'time_decay',
       score: scoreTimeDecay(components.time_decay, signal),
-      weight: components.time_decay.weight,
-    });
+      weight: components.time_decay.weight
+    })
   }
 
   // 2. Price Movement
   if (components.price_movement) {
     scores.push({
-      name: "price_movement",
+      name: 'price_movement',
       score: scorePriceMovement(components.price_movement, signal),
-      weight: components.price_movement.weight,
-    });
+      weight: components.price_movement.weight
+    })
   }
 
   // 3. Position Size
   if (components.position_size) {
     scores.push({
-      name: "position_size",
+      name: 'position_size',
       score: scorePositionSize(components.position_size, signal),
-      weight: components.position_size.weight,
-    });
+      weight: components.position_size.weight
+    })
   }
 
   // 4. Politician Skill (uses pre-computed win rate)
   if (components.politician_skill) {
     scores.push({
-      name: "politician_skill",
-      score: politicianWinRate !== undefined
-        ? clamp(politicianWinRate, 0.4, 0.7)
-        : components.politician_skill.default_score,
-      weight: components.politician_skill.weight,
-    });
+      name: 'politician_skill',
+      score:
+        politicianWinRate !== undefined
+          ? clamp(politicianWinRate, 0.4, 0.7)
+          : components.politician_skill.default_score,
+      weight: components.politician_skill.weight
+    })
   }
 
   // 5. Source Quality (uses pre-computed confirmation count)
   if (components.source_quality) {
-    let score = components.source_quality.scores[signal.source]
-      ?? components.source_quality.scores["default"]
-      ?? 0.8;
+    let score =
+      components.source_quality.scores[signal.source] ??
+      components.source_quality.scores.default ??
+      0.8
     if (confirmationCount && confirmationCount > 1) {
-      const bonus = (confirmationCount - 1) * components.source_quality.confirmation_bonus;
-      score += Math.min(bonus, components.source_quality.max_confirmation_bonus);
+      const bonus = (confirmationCount - 1) * components.source_quality.confirmation_bonus
+      score += Math.min(bonus, components.source_quality.max_confirmation_bonus)
     }
     scores.push({
-      name: "source_quality",
+      name: 'source_quality',
       score,
-      weight: components.source_quality.weight,
-    });
+      weight: components.source_quality.weight
+    })
   }
 
   // 6. Filing Speed
   if (components.filing_speed) {
     scores.push({
-      name: "filing_speed",
+      name: 'filing_speed',
       score: scoreFilingSpeed(components.filing_speed, signal),
-      weight: components.filing_speed.weight,
-    });
+      weight: components.filing_speed.weight
+    })
   }
 
   // 7. Cross Confirmation (uses pre-computed confirmation count)
   if (components.cross_confirmation) {
-    const count = confirmationCount ?? 0;
-    let score = 0.5;
-    if (count >= 3) score = 1.0;
-    else if (count === 2) score = 0.75;
+    const count = confirmationCount ?? 0
+    let score = 0.5
+    if (count >= 3) score = 1.0
+    else if (count === 2) score = 0.75
     scores.push({
-      name: "cross_confirmation",
+      name: 'cross_confirmation',
       score,
-      weight: components.cross_confirmation.weight,
-    });
+      weight: components.cross_confirmation.weight
+    })
   }
 
-  return calculateWeightedScore(scores);
+  return calculateWeightedScore(scores)
 }
 
 // =============================================================================
@@ -234,78 +236,66 @@ export function calculateScoreSync(
  * Time Decay: Exponential decay based on days since trade.
  * Optionally uses filing date decay and takes minimum of both.
  */
-export function scoreTimeDecay(
-  config: TimeDecayConfig,
-  signal: EnrichedSignal
-): number {
+export function scoreTimeDecay(config: TimeDecayConfig, signal: EnrichedSignal): number {
   // Primary decay based on trade date
-  let decay = Math.pow(0.5, signal.days_since_trade / config.half_life_days);
+  let decay = Math.pow(0.5, signal.days_since_trade / config.half_life_days)
 
   // Optional filing date decay (Claude uses this)
   if (config.use_filing_date && config.filing_half_life_days) {
-    const filingDecay = Math.pow(
-      0.5,
-      signal.days_since_filing / config.filing_half_life_days
-    );
+    const filingDecay = Math.pow(0.5, signal.days_since_filing / config.filing_half_life_days)
     // Take the worse (lower) of the two decay values
-    decay = Math.min(decay, filingDecay);
+    decay = Math.min(decay, filingDecay)
   }
 
-  return decay;
+  return decay
 }
 
 /**
  * Price Movement: 4-threshold interpolation with dip bonus for buys.
  */
-export function scorePriceMovement(
-  config: PriceMovementConfig,
-  signal: EnrichedSignal
-): number {
-  const thresholds = config.thresholds;
+export function scorePriceMovement(config: PriceMovementConfig, signal: EnrichedSignal): number {
+  const thresholds = config.thresholds
   // price_change_pct is already in percentage form (5 = 5%)
-  const pct = Math.abs(signal.price_change_pct);
+  const pct = Math.abs(signal.price_change_pct)
 
-  let score: number;
+  let score: number
 
   if (pct <= 0) {
-    score = thresholds.pct_0;
+    score = thresholds.pct_0
   } else if (pct <= 5) {
-    score = lerp(thresholds.pct_0, thresholds.pct_5, pct / 5);
+    score = lerp(thresholds.pct_0, thresholds.pct_5, pct / 5)
   } else if (pct <= 15) {
-    score = lerp(thresholds.pct_5, thresholds.pct_15, (pct - 5) / 10);
+    score = lerp(thresholds.pct_5, thresholds.pct_15, (pct - 5) / 10)
   } else if (pct <= 25) {
-    score = lerp(thresholds.pct_15, thresholds.pct_25, (pct - 15) / 10);
+    score = lerp(thresholds.pct_15, thresholds.pct_25, (pct - 15) / 10)
   } else {
-    score = 0; // Beyond 25% movement
+    score = 0 // Beyond 25% movement
   }
 
   // Dip bonus: If this is a buy signal and price has dropped, apply 1.2x bonus
-  if (signal.action === "buy" && signal.price_change_pct < 0) {
-    score = Math.min(score * 1.2, 1.2);
+  if (signal.action === 'buy' && signal.price_change_pct < 0) {
+    score = Math.min(score * 1.2, 1.2)
   }
 
-  return score;
+  return score
 }
 
 /**
  * Position Size: Threshold-based mapping of disclosed position size.
  */
-export function scorePositionSize(
-  config: PositionSizeConfig,
-  signal: EnrichedSignal
-): number {
-  const size = signal.position_size_min;
+export function scorePositionSize(config: PositionSizeConfig, signal: EnrichedSignal): number {
+  const size = signal.position_size_min
 
   // Find the highest threshold that the position size exceeds
-  let idx = 0;
+  let idx = 0
   for (let i = 0; i < config.thresholds.length; i++) {
     if (size >= config.thresholds[i]) {
-      idx = i + 1;
+      idx = i + 1
     }
   }
 
   // Return the corresponding score (scores array has one more element than thresholds)
-  return config.scores[idx] ?? config.scores[config.scores.length - 1] ?? 0.5;
+  return config.scores[idx] ?? config.scores[config.scores.length - 1] ?? 0.5
 }
 
 /**
@@ -316,16 +306,16 @@ async function scorePoliticianSkill(
   config: PoliticianSkillConfig,
   signal: EnrichedSignal
 ): Promise<number> {
-  const stats = await getPoliticianStats(env, signal.politician_name);
+  const stats = await getPoliticianStats(env, signal.politician_name)
 
   // If no stats or insufficient trades, return default
   if (!stats || stats.total_trades < config.min_trades_for_data) {
-    return config.default_score;
+    return config.default_score
   }
 
   // Use win_rate if available, clamped to [0.4, 0.7] range
-  const winRate = stats.win_rate ?? config.default_score;
-  return clamp(winRate, 0.4, 0.7);
+  const winRate = stats.win_rate ?? config.default_score
+  return clamp(winRate, 0.4, 0.7)
 }
 
 /**
@@ -337,7 +327,7 @@ async function scoreSourceQuality(
   signal: EnrichedSignal
 ): Promise<number> {
   // Get base score for the source
-  let score = config.scores[signal.source] ?? config.scores["default"] ?? 0.8;
+  let score = config.scores[signal.source] ?? config.scores.default ?? 0.8
 
   // Get confirmation count (how many sources reported this same signal)
   const confirmations = await getSignalConfirmationCount(
@@ -345,37 +335,34 @@ async function scoreSourceQuality(
     signal.ticker,
     signal.action,
     signal.trade_date
-  );
+  )
 
   // Add confirmation bonus if multiple sources
   if (confirmations > 1) {
-    const bonus = (confirmations - 1) * config.confirmation_bonus;
-    score += Math.min(bonus, config.max_confirmation_bonus);
+    const bonus = (confirmations - 1) * config.confirmation_bonus
+    score += Math.min(bonus, config.max_confirmation_bonus)
   }
 
-  return score;
+  return score
 }
 
 /**
  * Filing Speed: Fast bonus or slow penalty based on days since filing.
  * Used by Claude only.
  */
-function scoreFilingSpeed(
-  config: FilingSpeedConfig,
-  signal: EnrichedSignal
-): number {
+function scoreFilingSpeed(config: FilingSpeedConfig, signal: EnrichedSignal): number {
   // Fast filing: bonus for <= 7 days
   if (signal.days_since_filing <= 7) {
-    return 1.0 + config.fast_bonus;
+    return 1.0 + config.fast_bonus
   }
 
   // Slow filing: penalty for >= 30 days
   if (signal.days_since_filing >= 30) {
-    return 1.0 + config.slow_penalty; // slow_penalty is negative
+    return 1.0 + config.slow_penalty // slow_penalty is negative
   }
 
   // Normal filing speed
-  return 1.0;
+  return 1.0
 }
 
 /**
@@ -392,15 +379,15 @@ async function scoreCrossConfirmation(
     signal.ticker,
     signal.action,
     signal.trade_date
-  );
+  )
 
   // Calculate bonus: (confirmations - 1) * bonus_per_source, capped at max_bonus
   if (confirmations > 1) {
-    const bonus = (confirmations - 1) * config.bonus_per_source;
-    return 1.0 + Math.min(bonus, config.max_bonus);
+    const bonus = (confirmations - 1) * config.bonus_per_source
+    return 1.0 + Math.min(bonus, config.max_bonus)
   }
 
-  return 1.0;
+  return 1.0
 }
 
 // =============================================================================
@@ -427,7 +414,7 @@ export async function getSignalConfirmationCount(
   `
   )
     .bind(ticker, action, tradeDate)
-    .first();
+    .first()
 
-  return (result?.count as number) ?? 1;
+  return (result?.count as number) ?? 1
 }
