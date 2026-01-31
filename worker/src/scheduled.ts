@@ -122,6 +122,51 @@ import type { components } from "./generated/scraper-api";
 type ScraperSignalsResponse = components["schemas"]["FetchSignalsResponse"];
 
 /**
+ * Scraper's Signal type from OpenAPI spec.
+ * More permissive than our internal Signal type (allows null/optional fields).
+ */
+type ScraperSignal = components["schemas"]["Signal"];
+
+/**
+ * Convert a scraper signal to our internal Signal format.
+ * Provides defaults for optional fields that the scraper may not include.
+ */
+function toInternalSignal(scraperSignal: ScraperSignal): Signal {
+  return {
+    source: scraperSignal.source,
+    politician: {
+      name: scraperSignal.politician.name,
+      chamber: scraperSignal.politician.chamber ?? "unknown",
+      party: scraperSignal.politician.party ?? "unknown",
+      state: scraperSignal.politician.state ?? "unknown",
+    },
+    trade: {
+      ticker: scraperSignal.trade.ticker ?? "",
+      action: scraperSignal.trade.action,
+      asset_type: scraperSignal.trade.asset_type ?? "stock",
+      trade_date: scraperSignal.trade.trade_date ?? "",
+      trade_price: scraperSignal.trade.trade_price ?? null,
+      disclosure_date: scraperSignal.trade.disclosure_date ?? "",
+      disclosure_price: scraperSignal.trade.disclosure_price ?? null,
+      disclosure_lag_days: scraperSignal.trade.disclosure_lag_days ?? undefined,
+      current_price: scraperSignal.trade.current_price ?? null,
+      current_price_at: null,
+      position_size: scraperSignal.trade.position_size ?? "",
+      position_size_min: scraperSignal.trade.position_size_min ?? 0,
+      position_size_max: scraperSignal.trade.position_size_max ?? 0,
+      option_type: (scraperSignal.trade.option_type as "call" | "put" | null) ?? null,
+      strike_price: scraperSignal.trade.strike_price ?? null,
+      expiration_date: scraperSignal.trade.expiration_date ?? null,
+    },
+    meta: {
+      source_url: scraperSignal.meta.source_url ?? "",
+      source_id: scraperSignal.meta.source_id,
+      scraped_at: scraperSignal.meta.scraped_at,
+    },
+  };
+}
+
+/**
  * Fetch signals and market data from hadoku-scraper.
  */
 export async function fetchFromScraper(env: TraderEnv): Promise<void> {
@@ -150,10 +195,8 @@ export async function fetchFromScraper(env: TraderEnv): Promise<void> {
       console.warn(`Failed to fetch from sources: ${failedSources.join(", ")}`);
     }
 
-    // Store new signals
-    // Note: Cast through unknown because OpenAPI schema types signals as { [key: string]: unknown }[]
-    // The scraper should define a proper Signal schema to get type-safe generated types
-    const signals = data.signals as unknown as Signal[];
+    // Store new signals - convert from scraper format to internal format
+    const signals = data.signals.map(toInternalSignal);
     for (const signal of signals) {
       await storeSignal(env, signal);
     }
@@ -230,9 +273,8 @@ export async function syncSignalsFromScraper(
       }
     }
 
-    // Ingest all signals using the batch function
-    // Note: Cast through unknown because OpenAPI schema types signals as { [key: string]: unknown }[]
-    const signals = data.signals as unknown as Signal[];
+    // Ingest all signals using the batch function - convert from scraper format
+    const signals = data.signals.map(toInternalSignal);
     const batchResult = await ingestSignalBatch(env, signals);
     result.inserted = batchResult.inserted;
     result.skipped = batchResult.skipped;

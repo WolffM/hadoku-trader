@@ -6,8 +6,12 @@
  */
 
 import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
-import type { TraderEnv, Signal, ScraperDataPackage } from "./types";
+import type { TraderEnv, Signal } from "./types";
+import type { components } from "./generated/scraper-api";
 import { syncSignalsFromScraper, ingestSignalBatch } from "./scheduled";
+
+// Scraper API response type
+type ScraperSignalsResponse = components["schemas"]["FetchSignalsResponse"];
 
 // =============================================================================
 // Mock D1 Database
@@ -146,16 +150,46 @@ function createTestSignal(overrides: Partial<Signal> = {}): Signal {
   };
 }
 
-function createScraperDataPackage(signals: Signal[]): ScraperDataPackage {
+/**
+ * Create a scraper signal in the format returned by the OpenAPI.
+ * Maps internal Signal to scraper API format.
+ */
+function toScraperSignal(signal: Signal): components["schemas"]["Signal"] {
   return {
-    signals,
-    market_data: {
-      quotes: [
-        { ticker: "NVDA", price: 145.0 },
-        { ticker: "AAPL", price: 195.0 },
-      ],
-      sp500: { price: 5850.0 },
+    source: signal.source as components["schemas"]["SignalSource"],
+    politician: {
+      name: signal.politician.name,
+      chamber: (signal.politician.chamber?.toLowerCase() as components["schemas"]["Chamber"]) ?? "unknown",
+      party: signal.politician.party ?? null,
+      state: signal.politician.state ?? null,
     },
+    trade: {
+      ticker: signal.trade.ticker ?? null,
+      action: signal.trade.action as components["schemas"]["TradeAction"],
+      asset_type: (signal.trade.asset_type as components["schemas"]["AssetType"]) ?? "stock",
+      trade_date: signal.trade.trade_date ?? null,
+      trade_price: signal.trade.trade_price ?? null,
+      disclosure_date: signal.trade.disclosure_date ?? null,
+      disclosure_price: signal.trade.disclosure_price ?? null,
+      position_size: signal.trade.position_size ?? null,
+      position_size_min: signal.trade.position_size_min ?? null,
+      position_size_max: signal.trade.position_size_max ?? null,
+    },
+    meta: {
+      source_url: signal.meta.source_url ?? null,
+      source_id: signal.meta.source_id,
+      scraped_at: signal.meta.scraped_at,
+    },
+  };
+}
+
+function createScraperResponse(signals: Signal[]): ScraperSignalsResponse {
+  return {
+    signals: signals.map(toScraperSignal),
+    sources_fetched: ["capitol_trades", "senate_stock_watcher"],
+    sources_failed: {},
+    total_signals: signals.length,
+    fetched_at: new Date().toISOString(),
   };
 }
 
@@ -291,12 +325,12 @@ describe("syncSignalsFromScraper", () => {
       createTestSignal({ meta: { source_url: "", source_id: "scraper_2", scraped_at: new Date().toISOString() } }),
     ];
 
-    const mockDataPackage = createScraperDataPackage(testSignals);
+    const mockResponse = createScraperResponse(testSignals);
 
     // Mock fetch
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockDataPackage),
+      json: () => Promise.resolve(mockResponse),
     });
 
     const result = await syncSignalsFromScraper(env);
@@ -307,10 +341,10 @@ describe("syncSignalsFromScraper", () => {
 
     // Verify fetch was called with correct params
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      "https://scraper.example.com/data-package",
+      "https://scraper.example.com/api/v1/politrades/signals?limit=500",
       expect.objectContaining({
         headers: expect.objectContaining({
-          "X-API-Key": "test-scraper-key",
+          Authorization: "Bearer test-scraper-key",
         }),
       })
     );
@@ -357,7 +391,7 @@ describe("syncSignalsFromScraper", () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(createScraperDataPackage(scraperSignals)),
+      json: () => Promise.resolve(createScraperResponse(scraperSignals)),
     });
 
     const result = await syncSignalsFromScraper(env);
@@ -367,20 +401,27 @@ describe("syncSignalsFromScraper", () => {
     expect(result.errors).toHaveLength(0);
   });
 
-  it("should update SP500 price in config", async () => {
-    const mockDataPackage = createScraperDataPackage([]);
+  it("should handle sources_failed in response", async () => {
+    const mockResponse: ScraperSignalsResponse = {
+      signals: [],
+      sources_fetched: ["capitol_trades"],
+      sources_failed: { senate_stock_watcher: "Rate limit exceeded" },
+      total_signals: 0,
+      fetched_at: new Date().toISOString(),
+    };
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockDataPackage),
+      json: () => Promise.resolve(mockResponse),
     });
 
-    await syncSignalsFromScraper(env);
+    const result = await syncSignalsFromScraper(env);
 
-    // Check SP500 was stored
-    const configEntry = env.mockDb.tables.config.find((c) => c.key === "sp500_price");
-    expect(configEntry).toBeDefined();
-    expect(configEntry?.value).toBe("5850");
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(0);
+    // sources_failed errors are now logged but also added to result.errors
+    expect(result.errors).toHaveLength(1);
+    expect(result.errors[0]).toContain("senate_stock_watcher");
   });
 });
 
@@ -439,7 +480,7 @@ describe("Integration: Full Sync Flow", () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(createScraperDataPackage(realisticSignals)),
+      json: () => Promise.resolve(createScraperResponse(realisticSignals)),
     });
 
     const result = await syncSignalsFromScraper(env);

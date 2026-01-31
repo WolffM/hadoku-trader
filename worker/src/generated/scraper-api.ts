@@ -646,6 +646,12 @@ export interface components {
             } | null;
         };
         /**
+         * AssetType
+         * @description Type of traded asset.
+         * @enum {string}
+         */
+        AssetType: "stock" | "stock_option" | "bond" | "mutual_fund" | "etf" | "crypto" | "other" | "unknown";
+        /**
          * AutoPostPlatform
          * @description Platforms that support automated API posting.
          * @enum {string}
@@ -882,6 +888,12 @@ export interface components {
             end_date: string;
         };
         /**
+         * Chamber
+         * @description Congressional chamber.
+         * @enum {string}
+         */
+        Chamber: "house" | "senate" | "unknown";
+        /**
          * CrosspostRequest
          * @description API request for crossposting.
          */
@@ -963,29 +975,30 @@ export interface components {
          *         {
          *           "meta": {
          *             "scraped_at": "2026-01-16T04:29:12Z",
-         *             "source_id": "ct_10000064417"
+         *             "source_id": "ct_abc123"
          *           },
          *           "politician": {
-         *             "chamber": "senate",
-         *             "name": "Tommy Tuberville",
-         *             "party": "R",
-         *             "state": "AL"
+         *             "chamber": "house",
+         *             "name": "Nancy Pelosi",
+         *             "party": "D",
+         *             "state": "CA"
          *           },
          *           "source": "capitol_trades",
          *           "trade": {
          *             "action": "buy",
-         *             "current_price": 43.21,
-         *             "price_at_trade": 42.44,
-         *             "ticker": "XLU"
+         *             "asset_type": "stock",
+         *             "disclosure_date": "2026-01-15",
+         *             "ticker": "NVDA",
+         *             "trade_date": "2026-01-10"
          *           }
          *         }
          *       ],
          *       "sources_failed": {},
          *       "sources_fetched": [
-         *         "senate_stock_watcher",
-         *         "capitol_trades"
+         *         "capitol_trades",
+         *         "senate_stock_watcher"
          *       ],
-         *       "total_signals": 20
+         *       "total_signals": 1
          *     }
          */
         FetchSignalsResponse: {
@@ -993,9 +1006,7 @@ export interface components {
              * Signals
              * @description List of trading signals
              */
-            signals: {
-                [key: string]: unknown;
-            }[];
+            signals: components["schemas"]["Signal"][];
             /**
              * Sources Fetched
              * @description Sources that were successfully fetched
@@ -1023,6 +1034,37 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HealthChecks
+         * @description Individual health check results.
+         */
+        HealthChecks: {
+            /** @description Queue health status */
+            queue: components["schemas"]["QueueHealthCheck"];
+        };
+        /**
+         * HealthResponse
+         * @description Health check response.
+         * @example {
+         *       "checks": {
+         *         "queue": {
+         *           "depth": 5,
+         *           "status": "ok"
+         *         }
+         *       },
+         *       "status": "healthy"
+         *     }
+         */
+        HealthResponse: {
+            /**
+             * Status
+             * @description Overall health status
+             * @enum {string}
+             */
+            status: "healthy" | "degraded" | "unhealthy";
+            /** @description Individual health check results */
+            checks: components["schemas"]["HealthChecks"];
         };
         /**
          * JobSubmitRequest
@@ -1088,9 +1130,7 @@ export interface components {
              * Signals
              * @description List of trading signals
              */
-            signals: {
-                [key: string]: unknown;
-            }[];
+            signals: components["schemas"]["Signal"][];
             /**
              * Page
              * @description Current page number (1-indexed)
@@ -1118,6 +1158,55 @@ export interface components {
             has_next: boolean;
         };
         /**
+         * Politician
+         * @description Politician information from trading disclosure.
+         * @example {
+         *       "chamber": "house",
+         *       "name": "Nancy Pelosi",
+         *       "party": "D",
+         *       "state": "CA"
+         *     }
+         */
+        Politician: {
+            /**
+             * Name
+             * @description Full name of the politician
+             */
+            name: string;
+            /**
+             * @description Congressional chamber: 'house', 'senate', or 'unknown'
+             * @default unknown
+             */
+            chamber: components["schemas"]["Chamber"];
+            /**
+             * Party
+             * @description Party affiliation: 'D' (Democrat), 'R' (Republican), 'I' (Independent), or null
+             */
+            party?: string | null;
+            /**
+             * State
+             * @description Two-letter US state code (e.g., 'CA', 'TX')
+             */
+            state?: string | null;
+        };
+        /**
+         * QueueHealthCheck
+         * @description Queue health check result.
+         */
+        QueueHealthCheck: {
+            /**
+             * Status
+             * @description Queue health status
+             * @enum {string}
+             */
+            status: "ok" | "degraded" | "error";
+            /**
+             * Depth
+             * @description Number of pending jobs in queue
+             */
+            depth: number;
+        };
+        /**
          * RetryRequest
          * @description Request body for retry endpoint.
          */
@@ -1125,6 +1214,89 @@ export interface components {
             /** Platforms */
             platforms?: string[] | null;
         };
+        /**
+         * Signal
+         * @description A single politician trading signal.
+         *
+         *     This is the canonical signal schema used throughout the system.
+         *     All scrapers produce Signal objects, and all API responses use this model.
+         * @example {
+         *       "meta": {
+         *         "scraped_at": "2026-01-16T04:29:12.103014Z",
+         *         "source_id": "ct_abc123def456",
+         *         "source_url": "https://www.capitoltrades.com/trades/..."
+         *       },
+         *       "politician": {
+         *         "chamber": "house",
+         *         "name": "Nancy Pelosi",
+         *         "party": "D",
+         *         "state": "CA"
+         *       },
+         *       "source": "capitol_trades",
+         *       "trade": {
+         *         "action": "buy",
+         *         "asset_type": "stock",
+         *         "current_price": 148.25,
+         *         "disclosure_date": "2026-01-15",
+         *         "disclosure_price": 142.5,
+         *         "position_size": "$100,001 - $250,000",
+         *         "position_size_max": 250000,
+         *         "position_size_min": 100001,
+         *         "ticker": "NVDA",
+         *         "trade_date": "2026-01-10",
+         *         "trade_price": 135.87
+         *       }
+         *     }
+         */
+        Signal: {
+            /** @description Data source that provided this signal */
+            source: components["schemas"]["SignalSource"];
+            /** @description Information about the politician */
+            politician: components["schemas"]["Politician"];
+            /** @description Details of the trade */
+            trade: components["schemas"]["Trade"];
+            /** @description Metadata for tracking and deduplication */
+            meta: components["schemas"]["SignalMeta"];
+            /**
+             * Extra
+             * @description Optional catch-all for source-specific data or future extensions
+             */
+            extra?: {
+                [key: string]: unknown;
+            } | null;
+        };
+        /**
+         * SignalMeta
+         * @description Signal metadata for tracking and deduplication.
+         * @example {
+         *       "scraped_at": "2026-01-16T04:29:12.103014Z",
+         *       "source_id": "ct_abc123def456",
+         *       "source_url": "https://efdsearch.senate.gov/..."
+         *     }
+         */
+        SignalMeta: {
+            /**
+             * Source Url
+             * @description URL to the original filing or disclosure
+             */
+            source_url?: string | null;
+            /**
+             * Source Id
+             * @description Unique identifier from source for deduplication
+             */
+            source_id: string;
+            /**
+             * Scraped At
+             * @description ISO8601 timestamp when the signal was scraped
+             */
+            scraped_at: string;
+        };
+        /**
+         * SignalSource
+         * @description Data source for politician trading signals.
+         * @enum {string}
+         */
+        SignalSource: "house_stock_watcher" | "senate_stock_watcher" | "capitol_trades" | "unusual_whales" | "quiver_quant" | "sec_13f";
         /**
          * SignalsPullResponse
          * @description Response for incremental signal pull.
@@ -1134,9 +1306,7 @@ export interface components {
              * Signals
              * @description List of trading signals
              */
-            signals: {
-                [key: string]: unknown;
-            }[];
+            signals: components["schemas"]["Signal"][];
             /**
              * Next Cursor
              * @description Cursor for next page (if has_more is true)
@@ -1200,6 +1370,103 @@ export interface components {
              */
             error?: string | null;
         };
+        /**
+         * Trade
+         * @description Trade details from disclosure.
+         * @example {
+         *       "action": "buy",
+         *       "asset_type": "stock",
+         *       "current_price": 148.25,
+         *       "disclosure_date": "2026-01-15",
+         *       "disclosure_price": 142.5,
+         *       "position_size": "$100,001 - $250,000",
+         *       "position_size_max": 250000,
+         *       "position_size_min": 100001,
+         *       "ticker": "NVDA",
+         *       "trade_date": "2026-01-10",
+         *       "trade_price": 135.87
+         *     }
+         */
+        Trade: {
+            /**
+             * Ticker
+             * @description Stock ticker symbol (e.g., 'NVDA', 'AAPL')
+             */
+            ticker?: string | null;
+            /** @description Trade action: 'buy', 'sell', 'exchange', or 'unknown' */
+            action: components["schemas"]["TradeAction"];
+            /**
+             * @description Type of asset traded
+             * @default stock
+             */
+            asset_type: components["schemas"]["AssetType"];
+            /**
+             * Trade Date
+             * @description Date the trade was executed (YYYY-MM-DD)
+             */
+            trade_date?: string | null;
+            /**
+             * Disclosure Date
+             * @description Date the disclosure was filed/published (YYYY-MM-DD)
+             */
+            disclosure_date?: string | null;
+            /**
+             * Disclosure Lag Days
+             * @description Days between trade_date and disclosure_date
+             */
+            disclosure_lag_days?: number | null;
+            /**
+             * Position Size
+             * @description Original position size range string (e.g., '$1,001 - $15,000')
+             */
+            position_size?: string | null;
+            /**
+             * Position Size Min
+             * @description Lower bound of position size in dollars
+             */
+            position_size_min?: number | null;
+            /**
+             * Position Size Max
+             * @description Upper bound of position size in dollars
+             */
+            position_size_max?: number | null;
+            /**
+             * Trade Price
+             * @description Stock price on trade_date (politician's cost basis)
+             */
+            trade_price?: number | null;
+            /**
+             * Disclosure Price
+             * @description Stock price on disclosure_date (when public learned)
+             */
+            disclosure_price?: number | null;
+            /**
+             * Current Price
+             * @description Current stock price
+             */
+            current_price?: number | null;
+            /**
+             * Option Type
+             * @description Option type: 'call' or 'put' (only for stock_option)
+             */
+            option_type?: string | null;
+            /**
+             * Strike Price
+             * @description Strike price for options
+             */
+            strike_price?: number | null;
+            /**
+             * Expiration Date
+             * @description Option expiration date (YYYY-MM-DD)
+             */
+            expiration_date?: string | null;
+        };
+        /**
+         * TradeAction
+         * @description Type of trade action.
+         * @enum {string}
+         */
+        TradeAction: "buy" | "sell" | "exchange" | "unknown";
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -2144,9 +2411,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": {
-                        [key: string]: unknown;
-                    };
+                    "application/json": components["schemas"]["HealthResponse"];
                 };
             };
         };
