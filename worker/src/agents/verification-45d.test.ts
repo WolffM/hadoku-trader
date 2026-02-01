@@ -21,6 +21,8 @@ import {
   daysBetween,
   computePoliticianWinRates,
   buildPoliticianFilters,
+  getTopNPoliticians,
+  loadRankingsFromExport,
   pad,
   formatPct,
   type RawSignal,
@@ -1024,49 +1026,59 @@ describe('45-Day Signal Verification', () => {
   })
 
   it('should produce ChatGPT+Top10 CSV decision report for hadoku-site validation', () => {
-    // Load 3-year historical data to compute Top 10 politician filter
     console.log(`\n${'═'.repeat(100)}`)
     console.log(`CHATGPT + TOP 10 DECISION REPORT FOR HADOKU-SITE VALIDATION`)
     console.log(`${'═'.repeat(100)}`)
 
-    console.log('\nStep 1: Loading 3-year historical data to compute Top 10 filter...')
-    const historicalSignals = loadSignalsFromExport() as RawSignal[]
-    console.log(`  Loaded ${historicalSignals.length} historical signals`)
+    // Step 1: Load Top 10 from exported D1 rankings table (rankings.json)
+    console.log('\nStep 1: Loading Top 10 from rankings.json (D1 export)...')
 
-    // Build politician filters from historical data
-    console.log('\nStep 2: Computing politician filters...')
-    const filters = buildPoliticianFilters(historicalSignals)
-    const top10Filter = filters.find(f => f.name === 'Top 10')
+    let top10Politicians: Set<string>
 
-    if (!top10Filter) {
-      throw new Error('Could not compute Top 10 filter from historical data')
+    try {
+      const rankings = loadRankingsFromExport()
+      top10Politicians = getTopNPoliticians(10)
+
+      console.log(`  Loaded ${rankings.length} rankings from D1 export`)
+      console.log(`  Top 10 Politicians:`)
+      for (const r of rankings.filter(r => r.rank !== null && r.rank <= 10)) {
+        console.log(`    ${r.rank}. ${r.politician_name} (${r.annualized_return_pct.toFixed(1)}%)`)
+      }
+    } catch (error) {
+      console.log(`  WARNING: Could not load rankings.json: ${error}`)
+      console.log(`  Falling back to computed Top 10 from historical data...`)
+
+      // Fallback: compute from historical data (same algorithm as production)
+      const historicalSignals = loadSignalsFromExport() as RawSignal[]
+      const filters = buildPoliticianFilters(historicalSignals)
+      const top10Filter = filters.find(f => f.name === 'Top 10')
+
+      if (!top10Filter) {
+        throw new Error('Could not compute Top 10 filter from historical data')
+      }
+
+      top10Politicians = top10Filter.politicians
+      console.log(`  Computed Top 10 (fallback):`)
+      for (const name of top10Politicians) {
+        console.log(`    - ${name}`)
+      }
     }
 
-    console.log(`  Top 10 Politicians (min 15 trades, sorted by annualized return):`)
-    for (const name of top10Filter.politicians) {
-      console.log(`    - ${name}`)
-    }
-    console.log(`  Signals per month with Top 10 filter: ${top10Filter.signalsPerMonth.toFixed(1)}`)
-
-    // Load 45-day signals
-    console.log('\nStep 3: Loading 45-day signals...')
+    // Step 2: Load 45-day signals
+    console.log('\nStep 2: Loading 45-day signals...')
     const signals45d = loadSignals45d()
     console.log(`  Loaded ${signals45d.length} signals from signals_45d.json`)
 
     // Count how many signals match the Top 10 filter
-    const matchingSignals = signals45d.filter(s => top10Filter.politicians.has(s.politician_name))
+    const matchingSignals = signals45d.filter(s => top10Politicians.has(s.politician_name))
     console.log(`  Signals from Top 10 politicians: ${matchingSignals.length}`)
 
-    // Run ChatGPT with Top 10 filter
-    console.log('\nStep 4: Running ChatGPT agent with Top 10 politician filter...')
-    const result = runAgentVerificationWithFilter(
-      CHATGPT_CONFIG,
-      signals45d,
-      top10Filter.politicians
-    )
+    // Step 3: Run ChatGPT with Top 10 filter
+    console.log('\nStep 3: Running ChatGPT agent with Top 10 politician filter...')
+    const result = runAgentVerificationWithFilter(CHATGPT_CONFIG, signals45d, top10Politicians)
 
     // Print the CSV decision report
-    printCSVDecisionReport(result, 'Top 10')
+    printCSVDecisionReport(result, 'Top 10 (D1)')
 
     // Also print open positions
     if (result.openPositions.length > 0) {

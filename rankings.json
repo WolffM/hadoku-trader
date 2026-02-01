@@ -1,0 +1,182 @@
+[
+  {
+    "politician_name": "Lisa McClain",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 1,
+    "total_trades": 681,
+    "annualized_return_pct": 88.59,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Tim Moore",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 2,
+    "total_trades": 154,
+    "annualized_return_pct": 79.35,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "John James",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 3,
+    "total_trades": 19,
+    "annualized_return_pct": 59.32,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Nancy Pelosi",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 4,
+    "total_trades": 17,
+    "annualized_return_pct": 58.56,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Rob Bresnahan",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 5,
+    "total_trades": 266,
+    "annualized_return_pct": 45.72,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "David Taylor",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 6,
+    "total_trades": 45,
+    "annualized_return_pct": 42.85,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Bill Keating",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 7,
+    "total_trades": 28,
+    "annualized_return_pct": 40.89,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Tommy Tuberville",
+    "politician_party": "R",
+    "politician_chamber": "senate",
+    "rank": 8,
+    "total_trades": 79,
+    "annualized_return_pct": 27.35,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Kathy Manning",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 9,
+    "total_trades": 24,
+    "annualized_return_pct": 26.9,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Ashley Moody",
+    "politician_party": "R",
+    "politician_chamber": "senate",
+    "rank": 10,
+    "total_trades": 15,
+    "annualized_return_pct": 21.14,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Ro Khanna",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 11,
+    "total_trades": 3773,
+    "annualized_return_pct": 21.1,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Neal Dunn",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 12,
+    "total_trades": 16,
+    "annualized_return_pct": 20.11,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Lloyd Doggett",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 13,
+    "total_trades": 41,
+    "annualized_return_pct": 19.37,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Thomas Kean Jr",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 14,
+    "total_trades": 44,
+    "annualized_return_pct": 19.08,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "James Comer",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 15,
+    "total_trades": 29,
+    "annualized_return_pct": 16.06,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Marjorie Taylor Greene",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 16,
+    "total_trades": 409,
+    "annualized_return_pct": 15.62,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Shelley Moore Capito",
+    "politician_party": "R",
+    "politician_chamber": "senate",
+    "rank": 17,
+    "total_trades": 21,
+    "annualized_return_pct": 15.48,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Kevin Hern",
+    "politician_party": "R",
+    "politician_chamber": "house",
+    "rank": 18,
+    "total_trades": 48,
+    "annualized_return_pct": 15.46,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Greg Landsman",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 19,
+    "total_trades": 22,
+    "annualized_return_pct": 12.27,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  },
+  {
+    "politician_name": "Jared Moskowitz",
+    "politician_party": "D",
+    "politician_chamber": "house",
+    "rank": 20,
+    "total_trades": 152,
+    "annualized_return_pct": 10.6,
+    "computed_at": "2026-01-31T23:22:18.593Z"
+  }
+]

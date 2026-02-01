@@ -59,6 +59,56 @@ export function loadSignalsFromFile(filename: string): any[] {
   return data.signals
 }
 
+/**
+ * Politician ranking from D1 export.
+ */
+export interface RankingEntry {
+  politician_name: string
+  politician_party: string | null
+  politician_chamber: string | null
+  rank: number | null
+  total_trades: number
+  annualized_return_pct: number
+  computed_at: string
+}
+
+const RANKINGS_PATH = path.join(__dirname, '../../../rankings.json')
+let cachedRankings: RankingEntry[] | null = null
+
+/**
+ * Load politician rankings from exported D1 table.
+ * File should be synced from production: wrangler d1 execute trader-db --command="SELECT * FROM politician_rankings WHERE rank IS NOT NULL ORDER BY rank"
+ *
+ * @returns Array of ranking entries sorted by rank
+ */
+export function loadRankingsFromExport(): RankingEntry[] {
+  if (cachedRankings) return cachedRankings
+
+  if (!fs.existsSync(RANKINGS_PATH)) {
+    throw new Error(
+      `Rankings file not found: ${RANKINGS_PATH}\n` +
+        `Run: wrangler d1 export trader-db --table=politician_rankings --output=rankings.json`
+    )
+  }
+
+  const data = JSON.parse(fs.readFileSync(RANKINGS_PATH, 'utf-8'))
+  // Support both array and {rankings: [...]} format
+  cachedRankings = Array.isArray(data) ? data : data.rankings
+  return cachedRankings!
+}
+
+/**
+ * Get Top N politicians from exported rankings.
+ *
+ * @param n - Number of top politicians to return (default 10)
+ * @returns Set of politician names
+ */
+export function getTopNPoliticians(n = 10): Set<string> {
+  const rankings = loadRankingsFromExport()
+  const topN = rankings.filter(r => r.rank !== null && r.rank <= n).map(r => r.politician_name)
+  return new Set(topN)
+}
+
 // daysBetween is re-exported from filters.ts above
 
 /**
