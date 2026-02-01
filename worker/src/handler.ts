@@ -16,6 +16,8 @@ import {
   handleHealth,
   handleGetAgents,
   handleGetAgentById,
+  handleGetAgentConfigs,
+  handleGetAgentConfigById,
   handleProcessSignals,
   handleMarketPricesBackfill,
   handleGetMarketPrices,
@@ -103,6 +105,16 @@ export function createTraderHandler(
         case route === '/agents' && request.method === 'GET':
           response = await handleGetAgents(env)
           break
+
+        case route === '/agents/configs' && request.method === 'GET':
+          response = handleGetAgentConfigs()
+          break
+
+        case /^\/agents\/configs\/[^/]+$/.test(route) && request.method === 'GET': {
+          const configId = route.split('/')[3]
+          response = handleGetAgentConfigById(configId)
+          break
+        }
 
         case /^\/agents\/[^/]+$/.test(route) && request.method === 'GET': {
           const agentId = route.split('/')[2]

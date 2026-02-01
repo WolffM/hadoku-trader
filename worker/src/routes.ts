@@ -30,9 +30,8 @@ import {
   getAgentBudget,
   getAgentPositions,
   processAllPendingSignals,
-  CHATGPT_CONFIG,
-  CLAUDE_CONFIG,
-  GEMINI_CONFIG,
+  TRADING_AGENTS,
+  AGENT_CONFIGS,
   calculateScoreSync,
   scoreTimeDecay,
   scorePriceMovement,
@@ -846,6 +845,32 @@ export async function handleGetAgentById(env: TraderEnv, agentId: string): Promi
 }
 
 /**
+ * GET /agents/configs - Get canonical agent configurations from code
+ *
+ * Returns the authoritative agent configs defined in configs.ts.
+ * hadoku-site should use these configs instead of storing its own copy.
+ * This ensures a single source of truth for thresholds, sizing, etc.
+ */
+export function handleGetAgentConfigs(): Response {
+  return jsonResponse({
+    configs: AGENT_CONFIGS,
+    trading_agents: TRADING_AGENTS.map(a => a.id),
+    last_updated: new Date().toISOString()
+  })
+}
+
+/**
+ * GET /agents/configs/:id - Get a specific agent's canonical config
+ */
+export function handleGetAgentConfigById(agentId: string): Response {
+  const config = AGENT_CONFIGS[agentId]
+  if (!config) {
+    return jsonResponse({ success: false, error: 'Agent config not found' }, 404)
+  }
+  return jsonResponse({ config })
+}
+
+/**
  * POST /signals/process - Manually trigger signal processing
  */
 export async function handleProcessSignals(request: Request, env: TraderEnv): Promise<Response> {
@@ -1220,16 +1245,10 @@ export async function handleSimulateSignals(request: Request, env: TraderEnv): P
     const budget = payload.budget ?? 1000
     const requestedAgents = payload.agents ?? ['chatgpt']
 
-    const agentConfigs: Record<string, AgentConfig> = {
-      chatgpt: CHATGPT_CONFIG,
-      claude: CLAUDE_CONFIG,
-      gemini: GEMINI_CONFIG
-    }
-
     const results: SimulationAgentResult[] = []
 
     for (const agentId of requestedAgents) {
-      const config = agentConfigs[agentId]
+      const config = AGENT_CONFIGS[agentId]
       if (!config) {
         continue
       }
