@@ -360,7 +360,33 @@ export async function countAgentPositions(env: TraderEnv, agentId: string): Prom
 }
 
 /**
- * Count positions for a specific ticker for an agent.
+ * Count positions for a specific ticker opened TODAY for an agent.
+ * This prevents duplicate buys of the same ticker on the same day,
+ * while allowing additional purchases on subsequent days.
+ */
+export async function countAgentTickerPositionsToday(
+  env: TraderEnv,
+  agentId: string,
+  ticker: string
+): Promise<number> {
+  const today = new Date().toISOString().slice(0, 10) // YYYY-MM-DD
+
+  const result = await env.TRADER_DB.prepare(
+    `
+    SELECT COUNT(*) as count FROM positions
+    WHERE agent_id = ? AND ticker = ? AND status = 'open'
+      AND date(entry_date) = date(?)
+  `
+  )
+    .bind(agentId, ticker, today)
+    .first()
+
+  return (result?.count as number) ?? 0
+}
+
+/**
+ * @deprecated Use countAgentTickerPositionsToday instead.
+ * This function counts ALL open positions regardless of entry date.
  */
 export async function countAgentTickerPositions(
   env: TraderEnv,

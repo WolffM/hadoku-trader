@@ -16,7 +16,7 @@ import {
   getActiveAgentsWithTopPoliticians,
   getAgentBudget,
   countAgentPositions,
-  countAgentTickerPositions,
+  countAgentTickerPositionsToday,
   getAgentTickerPosition
 } from './loader'
 import { closePosition } from './monitor'
@@ -394,9 +394,9 @@ async function checkPositionLimits(
     }
   }
 
-  // Check max per ticker
-  const tickerPositions = await countAgentTickerPositions(env, agent.id, ticker)
-  if (tickerPositions >= agent.sizing.max_per_ticker) {
+  // Check max per ticker (per day - prevents duplicate buys on same day)
+  const tickerPositionsToday = await countAgentTickerPositionsToday(env, agent.id, ticker)
+  if (tickerPositionsToday >= agent.sizing.max_per_ticker) {
     return {
       allowed: false,
       reason: 'skip_max_ticker'

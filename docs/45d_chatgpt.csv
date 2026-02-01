@@ -1,0 +1,269 @@
+row,date,signal_id,ticker,politician,sig_action,trade_price,current_price,price_change_pct,days_since_trade,decision,reason,score,time_decay,price_move,pos_size,pol_skill,src_qual,position_size_usd,cash_before,cash_after,open_positions
+1,2025-12-24,"ct_20003794278",CMG,"Nicole Malliotakis",SELL,37.64,37.90,0.69,5,SKIP,"No position to sell",,,,,,,,1000.00,1000.00,0
+2,2025-12-24,"ct_20003794280",IEP,"Nicole Malliotakis",BUY,7.68,7.37,-4.04,5,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+3,2025-12-31,"ct_20003794296",PUK,"Jefferson Shreve",BUY,31.29,31.12,-0.54,2,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+4,2026-01-02,"ct_20003794298",PRU,"Jefferson Shreve",BUY,113.33,113.87,0.48,4,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+5,2026-01-02,"ct_20003794297",JPM,"Jefferson Shreve",BUY,321.97,324.02,0.64,3,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+6,2026-01-05,"ct_20003794303",HD,"Lloyd Doggett",BUY,354.99,344.09,-3.07,18,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+7,2026-01-06,"ct_10000064374",STLD,"John Fetterman",SELL,175.25,172.74,-1.43,15,SKIP,"No position to sell",,,,,,,,1000.00,1000.00,0
+8,2026-01-06,"ct_20003794329",EFC,"Virginia Foxx",BUY,13.62,13.53,-0.66,7,SKIP,"Not in whitelist",,,,,,,,1000.00,1000.00,0
+9,2026-01-08,"ct_20003794340",GNPX,"Tim Moore",BUY,2.17,2.00,-7.83,21,SKIP,"Score 0.476 < 0.55",0.4760,0.2333,0.8240,0.2000,0.4000,0.9000,,1000.00,1000.00,0
+10,2026-01-08,"ct_20003794341",HOG,"Tim Moore",BUY,21.24,21.15,-0.42,21,BUY,"5.626 shares @ $21.15",0.5949,0.2333,1.1797,0.4000,0.4000,0.9000,118.98,1000.00,881.02,1
+11,2026-01-08,"ct_20003794339",CBRL,"Tim Moore",BUY,25.23,29.94,18.70,8,SKIP,"Score 0.465 < 0.55",0.4653,0.5743,0.2520,0.4000,0.4000,0.9000,,881.02,881.02,1
+12,2026-01-09,"ct_10000064380",CM,"Bernie Moreno",BUY,91.59,90.75,-0.92,23,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+13,2026-01-09,"ct_20003794346",PLTR,"Jonathan Jackson",BUY,193.98,177.49,-8.50,18,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+14,2026-01-09,"ct_20003794347",HOOD,"Jonathan Jackson",SELL,122.37,115.27,-5.80,18,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+15,2026-01-13,"ct_10000064381",WFC,"John Boozman",BUY,92.59,93.56,1.05,27,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+16,2026-01-13,"ct_10000064384",MSFT,"John Boozman",BUY,476.12,470.67,-1.14,27,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+17,2026-01-13,"ct_10000064388",AAPL,"John Boozman",BUY,271.84,261.05,-3.97,27,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+18,2026-01-13,"ct_10000064391",MSI,"John Boozman",SELL,374.49,391.00,4.41,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+19,2026-01-13,"ct_10000064394",BSX,"John Boozman",SELL,94.48,94.14,-0.36,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+20,2026-01-13,"ct_20003794382",AVGO,"Gil Cisneros",BUY,325.40,354.61,8.98,27,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+21,2026-01-13,"ct_20003794372",AZN,"Gil Cisneros",BUY,90.61,94.51,4.30,26,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+22,2026-01-13,"ct_20003794406",RACE,"Gil Cisneros",SELL,372.65,360.09,-3.37,26,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+23,2026-01-13,"ct_20003794356",ABT,"Gil Cisneros",SELL,124.82,123.67,-0.92,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+24,2026-01-13,"ct_20003794357",ACN,"Gil Cisneros",BUY,272.25,276.80,1.67,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+25,2026-01-13,"ct_20003794358",AMD,"Gil Cisneros",SELL,213.43,220.97,3.53,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+26,2026-01-13,"ct_20003794362",ARE,"Gil Cisneros",SELL,47.24,54.64,15.66,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+27,2026-01-13,"ct_20003794364",AMZN,"Gil Cisneros",SELL,227.35,242.60,6.71,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+28,2026-01-13,"ct_20003794366",AMCR,"Gil Cisneros",SELL,41.45,43.75,5.55,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+29,2026-01-13,"ct_20003794367",APP,"Gil Cisneros",BUY,721.37,668.63,-7.31,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+30,2026-01-13,"ct_20003794371",AJG,"Gil Cisneros",BUY,253.39,257.00,1.42,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+31,2026-01-13,"ct_20003794374",BKR,"Gil Cisneros",BUY,44.71,48.97,9.53,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+32,2026-01-13,"ct_20003794378",BA,"Gil Cisneros",BUY,214.08,244.55,14.23,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+33,2026-01-13,"ct_20003794379",BKNG,"Gil Cisneros",BUY,5393.74,5314.71,-1.47,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+34,2026-01-13,"ct_20003794381",BMY,"Gil Cisneros",BUY,53.56,55.92,4.41,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+35,2026-01-13,"ct_20003794383",BXP,"Gil Cisneros",SELL,68.02,66.32,-2.49,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+36,2026-01-13,"ct_20003794387",CBOE,"Gil Cisneros",SELL,247.27,266.77,7.89,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+37,2026-01-13,"ct_20003794390",CLX,"Gil Cisneros",BUY,98.31,108.86,10.73,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+38,2026-01-13,"ct_20003794393",COIN,"Gil Cisneros",SELL,245.12,252.69,3.09,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+39,2026-01-13,"ct_20003794394",CAG,"Gil Cisneros",SELL,17.35,16.57,-4.50,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+40,2026-01-13,"ct_20003794395",STZ,"Gil Cisneros",BUY,135.01,153.16,13.44,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+41,2026-01-13,"ct_20003794398",CTRA,"Gil Cisneros",SELL,25.38,25.20,-0.71,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+42,2026-01-13,"ct_20003794399",CCI,"Gil Cisneros",SELL,86.10,86.81,0.82,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+43,2026-01-13,"ct_20003794401",DASH,"Gil Cisneros",BUY,234.25,217.40,-7.19,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+44,2026-01-13,"ct_20003794403",ERIE,"Gil Cisneros",BUY,282.35,281.41,-0.33,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+45,2026-01-13,"ct_20003794404",EXE,"Gil Cisneros",SELL,108.74,102.98,-5.30,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+46,2026-01-13,"ct_20003794405",FICO,"Gil Cisneros",BUY,1748.43,1623.18,-7.16,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+47,2026-01-13,"ct_20003794407",FIS,"Gil Cisneros",BUY,66.05,64.23,-2.76,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+48,2026-01-13,"ct_20003794408",FISV,"Gil Cisneros",BUY,67.94,66.75,-1.75,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+49,2026-01-13,"ct_20003794410",GEV,"Gil Cisneros",BUY,657.80,652.09,-0.87,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+50,2026-01-13,"ct_20003794411",GIS,"Gil Cisneros",BUY,47.20,44.27,-6.20,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+51,2026-01-13,"ct_20003794413",GPN,"Gil Cisneros",SELL,80.85,77.47,-4.18,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+52,2026-01-13,"ct_20003794414",HAL,"Gil Cisneros",SELL,27.72,32.61,17.64,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+53,2026-01-13,"ct_20003794417",IBM,"Gil Cisneros",BUY,300.98,303.16,0.72,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+54,2026-01-13,"ct_20003794419",INVH,"Gil Cisneros",BUY,26.75,26.23,-1.96,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+55,2026-01-13,"ct_20003794422",LEN,"Gil Cisneros",SELL,107.99,123.32,14.20,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+56,2026-01-13,"ct_20003794423",LIN,"Gil Cisneros",BUY,421.43,442.90,5.09,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+57,2026-01-13,"ct_20003794424",LMT,"Gil Cisneros",SELL,474.13,558.30,17.75,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+58,2026-01-13,"ct_20003794427",MCK,"Gil Cisneros",SELL,820.25,823.98,0.45,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+59,2026-01-13,"ct_20003794429",MRK,"Gil Cisneros",BUY,101.09,108.26,7.09,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+60,2026-01-13,"ct_20003794431",MSFT,"Gil Cisneros",SELL,485.92,470.67,-3.14,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+61,2026-01-13,"ct_20003794433",MUFG,"Gil Cisneros",BUY,15.74,17.49,11.12,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+62,2026-01-13,"ct_20003794437",NVDA,"Gil Cisneros",SELL,180.99,185.81,2.66,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+63,2026-01-13,"ct_20003794438",ORCL,"Gil Cisneros",SELL,191.46,202.29,5.65,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+64,2026-01-13,"ct_20003794440",PFE,"Gil Cisneros",SELL,25.19,25.15,-0.16,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+65,2026-01-13,"ct_20003794443",PSA,"Gil Cisneros",SELL,259.15,279.83,7.98,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+66,2026-01-13,"ct_20003794444",PWR,"Gil Cisneros",SELL,426.55,444.20,4.14,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+67,2026-01-13,"ct_20003794451",SBAC,"Gil Cisneros",SELL,190.01,188.04,-1.04,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+68,2026-01-13,"ct_20003794458",TRGP,"Gil Cisneros",BUY,178.93,180.28,0.75,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+69,2026-01-13,"ct_20003794460",CPB,"Gil Cisneros",SELL,28.16,26.11,-7.27,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+70,2026-01-13,"ct_20003794462",CI,"Gil Cisneros",BUY,271.89,271.81,-0.03,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+71,2026-01-13,"ct_20003794466",UBER,"Gil Cisneros",BUY,79.31,85.41,7.69,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+72,2026-01-13,"ct_20003794467",UAL,"Gil Cisneros",BUY,113.99,114.41,0.37,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+73,2026-01-13,"ct_20003794468",UNH,"Gil Cisneros",BUY,327.42,333.93,1.99,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+74,2026-01-13,"ct_20003794469",VRSN,"Gil Cisneros",BUY,244.03,246.34,0.95,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+75,2026-01-13,"ct_20003794470",VRSK,"Gil Cisneros",SELL,218.03,222.09,1.86,25,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+76,2026-01-13,"ct_20003794472",VICI,"Gil Cisneros",BUY,27.70,27.81,0.40,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+77,2026-01-13,"ct_20003794476",ZTS,"Gil Cisneros",BUY,122.24,124.62,1.95,25,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+78,2026-01-13,"ct_10000064397",LAZR,"Mitch McConnell",SELL,0.15,0.08,-50.85,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+79,2026-01-13,"ct_10000064392",SLV,"John Boozman",SELL,65.22,78.60,20.52,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+80,2026-01-13,"ct_10000064395",PPLT,"John Boozman",SELL,204.52,211.65,3.49,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+81,2026-01-13,"ct_10000064396",PALL,"John Boozman",SELL,156.50,166.35,6.29,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+82,2026-01-13,"ct_20003794365",AMZN,"Gil Cisneros",SELL,232.38,242.60,4.40,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+83,2026-01-13,"ct_20003794370",ANET,"Gil Cisneros",SELL,130.77,129.93,-0.64,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+84,2026-01-13,"ct_20003794373",AZO,"Gil Cisneros",SELL,3456.02,3505.75,1.44,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+85,2026-01-13,"ct_20003794375",BRK/B,"Gil Cisneros",SELL,501.34,495.24,-1.22,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+86,2026-01-13,"ct_20003794377",BE,"Gil Cisneros",SELL,91.88,139.77,52.12,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+87,2026-01-13,"ct_20003794380",BSX,"Gil Cisneros",SELL,96.13,94.14,-2.07,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+88,2026-01-13,"ct_20003794385",CCJ,"Gil Cisneros",SELL,93.34,108.92,16.69,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+89,2026-01-13,"ct_20003794389",CVX,"Gil Cisneros",SELL,150.50,163.87,8.88,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+90,2026-01-13,"ct_20003794391",NET,"Gil Cisneros",SELL,202.66,188.71,-6.88,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+91,2026-01-13,"ct_20003794392",COIN,"Gil Cisneros",SELL,239.73,252.69,5.41,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+92,2026-01-13,"ct_20003794397",COST,"Gil Cisneros",SELL,871.86,941.93,8.04,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+93,2026-01-13,"ct_20003794402",ETN,"Gil Cisneros",SELL,323.67,332.38,2.69,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+94,2026-01-13,"ct_20003794416",HD,"Gil Cisneros",SELL,347.34,379.74,9.33,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+95,2026-01-13,"ct_20003794428",MELI,"Gil Cisneros",SELL,1998.21,2073.57,3.77,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+96,2026-01-13,"ct_20003794430",META,"Gil Cisneros",SELL,667.55,631.09,-5.46,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+97,2026-01-13,"ct_20003794436",NVDA,"Gil Cisneros",SELL,188.61,185.81,-1.48,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+98,2026-01-13,"ct_20003794439",ORCL,"Gil Cisneros",SELL,196.97,202.29,2.70,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+99,2026-01-13,"ct_20003794442",PG,"Gil Cisneros",SELL,144.49,144.24,-0.17,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+100,2026-01-13,"ct_20003794445",PWR,"Gil Cisneros",SELL,433.47,444.20,2.48,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+101,2026-01-13,"ct_20003794448",HOOD,"Gil Cisneros",SELL,120.44,120.24,-0.17,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+102,2026-01-13,"ct_20003794449",RBLX,"Gil Cisneros",SELL,81.88,84.80,3.57,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+103,2026-01-13,"ct_20003794453",SPOT,"Gil Cisneros",SELL,586.57,534.64,-8.85,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+104,2026-01-13,"ct_20003794457",TSM,"Gil Cisneros",SELL,298.80,331.21,10.85,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+105,2026-01-13,"ct_20003794465",TDG,"Gil Cisneros",SELL,1313.57,1381.98,5.21,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+106,2026-01-13,"ct_20003794471",VRT,"Gil Cisneros",SELL,166.87,172.72,3.51,20,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+107,2026-01-13,"ct_10000064386",IJR,"John Boozman",BUY,123.13,126.52,2.75,18,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+108,2026-01-13,"ct_10000064390",KRE,"John Boozman",SELL,66.52,66.24,-0.42,18,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+109,2026-01-13,"ct_20003794361",AJINY,"Gil Cisneros",SELL,21.50,21.03,-2.19,18,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+110,2026-01-13,"ct_20003794432",MHVIY,"Gil Cisneros",SELL,24.67,28.43,15.24,18,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+111,2026-01-13,"ct_20003794435",NTDOY,"Gil Cisneros",SELL,17.15,15.62,-8.92,18,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+112,2026-01-13,"ct_20003794363",BABA,"Gil Cisneros",SELL,147.36,167.01,13.33,14,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+113,2026-01-13,"ct_20003794415",HESAY,"Gil Cisneros",SELL,248.81,260.56,4.72,14,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+114,2026-01-13,"ct_20003794452",SBGSY,"Gil Cisneros",SELL,55.44,55.54,0.18,14,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+115,2026-01-13,"ct_20003794459",TCEHY,"Gil Cisneros",SELL,77.05,80.10,3.96,14,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+116,2026-01-13,"ct_20003794461",CPB,"Gil Cisneros",BUY,27.64,26.11,-5.55,14,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+117,2026-01-13,"ct_20003794475",XIACF,"Gil Cisneros",SELL,5.07,4.84,-4.44,14,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+118,2026-01-13,"ct_10000064385",IVW,"John Boozman",BUY,123.26,124.87,1.31,13,SKIP,"Not in whitelist",,,,,,,,881.02,881.02,1
+119,2026-01-13,"ct_10000064389",SMCI,"John Boozman",SELL,29.27,28.60,-2.29,13,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+120,2026-01-13,"ct_20003794447",RNMBY,"Gil Cisneros",SELL,365.50,442.81,21.15,13,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+121,2026-01-14,"ct_10000064399",MTZ,"Markwayne Mullin",SELL,213.96,226.00,5.63,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+122,2026-01-14,"ct_10000064400",LRN,"Markwayne Mullin",SELL,65.78,70.38,6.99,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+123,2026-01-14,"ct_10000064401",IRM,"Markwayne Mullin",SELL,78.86,91.54,16.08,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+124,2026-01-14,"ct_10000064402",GS,"Markwayne Mullin",SELL,876.30,932.67,6.43,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+125,2026-01-14,"ct_10000064403",DELL,"Markwayne Mullin",SELL,122.94,118.69,-3.46,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+126,2026-01-14,"ct_10000064405",COHR,"Markwayne Mullin",SELL,175.71,184.11,4.78,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+127,2026-01-14,"ct_10000064406",AIT,"Markwayne Mullin",SELL,259.48,277.62,6.99,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+128,2026-01-14,"ct_10000064409",MTZ,"Markwayne Mullin",SELL,213.96,226.00,5.63,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+129,2026-01-14,"ct_10000064410",LRN,"Markwayne Mullin",SELL,65.78,70.38,6.99,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+130,2026-01-14,"ct_10000064411",IRM,"Markwayne Mullin",SELL,78.86,91.54,16.08,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+131,2026-01-14,"ct_10000064412",GS,"Markwayne Mullin",SELL,876.30,932.67,6.43,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+132,2026-01-14,"ct_10000064413",DELL,"Markwayne Mullin",SELL,122.94,118.69,-3.46,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+133,2026-01-14,"ct_10000064415",COHR,"Markwayne Mullin",SELL,175.71,184.11,4.78,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+134,2026-01-14,"ct_10000064416",AIT,"Markwayne Mullin",SELL,259.48,277.62,6.99,27,SKIP,"No position to sell",,,,,,,,881.02,881.02,1
+135,2026-01-15,"ct_10000064417",XLU,"Tommy Tuberville",BUY,42.44,43.61,2.75,29,BUY,"2.535 shares @ $43.61",0.5527,0.1340,0.8899,0.4000,0.7000,0.9000,110.53,881.02,770.49,2
+136,2026-01-15,"ct_10000064418",XLP,"Tommy Tuberville",BUY,79.02,82.37,4.24,29,SKIP,"Score 0.538 < 0.55",0.5377,0.1340,0.8302,0.4000,0.7000,0.9000,,770.49,770.49,2
+137,2026-01-15,"ct_10000064419",XLV,"Tommy Tuberville",BUY,153.14,156.96,2.50,29,BUY,"0.708 shares @ $156.96",0.5552,0.1340,0.9002,0.4000,0.7000,0.9000,111.05,770.49,659.44,3
+138,2026-01-15,"ct_10000064420",AAPL,"Tommy Tuberville",SELL,271.84,258.21,-5.01,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+139,2026-01-15,"ct_10000064421",GOOGL,"Tommy Tuberville",SELL,296.72,332.78,12.15,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+140,2026-01-15,"ct_20003794722",OZK,"Steve Cohen",SELL,47.89,48.51,1.30,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+141,2026-01-15,"ct_20003794724",GS,"Steve Cohen",SELL,872.33,975.86,11.87,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+142,2026-01-15,"ct_20003794725",GS,"Steve Cohen",SELL,872.33,975.86,11.87,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+143,2026-01-15,"ct_20003794726",MS,"Steve Cohen",SELL,174.80,191.23,9.40,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+144,2026-01-15,"ct_20003794732",NOW,"Josh Gottheimer",SELL,156.48,131.17,-16.17,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+145,2026-01-15,"ct_20003794737",DRI,"Rick Larsen",BUY,198.29,214.33,8.09,8,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+146,2026-01-15,"ct_20003794738",ESS,"Rick Larsen",SELL,251.06,253.52,0.98,8,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+147,2026-01-15,"ct_20003794739",META,"Rick Larsen",BUY,648.69,620.80,-4.30,8,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+148,2026-01-15,"ct_20003794740",MDLZ,"Rick Larsen",SELL,51.51,57.30,11.24,8,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+149,2026-01-15,"ct_20003794741",VRSK,"Rick Larsen",SELL,219.61,222.05,1.11,8,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+150,2026-01-15,"ct_20003794742",WM,"Rick Larsen",BUY,215.97,219.86,1.80,8,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+151,2026-01-16,"ct_20003794745",MMM,"Julie Johnson",SELL,161.76,167.80,3.73,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+152,2026-01-16,"ct_20003794746",ABT,"Julie Johnson",SELL,124.49,121.76,-2.19,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+153,2026-01-16,"ct_20003794747",ABBV,"Julie Johnson",SELL,221.04,214.35,-3.03,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+154,2026-01-16,"ct_20003794748",APD,"Julie Johnson",SELL,241.98,267.53,10.56,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+155,2026-01-16,"ct_20003794749",GOOGL,"Julie Johnson",SELL,302.46,330.00,9.11,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+156,2026-01-16,"ct_20003794750",AXP,"Julie Johnson",SELL,374.69,364.79,-2.64,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+157,2026-01-16,"ct_20003794751",ADI,"Julie Johnson",SELL,274.92,300.25,9.21,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+158,2026-01-16,"ct_20003794752",AJG,"Julie Johnson",SELL,252.64,258.52,2.33,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+159,2026-01-16,"ct_20003794753",BAC,"Julie Johnson",SELL,54.26,52.97,-2.38,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+160,2026-01-16,"ct_20003794754",BX,"Julie Johnson",SELL,153.73,163.50,6.36,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+161,2026-01-16,"ct_20003794756",BMY,"Julie Johnson",SELL,52.71,55.26,4.84,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+162,2026-01-16,"ct_20003794757",COF,"Julie Johnson",SELL,242.80,239.14,-1.51,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+163,2026-01-16,"ct_20003794758",CARR,"Julie Johnson",SELL,53.20,56.19,5.62,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+164,2026-01-16,"ct_20003794759",SCHW,"Julie Johnson",SELL,97.23,103.82,6.78,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+165,2026-01-16,"ct_20003794760",CVX,"Julie Johnson",SELL,147.69,166.26,12.57,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+166,2026-01-16,"ct_20003794761",CME,"Julie Johnson",SELL,266.03,279.50,5.06,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+167,2026-01-16,"ct_20003794762",CMS,"Julie Johnson",SELL,70.61,71.68,1.52,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+168,2026-01-16,"ct_20003794764",CMCSA,"Julie Johnson",SELL,28.04,27.82,-0.79,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+169,2026-01-16,"ct_20003794765",COP,"Julie Johnson",SELL,92.23,98.19,6.46,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+170,2026-01-16,"ct_20003794766",DHR,"Julie Johnson",SELL,224.04,235.99,5.33,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+171,2026-01-16,"ct_20003794767",DE,"Julie Johnson",SELL,473.41,514.40,8.66,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+172,2026-01-16,"ct_20003794768",DOV,"Julie Johnson",SELL,196.07,206.61,5.38,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+173,2026-01-16,"ct_20003794769",ETN,"Julie Johnson",SELL,315.95,343.75,8.80,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+174,2026-01-16,"ct_20003794770",LLY,"Julie Johnson",SELL,1056.88,1038.40,-1.75,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+175,2026-01-16,"ct_20003794771",EOG,"Julie Johnson",SELL,101.64,105.32,3.62,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+176,2026-01-16,"ct_20003794772",FIS,"Julie Johnson",SELL,65.90,63.35,-3.87,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+177,2026-01-16,"ct_20003794773",GD,"Julie Johnson",SELL,335.97,367.38,9.35,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+178,2026-01-16,"ct_20003794774",GS,"Julie Johnson",SELL,876.30,962.00,9.78,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+179,2026-01-16,"ct_20003794775",HD,"Julie Johnson",SELL,354.99,380.17,7.09,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+180,2026-01-16,"ct_20003794776",IBM,"Julie Johnson",SELL,300.45,305.67,1.74,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+181,2026-01-16,"ct_20003794777",JNJ,"Julie Johnson",SELL,208.31,218.66,4.97,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+182,2026-01-16,"ct_20003794778",MCD,"Julie Johnson",SELL,319.65,307.43,-3.82,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+183,2026-01-16,"ct_20003794779",MDT,"Julie Johnson",SELL,98.48,96.76,-1.75,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+184,2026-01-16,"ct_20003794780",MRK,"Julie Johnson",SELL,100.69,108.83,8.08,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+185,2026-01-16,"ct_20003794781",MSFT,"Julie Johnson",SELL,483.98,459.86,-4.98,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+186,2026-01-16,"ct_20003794782",MDLZ,"Julie Johnson",SELL,54.28,57.24,5.45,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+187,2026-01-16,"ct_20003794783",MS,"Julie Johnson",SELL,172.96,189.09,9.33,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+188,2026-01-16,"ct_20003794784",NEE,"Julie Johnson",SELL,80.85,83.63,3.44,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+189,2026-01-16,"ct_20003794785",NSC,"Julie Johnson",SELL,291.83,290.63,-0.41,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+190,2026-01-16,"ct_20003794786",NXPI,"Julie Johnson",SELL,222.08,237.11,6.77,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+191,2026-01-16,"ct_20003794787",PKG,"Julie Johnson",SELL,204.03,221.33,8.48,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+192,2026-01-16,"ct_20003794788",PEP,"Julie Johnson",SELL,149.37,146.32,-2.04,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+193,2026-01-16,"ct_20003794789",PM,"Julie Johnson",SELL,155.89,173.62,11.37,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+194,2026-01-16,"ct_20003794790",PG,"Julie Johnson",SELL,145.52,144.53,-0.68,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+195,2026-01-16,"ct_20003794791",PGR,"Julie Johnson",SELL,211.43,202.37,-4.29,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+196,2026-01-16,"ct_20003794793",RSG,"Julie Johnson",SELL,212.83,210.96,-0.88,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+197,2026-01-16,"ct_20003794794",RTX,"Julie Johnson",SELL,178.29,201.92,13.25,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+198,2026-01-16,"ct_20003794795",STX,"Julie Johnson",SELL,291.24,326.23,12.02,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+199,2026-01-16,"ct_20003794797",TXN,"Julie Johnson",SELL,176.19,191.58,8.73,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+200,2026-01-16,"ct_20003794798",BK,"Julie Johnson",SELL,114.45,121.33,6.01,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+201,2026-01-16,"ct_20003794799",CI,"Julie Johnson",SELL,274.00,272.21,-0.65,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+202,2026-01-16,"ct_20003794800",TJX,"Julie Johnson",SELL,154.88,157.38,1.61,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+203,2026-01-16,"ct_20003794801",UNP,"Julie Johnson",SELL,234.42,229.49,-2.10,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+204,2026-01-16,"ct_20003794802",UNH,"Julie Johnson",SELL,328.14,331.02,0.88,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+205,2026-01-16,"ct_20003794803",VZ,"Julie Johnson",SELL,39.72,38.91,-2.04,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+206,2026-01-16,"ct_20003794804",WMT,"Julie Johnson",SELL,114.83,119.70,4.24,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+207,2026-01-16,"ct_20003794805",WFC,"Julie Johnson",SELL,91.48,88.38,-3.39,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+208,2026-01-16,"ct_20003794806",XEL,"Julie Johnson",SELL,73.05,75.61,3.51,29,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+209,2026-01-16,"ct_20003794826",CVX,"Roger Williams",SELL,149.80,166.26,10.99,25,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+210,2026-01-16,"ct_20003794827",FANG,"Roger Williams",SELL,148.46,151.28,1.90,25,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+211,2026-01-16,"ct_20003794828",JPM,"Roger Williams",BUY,321.64,312.47,-2.85,25,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+212,2026-01-16,"ct_20003794829",RTX,"Roger Williams",BUY,185.68,201.92,8.75,25,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+213,2026-01-16,"ct_10000064424",CAT,"Markwayne Mullin",BUY,578.61,646.89,11.80,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+214,2026-01-16,"ct_10000064425",LLY,"Markwayne Mullin",BUY,1078.73,1038.40,-3.74,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+215,2026-01-16,"ct_10000064426",JPM,"Markwayne Mullin",BUY,322.30,312.47,-3.05,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+216,2026-01-16,"ct_10000064427",COF,"Markwayne Mullin",BUY,245.75,239.14,-2.69,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+217,2026-01-16,"ct_10000064428",RTX,"Markwayne Mullin",BUY,184.42,201.92,9.49,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+218,2026-01-16,"ct_10000064429",GOOGL,"Markwayne Mullin",BUY,313.56,330.00,5.24,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+219,2026-01-16,"ct_10000064430",ICE,"Markwayne Mullin",BUY,163.98,173.98,6.10,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+220,2026-01-16,"ct_10000064431",DE,"Markwayne Mullin",BUY,468.62,514.40,9.77,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+221,2026-01-16,"ct_10000064432",BSX,"Markwayne Mullin",BUY,95.76,88.07,-8.03,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+222,2026-01-16,"ct_10000064433",MSFT,"Markwayne Mullin",BUY,487.10,459.86,-5.59,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+223,2026-01-16,"ct_10000064434",GS,"Markwayne Mullin",BUY,892.18,962.00,7.83,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+224,2026-01-16,"ct_10000064435",LRCX,"Markwayne Mullin",BUY,175.87,222.96,26.78,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+225,2026-01-16,"ct_10000064436",KO,"Markwayne Mullin",BUY,70.16,70.44,0.40,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+226,2026-01-16,"ct_10000064437",AMZN,"Markwayne Mullin",BUY,232.07,239.12,3.04,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+227,2026-01-16,"ct_10000064438",NVDA,"Markwayne Mullin",BUY,188.22,186.23,-1.06,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+228,2026-01-16,"ct_10000064439",CRM,"Markwayne Mullin",BUY,266.23,227.11,-14.69,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+229,2026-01-16,"ct_10000064440",IQV,"Markwayne Mullin",BUY,227.11,237.68,4.65,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+230,2026-01-16,"ct_10000064441",ELV,"Markwayne Mullin",BUY,348.38,374.87,7.60,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+231,2026-01-16,"ct_10000064442",AXP,"Markwayne Mullin",BUY,374.49,364.79,-2.59,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+232,2026-01-16,"ct_10000064443",CVX,"Markwayne Mullin",BUY,150.99,166.26,10.11,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+233,2026-01-16,"ct_10000064444",AAPL,"Markwayne Mullin",BUY,273.76,255.53,-6.66,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+234,2026-01-16,"ct_10000064445",META,"Markwayne Mullin",BUY,658.69,620.25,-5.84,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+235,2026-01-16,"ct_10000064446",MA,"Markwayne Mullin",BUY,577.03,539.49,-6.51,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+236,2026-01-16,"ct_10000064447",HLT,"Markwayne Mullin",BUY,292.36,300.85,2.90,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+237,2026-01-16,"ct_10000064448",AMAT,"Markwayne Mullin",BUY,263.05,327.01,24.31,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+238,2026-01-16,"ct_10000064449",COST,"Markwayne Mullin",BUY,867.84,963.61,11.04,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+239,2026-01-16,"ct_10000064450",ISRG,"Markwayne Mullin",BUY,575.40,535.00,-7.02,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+240,2026-01-16,"ct_10000064451",HD,"Markwayne Mullin",BUY,347.45,380.17,9.42,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+241,2026-01-16,"ct_10000064452",INTU,"Markwayne Mullin",BUY,672.91,545.29,-18.97,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+242,2026-01-16,"ct_10000064453",NOW,"Markwayne Mullin",BUY,154.58,127.31,-17.64,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+243,2026-01-16,"ct_10000064454",COP,"Markwayne Mullin",BUY,92.63,98.19,6.00,18,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+244,2026-01-16,"ct_20003794810",BR,"Dan Newhouse",BUY,223.17,218.64,-2.03,16,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+245,2026-01-16,"ct_20003794818",RCL,"Dan Newhouse",BUY,278.92,276.01,-1.04,16,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+246,2026-01-16,"ct_20003794820",SNPS,"Dan Newhouse",BUY,469.72,516.31,9.92,16,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+247,2026-01-19,"ct_20003794830",GOOGL,"Cleo Fields",BUY,313.51,330.00,5.26,24,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+248,2026-01-19,"ct_20003794831",FIG,"Cleo Fields",SELL,38.54,29.57,-23.27,24,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+249,2026-01-19,"ct_20003794832",FIG,"Cleo Fields",SELL,38.54,29.57,-23.27,24,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+250,2026-01-19,"ct_20003794833",IREN,"Cleo Fields",SELL,40.30,57.82,43.47,24,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+251,2026-01-19,"ct_20003794834",OPEN,"Cleo Fields",SELL,6.01,6.67,10.98,24,SKIP,"No position to sell",,,,,,,,659.44,659.44,3
+252,2026-01-20,"sig_1769470487342_8ali33wzk",XYZ,"John Smith",BUY,50.00,62.50,25.00,19,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+253,2026-01-20,"ct_10000064455",WPC,"Gary Peters",BUY,66.78,69.93,4.72,8,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+254,2026-01-20,"ct_10000064456",SWK,"Gary Peters",BUY,82.41,80.74,-2.03,8,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+255,2026-01-20,"sig_1769470514137_6vh5gm1pu",SMCI,"Mark Green",BUY,40.00,55.00,37.50,5,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+256,2026-01-20,"sig_1769476491396_phobdd9gk",SMCI2,"Mark Green",BUY,40.00,55.00,37.50,5,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+257,2026-01-20,"sig_1769535114560_f2yko3jun",SMCI3,"Mark Green",BUY,40.00,55.00,37.50,5,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+258,2026-01-25,"sig_1769470511317_2ijes90wk",MSFT,"Josh Gottheimer",BUY,420.00,422.00,0.48,2,SKIP,"Not in whitelist",,,,,,,,659.44,659.44,3
+259,2026-01-25,"sig_1769469572711_togfo0al0",NVDA,"Nancy Pelosi",BUY,140.00,142.00,1.43,1,BUY,"1.261 shares @ $142.00",0.8956,0.9330,0.9429,1.0000,0.7000,0.9000,179.12,659.44,480.32,4
+260,2026-01-25,"sig_1769469786132_784x92i0c",NVDA,"Nancy Pelosi",BUY,140.00,142.00,1.43,1,SKIP,"Already bought NVDA today",,,,,,,,480.32,480.32,4
+261,2026-01-25,"sig_1769470512784_7bjyyy8jm",GOOGL,"Nancy Pelosi",BUY,15.50,16.00,3.23,1,BUY,"10.533 shares @ $16.00",0.8427,0.9330,0.8710,0.8000,0.7000,0.8500,168.53,480.32,311.79,5
+262,2026-01-26,"sig_1769537208744_d9o1jixkl",TSLA,"Nancy Pelosi",BUY,400.00,405.00,1.25,1,BUY,"0.428 shares @ $405.00",0.8674,0.9330,0.9500,0.8000,0.7000,0.9000,173.48,311.79,138.31,6
+263,2026-01-27,"sig_1769830236525_eijv5nb1j",FLR,"Steve Cohen",SELL,40.40,45.99,13.84,29,SKIP,"No position to sell",,,,,,,,138.31,138.31,6
+264,2026-01-27,"sig_1769830236586_lfq6a2rxn",NOC,"Steve Cohen",SELL,577.78,678.74,17.47,29,SKIP,"No position to sell",,,,,,,,138.31,138.31,6
+265,2026-01-29,"sig_1769830236246_4s5jc7bue",JPM,"Katie Britt",SELL,300.77,306.42,1.88,1,SKIP,"No position to sell",,,,,,,,138.31,138.31,6
+266,2026-01-29,"sig_1769830236462_yfgn9d1pp",IREN,"Dale Strong",BUY,62.94,59.84,-4.93,1,SKIP,"Not in whitelist",,,,,,,,138.31,138.31,6
+267,2026-01-30,"sig_1769875233988_gbv8bbibg",BRK/B,"Tina Smith",SELL,474.67,480.53,1.23,3,SKIP,"No position to sell",,,,,,,,138.31,138.31,6
+268,2026-01-30,"sig_1769875234545_irekalhz6",MRSH,"Tina Smith",SELL,178.27,188.19,5.56,3,SKIP,"No position to sell",,,,,,,,138.31,138.31,6

@@ -273,12 +273,14 @@ function runAgentVerification(config: AgentConfig, signals: SimSignal[]): AgentR
       else if (Math.abs(priceChangePct) > config.max_price_move_pct) {
         reason = `Price moved ${Math.abs(priceChangePct).toFixed(1)}% > ${config.max_price_move_pct}%`
       }
-      // Check max positions per ticker (prevent duplicate buys)
+      // Check max positions per ticker PER DAY (prevent duplicate buys on same day)
+      // It's okay to buy more of the same ticker on subsequent days
       else if (
-        positions.filter(p => p.ticker === simSignal.ticker).length >=
-        (config.sizing.max_per_ticker ?? 1)
+        positions.filter(
+          p => p.ticker === simSignal.ticker && p.entryDate === simSignal.disclosure_date
+        ).length >= (config.sizing.max_per_ticker ?? 1)
       ) {
-        reason = `Already have position in ${simSignal.ticker} (max_per_ticker=${config.sizing.max_per_ticker ?? 1})`
+        reason = `Already bought ${simSignal.ticker} today (max_per_ticker=${config.sizing.max_per_ticker ?? 1} per day)`
       }
       // Scoring check (if agent uses scoring)
       else if (config.scoring) {

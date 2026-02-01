@@ -168,7 +168,8 @@ export {
   upsertPoliticianStats,
   // Position queries
   countAgentPositions,
-  countAgentTickerPositions,
+  countAgentTickerPositions, // @deprecated - use countAgentTickerPositionsToday
+  countAgentTickerPositionsToday,
   getAgentPositions,
   getAgentTickerPosition
 } from './loader'
