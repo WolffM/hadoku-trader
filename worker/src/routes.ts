@@ -37,6 +37,7 @@ import {
   scoreTimeDecay,
   scorePriceMovement,
   scorePositionSize,
+  calculatePositionSize,
   type EnrichedSignal,
   type ScoringConfig,
   type AgentConfig,
@@ -1047,29 +1048,24 @@ function getDetailedScoring(
   return breakdown
 }
 
+/**
+ * Wrapper for production calculatePositionSize for simulation context.
+ * Uses the same sizing logic as production to ensure consistency.
+ */
 function calculateSimPositionSize(
   config: AgentConfig,
   score: number,
   availableCash: number
 ): number {
-  const sizing = config.sizing
-
-  let size: number
-  if (sizing.mode === 'score_squared') {
-    size = score * score * (sizing.base_multiplier ?? 0.15) * config.monthly_budget
-  } else if (sizing.mode === 'score_linear') {
-    size = (sizing.base_amount ?? 15) * score * (availableCash / config.monthly_budget)
-  } else if (sizing.mode === 'smart_budget') {
-    size = Math.min(200, availableCash * 0.2)
-  } else {
-    size = 100
-  }
-
-  size = Math.min(size, sizing.max_position_amount ?? 1000)
-  size = Math.min(size, availableCash * (sizing.max_position_pct ?? 1.0))
-  size = Math.max(0, size)
-
-  return Math.round(size * 100) / 100
+  return calculatePositionSize(
+    config,
+    score,
+    { remaining: availableCash },
+    1, // acceptedSignalsCount
+    false, // isHalfSize
+    undefined, // congressionalPositionSize
+    undefined // availableCapital (use monthly_budget)
+  )
 }
 
 function runAgentSimulation(
