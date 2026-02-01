@@ -15,6 +15,7 @@ import {
   scorePriceMovement,
   scorePositionSize
 } from './scoring'
+import { calculatePositionSize as productionCalculatePositionSize } from './sizing'
 import {
   loadSignalsFromFile,
   loadSignalsFromExport,
@@ -188,31 +189,19 @@ function getDetailedScoring(
 }
 
 /**
- * Calculate position size based on agent config and score
+ * Calculate position size using production sizing engine.
+ * Wraps productionCalculatePositionSize with test-friendly interface.
  */
 function calculatePositionSize(config: AgentConfig, score: number, availableCash: number): number {
-  const sizing = config.sizing
-
-  let size: number
-  if (sizing.mode === 'score_squared') {
-    // ChatGPT: score² × base_multiplier × budget
-    size = score * score * (sizing.base_multiplier ?? 0.15) * config.monthly_budget
-  } else if (sizing.mode === 'score_linear') {
-    // Claude: base_amount × score × budget_ratio
-    size = (sizing.base_amount ?? 15) * score * (availableCash / config.monthly_budget)
-  } else if (sizing.mode === 'smart_budget') {
-    // Gemini: equal split of remaining budget (simplified)
-    size = Math.min(200, availableCash * 0.2)
-  } else {
-    size = 100
-  }
-
-  // Apply constraints
-  size = Math.min(size, sizing.max_position_amount ?? 1000)
-  size = Math.min(size, availableCash * (sizing.max_position_pct ?? 1.0))
-  size = Math.max(0, size)
-
-  return Math.round(size * 100) / 100
+  return productionCalculatePositionSize(
+    config,
+    score,
+    { remaining: availableCash },
+    1, // acceptedSignalsCount
+    false, // isHalfSize
+    undefined, // congressionalPositionSize
+    undefined // availableCapital (use monthly_budget)
+  )
 }
 
 /**
@@ -1091,5 +1080,260 @@ describe('45-Day Signal Verification', () => {
     }
 
     expect(result.decisions.length).toBeGreaterThan(0)
+  })
+
+  /**
+   * SIZING COMPARISON TEST
+   *
+   * Compare different position sizing strategies with the same ChatGPT+Top10 setup
+   * to show the impact on budget deployment.
+   */
+  it('should compare position sizing strategies for ChatGPT+Top10', () => {
+    console.log(`\n${'═'.repeat(120)}`)
+    console.log(`SIZING STRATEGY COMPARISON: ChatGPT + Top 10`)
+    console.log(`${'═'.repeat(120)}`)
+
+    // Load Top 10 from rankings
+    let top10Politicians: Set<string>
+    try {
+      top10Politicians = getTopNPoliticians(10)
+    } catch {
+      const historicalSignals = loadSignalsFromExport() as RawSignal[]
+      const filters = buildPoliticianFilters(historicalSignals)
+      const top10Filter = filters.find(f => f.name === 'Top 10')
+      top10Politicians = top10Filter?.politicians ?? new Set()
+    }
+
+    const signals45d = loadSignals45d()
+    const matchingSignals = signals45d.filter(s => top10Politicians.has(s.politician_name))
+
+    console.log(`\nTop 10 Politicians: ${[...top10Politicians].join(', ')}`)
+    console.log(`Signals from Top 10: ${matchingSignals.length}`)
+    console.log(`Monthly Budget: $${CHATGPT_CONFIG.monthly_budget}`)
+
+    // Define sizing strategies to compare
+    interface SizingStrategy {
+      name: string
+      description: string
+      calculateSize: (score: number, availableCash: number, budget: number) => number
+    }
+
+    const strategies: SizingStrategy[] = [
+      {
+        name: 'score_squared (old)',
+        description: 'score² × 0.15 × budget (OLD)',
+        calculateSize: (score, _cash, budget) => score * score * 0.15 * budget
+      },
+      {
+        name: 'score_linear (CURRENT)',
+        description: '$200 × score (PRODUCTION)',
+        calculateSize: (score, _cash, _budget) => 200 * score
+      },
+      {
+        name: 'score_squared (0.40)',
+        description: 'score² × 0.40 × budget',
+        calculateSize: (score, _cash, budget) => score * score * 0.4 * budget
+      },
+      {
+        name: 'linear_aggressive',
+        description: '$400 × score',
+        calculateSize: (score, _cash, _budget) => 400 * score
+      },
+      {
+        name: 'bucket_linear',
+        description: 'bucket_base × score (simulation)',
+        calculateSize: (score, cash, _budget) => {
+          // Simple bucket approximation: ~$150 per trade * score
+          const basePerTrade = cash / 6 // Expect ~6 signals per month
+          return basePerTrade * score
+        }
+      }
+    ]
+
+    // Collect signals that pass all filters (age, price move, scoring)
+    const politicianWinRates = computePoliticianWinRates(signals45d as any)
+
+    interface ExecutableTrade {
+      ticker: string
+      politician: string
+      score: number
+      date: string
+    }
+
+    const executableTrades: ExecutableTrade[] = []
+
+    for (const s of matchingSignals) {
+      if (s.action !== 'buy' || !s.disclosure_price || s.disclosure_price <= 0) continue
+
+      const daysSinceTrade = daysBetween(s.trade_date, s.disclosure_date)
+      const priceChangePct =
+        s.trade_price > 0 ? ((s.disclosure_price - s.trade_price) / s.trade_price) * 100 : 0
+
+      // Hard filters
+      if (daysSinceTrade > CHATGPT_CONFIG.max_signal_age_days) continue
+      if (Math.abs(priceChangePct) > CHATGPT_CONFIG.max_price_move_pct) continue
+
+      // Calculate score
+      if (!CHATGPT_CONFIG.scoring) continue
+
+      const enrichedSignal: EnrichedSignal = {
+        id: s.id,
+        ticker: s.ticker,
+        action: 'buy',
+        asset_type: s.asset_type as any,
+        trade_price: s.trade_price,
+        disclosure_price: s.disclosure_price,
+        current_price: s.disclosure_price,
+        trade_date: s.trade_date,
+        disclosure_date: s.disclosure_date,
+        position_size_min: s.position_size_min,
+        politician_name: s.politician_name,
+        source: s.source,
+        days_since_trade: daysSinceTrade,
+        days_since_filing: 0,
+        price_change_pct: priceChangePct,
+        disclosure_drift_pct: 0
+      }
+
+      const winRate = politicianWinRates.get(s.politician_name) ?? 0.5
+      const scoreResult = calculateScoreSync(CHATGPT_CONFIG.scoring, enrichedSignal, winRate)
+
+      if (scoreResult.score >= CHATGPT_CONFIG.execute_threshold) {
+        executableTrades.push({
+          ticker: s.ticker,
+          politician: s.politician_name,
+          score: scoreResult.score,
+          date: s.disclosure_date
+        })
+      }
+    }
+
+    console.log(`\nExecutable trades (pass all filters): ${executableTrades.length}`)
+    console.log(`${'─'.repeat(60)}`)
+    for (const t of executableTrades) {
+      console.log(
+        `  ${t.date.slice(0, 10)} | ${t.ticker.padEnd(6)} | ${t.politician.slice(0, 20).padEnd(20)} | score=${t.score.toFixed(3)}`
+      )
+    }
+
+    // Run each sizing strategy
+    console.log(`\n${'═'.repeat(120)}`)
+    console.log('SIZING STRATEGY RESULTS')
+    console.log('═'.repeat(120))
+
+    interface StrategyResult {
+      name: string
+      description: string
+      trades: number
+      totalInvested: number
+      avgPositionSize: number
+      remainingCash: number
+      budgetUtilization: number
+    }
+
+    const results: StrategyResult[] = []
+
+    for (const strategy of strategies) {
+      let cash = CHATGPT_CONFIG.monthly_budget
+      let totalInvested = 0
+      let tradeCount = 0
+      const positionSizes: number[] = []
+
+      for (const trade of executableTrades) {
+        let size = strategy.calculateSize(trade.score, cash, CHATGPT_CONFIG.monthly_budget)
+
+        // Apply constraints
+        size = Math.min(size, CHATGPT_CONFIG.sizing.max_position_amount ?? 1000)
+        size = Math.min(size, cash * (CHATGPT_CONFIG.sizing.max_position_pct ?? 1.0))
+        size = Math.min(size, cash)
+        size = Math.max(0, Math.round(size * 100) / 100)
+
+        if (size >= 10 && size <= cash) {
+          cash -= size
+          totalInvested += size
+          tradeCount++
+          positionSizes.push(size)
+        }
+      }
+
+      const avgSize = positionSizes.length > 0 ? totalInvested / positionSizes.length : 0
+      const utilization = (totalInvested / CHATGPT_CONFIG.monthly_budget) * 100
+
+      results.push({
+        name: strategy.name,
+        description: strategy.description,
+        trades: tradeCount,
+        totalInvested,
+        avgPositionSize: avgSize,
+        remainingCash: cash,
+        budgetUtilization: utilization
+      })
+    }
+
+    // Print comparison table
+    console.log(
+      pad('Strategy', 25, true) +
+        ' | ' +
+        pad('Formula', 35, true) +
+        ' | ' +
+        pad('Trades', 6) +
+        ' | ' +
+        pad('Invested', 10) +
+        ' | ' +
+        pad('Avg Size', 10) +
+        ' | ' +
+        pad('Remaining', 10) +
+        ' | ' +
+        pad('Util%', 6)
+    )
+    console.log('-'.repeat(120))
+
+    for (const r of results) {
+      const utilColor = r.budgetUtilization >= 90 ? '✓' : r.budgetUtilization >= 70 ? '~' : '✗'
+      console.log(
+        pad(r.name, 25, true) +
+          ' | ' +
+          pad(r.description, 35, true) +
+          ' | ' +
+          pad(String(r.trades), 6) +
+          ' | ' +
+          pad(`$${r.totalInvested.toFixed(0)}`, 10) +
+          ' | ' +
+          pad(`$${r.avgPositionSize.toFixed(0)}`, 10) +
+          ' | ' +
+          pad(`$${r.remainingCash.toFixed(0)}`, 10) +
+          ' | ' +
+          pad(`${r.budgetUtilization.toFixed(0)}%${utilColor}`, 6)
+      )
+    }
+
+    // Summary
+    console.log(`\n${'─'.repeat(120)}`)
+    console.log('ANALYSIS:')
+    console.log('─'.repeat(120))
+
+    const currentStrategy = results.find(r => r.name === 'score_linear (CURRENT)')!
+    const oldStrategy = results.find(r => r.name === 'score_squared (old)')!
+
+    console.log(`\nOLD (score_squared 0.15):`)
+    console.log(`  Budget utilization: ${oldStrategy.budgetUtilization.toFixed(0)}%`)
+    console.log(`  Remaining cash: $${oldStrategy.remainingCash.toFixed(0)}`)
+    console.log(`  Issue: Low base_multiplier meant ~50% of budget left undeployed`)
+
+    console.log(`\nCURRENT (score_linear $200):`)
+    console.log(`  Budget utilization: ${currentStrategy.budgetUtilization.toFixed(0)}%`)
+    console.log(`  Remaining cash: $${currentStrategy.remainingCash.toFixed(0)}`)
+    console.log(`  Updated per SIMULATION_FINDINGS.md recommendation`)
+
+    const improvement = currentStrategy.budgetUtilization - oldStrategy.budgetUtilization
+    console.log(`\nImprovement: +${improvement.toFixed(0)}% budget utilization`)
+
+    // Per SIMULATION_FINDINGS.md
+    console.log(`\nPer SIMULATION_FINDINGS.md:`)
+    console.log(`  - Linear sizing outperforms score_squared (+81.2% vs +65.4% growth)`)
+    console.log(`  - Production updated: now using score_linear with base_amount=200`)
+
+    expect(executableTrades.length).toBeGreaterThan(0)
+    expect(results.length).toBe(strategies.length)
   })
 })

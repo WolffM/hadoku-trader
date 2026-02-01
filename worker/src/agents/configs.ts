@@ -48,16 +48,20 @@ export const DEFAULT_BUCKET_CONFIG: SmartBudgetConfig = {
 
 /**
  * ChatGPT Agent: "Decay Edge"
- * - All politicians
+ * - All politicians (production uses Top 10 filter dynamically)
  * - 5-component weighted scoring
- * - score^2 sizing
+ * - Linear sizing: $200 × score (per SIMULATION_FINDINGS.md)
+ *
+ * Updated from score_squared to score_linear based on backtesting:
+ * - Linear: +81.2% growth, 100% budget utilization
+ * - Squared: +65.4% growth, ~60% budget utilization
  */
 export const CHATGPT_CONFIG: AgentConfig = {
   id: 'chatgpt',
   name: 'Decay Edge',
   monthly_budget: 1000,
 
-  politician_whitelist: null, // All politicians
+  politician_whitelist: null, // All politicians (filtered by Top 10 in production)
   allowed_asset_types: ['stock', 'etf', 'option'],
 
   max_signal_age_days: 45,
@@ -104,17 +108,17 @@ export const CHATGPT_CONFIG: AgentConfig = {
     }
   },
 
-  execute_threshold: 0.55, // Lowered from 0.7 to execute more trades
-  half_size_threshold: 0.45, // Lowered from 0.55
+  execute_threshold: 0.55,
+  half_size_threshold: 0.45,
 
   sizing: {
-    mode: 'score_squared',
-    base_multiplier: 0.15,
+    mode: 'score_linear',
+    base_amount: 200, // $200 × score (per SIMULATION_FINDINGS.md)
     max_position_pct: 1.0,
     max_position_amount: 1000,
     min_position_amount: 0,
     max_open_positions: 9999,
-    max_per_ticker: 1 // Only 1 position per ticker at a time
+    max_per_ticker: 1
   },
 
   exit: {

@@ -443,8 +443,8 @@ describe('End-to-End Signal Flow', () => {
     it('should calculate position size based on score and mode', () => {
       const budget = { total: 1000, spent: 0, remaining: 1000 }
 
-      // Test score_squared mode (ChatGPT)
-      const sizeSquared = calculatePositionSize(
+      // Test score_linear mode (ChatGPT - updated per SIMULATION_FINDINGS.md)
+      const sizeChatGPT = calculatePositionSize(
         CHATGPT_CONFIG,
         0.8, // High score
         budget,
@@ -453,19 +453,18 @@ describe('End-to-End Signal Flow', () => {
         100001 // Congressional position size
       )
 
-      // score_squared: score^2 × base_multiplier × budget
-      // 0.8^2 × 0.15 × 1000 = 96
-      expect(sizeSquared).toBeCloseTo(96, 0)
+      // score_linear: base_amount × score = 200 × 0.8 = 160
+      expect(sizeChatGPT).toBeCloseTo(160, 0)
 
       // Test score_linear mode (Claude)
-      const sizeLinear = calculatePositionSize(CLAUDE_CONFIG, 0.8, budget, 1, false, 100001)
+      const sizeClaude = calculatePositionSize(CLAUDE_CONFIG, 0.8, budget, 1, false, 100001)
 
       // score_linear: base_amount × score = 15 × 0.8 = 12
-      expect(sizeLinear).toBeCloseTo(12, 0)
+      expect(sizeClaude).toBeCloseTo(12, 0)
 
       console.log('Position sizes:', {
-        score_squared: sizeSquared,
-        score_linear: sizeLinear
+        chatgpt_linear: sizeChatGPT,
+        claude_linear: sizeClaude
       })
     })
 
