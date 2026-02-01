@@ -145,6 +145,75 @@ export interface InsertSignalRowOptions {
 }
 
 /**
+ * Result of validating a signal's price data.
+ */
+export interface PriceValidationResult {
+  valid: boolean
+  error?: string
+  /** The validated trade price (may be corrected) */
+  trade_price?: number
+  /** The validated disclosure price */
+  disclosure_price?: number | null
+}
+
+/**
+ * Validate price data for a signal.
+ *
+ * Invalid price scenarios:
+ * - trade_price <= 0 (can't buy at zero or negative price)
+ * - trade_price > 100000 (sanity check for obviously wrong prices)
+ * - disclosure_price <= 0 when provided (should be null instead)
+ *
+ * @returns Validation result with corrected prices or error message
+ */
+export function validatePrices(
+  tradePrice: number | null | undefined,
+  disclosurePrice: number | null | undefined
+): PriceValidationResult {
+  // trade_price is required and must be positive
+  if (tradePrice === null || tradePrice === undefined) {
+    return { valid: false, error: 'trade_price is required' }
+  }
+
+  if (tradePrice <= 0) {
+    return { valid: false, error: `trade_price must be positive (got ${tradePrice})` }
+  }
+
+  // Sanity check: stock prices shouldn't be over $100,000/share
+  // (even BRK.A is ~$600k, but most should be well under)
+  if (tradePrice > 1000000) {
+    return { valid: false, error: `trade_price seems invalid (${tradePrice} > $1M)` }
+  }
+
+  // disclosure_price should be null or positive (never 0)
+  let validatedDisclosurePrice: number | null = null
+  if (disclosurePrice !== null && disclosurePrice !== undefined) {
+    if (disclosurePrice <= 0) {
+      // Treat 0 or negative disclosure_price as missing
+      validatedDisclosurePrice = null
+    } else {
+      validatedDisclosurePrice = disclosurePrice
+    }
+  }
+
+  return {
+    valid: true,
+    trade_price: tradePrice,
+    disclosure_price: validatedDisclosurePrice
+  }
+}
+
+/**
+ * Error thrown when signal price validation fails.
+ */
+export class PriceValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'PriceValidationError'
+  }
+}
+
+/**
  * Insert a signal row directly into the database.
  * This is the low-level function used by both insertSignal and handleBackfillBatch.
  *
@@ -152,6 +221,7 @@ export interface InsertSignalRowOptions {
  * @param id - The signal ID to use
  * @param signal - Partial signal data (may have missing fields for backfill)
  * @param options - Insert options (lenient mode uses defaults for NOT NULL columns)
+ * @throws PriceValidationError if prices are invalid
  */
 export async function insertSignalRow(
   env: TraderEnv,
@@ -160,6 +230,17 @@ export async function insertSignalRow(
   options: InsertSignalRowOptions = {}
 ): Promise<void> {
   const lenient = options.lenient ?? false
+
+  // Validate prices before insertion
+  const priceValidation = validatePrices(signal.trade?.trade_price, signal.trade?.disclosure_price)
+
+  if (!priceValidation.valid) {
+    const ticker = signal.trade?.ticker ?? 'unknown'
+    const politician = signal.politician?.name ?? 'unknown'
+    throw new PriceValidationError(
+      `Invalid price for ${ticker} (${politician}): ${priceValidation.error}`
+    )
+  }
 
   // Calculate disclosure lag
   const disclosureLagDays = calculateDisclosureLagDays(
@@ -196,8 +277,8 @@ export async function insertSignalRow(
       val(signal.trade?.ticker),
       val(signal.trade?.action),
       val(signal.trade?.asset_type),
-      val(signal.trade?.trade_price),
-      val(signal.trade?.disclosure_price),
+      priceValidation.trade_price!, // Validated, guaranteed to be defined
+      priceValidation.disclosure_price, // Validated (null or positive)
       val(signal.trade?.trade_date),
       val(signal.trade?.disclosure_date, lenient ? '' : undefined), // NOT NULL
       disclosureLagDays,

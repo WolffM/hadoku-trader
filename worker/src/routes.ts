@@ -21,7 +21,8 @@ import {
   insertSignal,
   checkSignalExists,
   checkLogicalDuplicate,
-  insertSignalRow
+  insertSignalRow,
+  PriceValidationError
 } from './utils'
 import {
   daysBetween,
@@ -172,6 +173,7 @@ export async function handleBackfillBatch(request: Request, env: TraderEnv): Pro
   let inserted = 0
   let duplicates = 0
   let errors = 0
+  let priceErrors = 0
 
   for (const signal of signals) {
     try {
@@ -207,14 +209,19 @@ export async function handleBackfillBatch(request: Request, env: TraderEnv): Pro
 
       inserted++
     } catch (error) {
-      console.error('Error inserting signal:', error)
+      if (error instanceof PriceValidationError) {
+        console.warn(`[backfill] Price validation failed: ${error.message}`)
+        priceErrors++
+      } else {
+        console.error('Error inserting signal:', error)
+      }
       errors++
     }
   }
 
   console.log(
     `Backfill batch ${batchNumber} from ${source}: ` +
-      `${inserted} inserted, ${duplicates} duplicates, ${errors} errors`
+      `${inserted} inserted, ${duplicates} duplicates, ${errors} errors (${priceErrors} price validation)`
   )
 
   return jsonResponse({
@@ -224,6 +231,7 @@ export async function handleBackfillBatch(request: Request, env: TraderEnv): Pro
     inserted,
     duplicates,
     errors,
+    price_errors: priceErrors,
     total_received: signals.length
   })
 }
