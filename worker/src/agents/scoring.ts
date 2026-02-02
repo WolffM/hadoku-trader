@@ -14,7 +14,8 @@ import type {
   FilingSpeedConfig,
   CrossConfirmationConfig,
   EnrichedSignal,
-  ScoreResult
+  ScoreResult,
+  ScoringBreakdown
 } from './types'
 import { lerp, clamp } from './filters'
 import { getPoliticianStats } from './loader'
@@ -417,4 +418,107 @@ export async function getSignalConfirmationCount(
     .first()
 
   return (result?.count as number) ?? 1
+}
+
+// =============================================================================
+// Detailed Scoring Breakdown
+// =============================================================================
+
+/**
+ * Calculate detailed scoring breakdown with raw/weight/contribution per component.
+ * This is the canonical function for getting full scoring details - use this instead
+ * of duplicating the logic in other files.
+ *
+ * @param config - Scoring configuration from agent config
+ * @param signal - Enriched signal with computed fields
+ * @param winRate - Pre-computed politician win rate (for sync/simulation use)
+ * @returns Full breakdown with raw scores, weights, and contributions
+ */
+export function getDetailedScoring(
+  config: ScoringConfig,
+  signal: EnrichedSignal,
+  winRate: number
+): ScoringBreakdown {
+  const components = config.components
+  const breakdown: ScoringBreakdown = {
+    time_decay: { raw: 0, weight: 0, contribution: 0 },
+    price_movement: { raw: 0, weight: 0, contribution: 0 },
+    position_size: { raw: 0, weight: 0, contribution: 0 },
+    politician_skill: { raw: 0, weight: 0, contribution: 0 },
+    source_quality: { raw: 0, weight: 0, contribution: 0 },
+    final_score: 0
+  }
+
+  let totalWeight = 0
+  let weightedSum = 0
+
+  if (components.time_decay) {
+    const raw = scoreTimeDecay(components.time_decay, signal)
+    const weight = components.time_decay.weight
+    breakdown.time_decay = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.price_movement) {
+    const raw = scorePriceMovement(components.price_movement, signal)
+    const weight = components.price_movement.weight
+    breakdown.price_movement = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.position_size) {
+    const raw = scorePositionSize(components.position_size, signal)
+    const weight = components.position_size.weight
+    breakdown.position_size = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.politician_skill) {
+    const raw =
+      winRate !== undefined ? clamp(winRate, 0.4, 0.7) : components.politician_skill.default_score
+    const weight = components.politician_skill.weight
+    breakdown.politician_skill = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.source_quality) {
+    const raw =
+      components.source_quality.scores[signal.source] ??
+      components.source_quality.scores.default ??
+      0.8
+    const weight = components.source_quality.weight
+    breakdown.source_quality = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.filing_speed) {
+    let raw = 1.0
+    if (signal.days_since_filing <= 7) {
+      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05)
+    } else if (signal.days_since_filing >= 30) {
+      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1)
+    }
+    const weight = components.filing_speed.weight
+    breakdown.filing_speed = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  if (components.cross_confirmation) {
+    // In sync mode, we don't have confirmation count, so use default
+    const raw = 0.5
+    const weight = components.cross_confirmation.weight
+    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight }
+    weightedSum += raw * weight
+    totalWeight += weight
+  }
+
+  breakdown.final_score = totalWeight > 0 ? clamp(weightedSum / totalWeight, 0, 1) : 0
+
+  return breakdown
 }

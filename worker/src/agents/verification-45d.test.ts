@@ -9,12 +9,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG, NAIVE_CONFIG } from './configs'
-import {
-  calculateScoreSync,
-  scoreTimeDecay,
-  scorePriceMovement,
-  scorePositionSize
-} from './scoring'
+import { calculateScoreSync, getDetailedScoring } from './scoring'
 import { calculatePositionSize as productionCalculatePositionSize } from './sizing'
 import {
   loadSignalsFromFile,
@@ -29,7 +24,7 @@ import {
   type RawSignal,
   type TestPosition
 } from './test-utils'
-import type { AgentConfig, EnrichedSignal, ScoringConfig, ScoringBreakdown } from './types'
+import type { AgentConfig, EnrichedSignal, ScoringBreakdown } from './types'
 
 // =============================================================================
 // Types (test-specific, extending shared types)
@@ -88,105 +83,7 @@ function loadSignals45d(): SimSignal[] {
   )
 }
 
-/**
- * Calculate detailed scoring breakdown for a signal
- */
-function getDetailedScoring(
-  config: ScoringConfig,
-  signal: EnrichedSignal,
-  winRate: number
-): ScoringBreakdown {
-  const components = config.components
-  const breakdown: ScoringBreakdown = {
-    time_decay: { raw: 0, weight: 0, contribution: 0 },
-    price_movement: { raw: 0, weight: 0, contribution: 0 },
-    position_size: { raw: 0, weight: 0, contribution: 0 },
-    politician_skill: { raw: 0, weight: 0, contribution: 0 },
-    source_quality: { raw: 0, weight: 0, contribution: 0 },
-    final_score: 0
-  }
-
-  let totalWeight = 0
-  let weightedSum = 0
-
-  // 1. Time Decay
-  if (components.time_decay) {
-    const raw = scoreTimeDecay(components.time_decay, signal)
-    const weight = components.time_decay.weight
-    breakdown.time_decay = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 2. Price Movement
-  if (components.price_movement) {
-    const raw = scorePriceMovement(components.price_movement, signal)
-    const weight = components.price_movement.weight
-    breakdown.price_movement = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 3. Position Size
-  if (components.position_size) {
-    const raw = scorePositionSize(components.position_size, signal)
-    const weight = components.position_size.weight
-    breakdown.position_size = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 4. Politician Skill (use provided win rate)
-  if (components.politician_skill) {
-    const raw =
-      winRate !== undefined
-        ? Math.max(0.4, Math.min(0.7, winRate))
-        : components.politician_skill.default_score
-    const weight = components.politician_skill.weight
-    breakdown.politician_skill = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 5. Source Quality
-  if (components.source_quality) {
-    const raw =
-      components.source_quality.scores[signal.source] ??
-      components.source_quality.scores['default'] ??
-      0.8
-    const weight = components.source_quality.weight
-    breakdown.source_quality = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 6. Filing Speed (Claude only)
-  if (components.filing_speed) {
-    let raw = 1.0
-    if (signal.days_since_filing <= 7) {
-      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05)
-    } else if (signal.days_since_filing >= 30) {
-      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1)
-    }
-    const weight = components.filing_speed.weight
-    breakdown.filing_speed = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  // 7. Cross Confirmation (Claude only)
-  if (components.cross_confirmation) {
-    const raw = 0.5 // Default, no confirmation data in JSON
-    const weight = components.cross_confirmation.weight
-    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0
-
-  return breakdown
-}
+// getDetailedScoring is imported from ./scoring
 
 /**
  * Calculate position size using production sizing engine.

@@ -12,16 +12,11 @@ import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import { CHATGPT_CONFIG } from './configs.js'
-import {
-  calculateScoreSync,
-  scoreTimeDecay,
-  scorePriceMovement,
-  scorePositionSize
-} from './scoring.js'
+import { calculateScoreSync, getDetailedScoring } from './scoring.js'
 import { calculatePositionSize as productionCalculatePositionSize } from './sizing.js'
 import { daysBetween } from './filters.js'
 import { computePoliticianWinRates } from './simulation.js'
-import type { AgentConfig, EnrichedSignal, ScoringConfig, ScoringBreakdown } from './types.js'
+import type { AgentConfig, EnrichedSignal, ScoringBreakdown } from './types.js'
 
 // ESM-compatible __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -119,74 +114,7 @@ function getTopNPoliticians(n: number): string[] {
 // Scoring (matches production calculateScoreSync)
 // =============================================================================
 
-function getDetailedScoring(
-  config: ScoringConfig,
-  signal: EnrichedSignal,
-  winRate: number
-): ScoringBreakdown {
-  const components = config.components
-  const breakdown: ScoringBreakdown = {
-    time_decay: { raw: 0, weight: 0, contribution: 0 },
-    price_movement: { raw: 0, weight: 0, contribution: 0 },
-    position_size: { raw: 0, weight: 0, contribution: 0 },
-    politician_skill: { raw: 0, weight: 0, contribution: 0 },
-    source_quality: { raw: 0, weight: 0, contribution: 0 },
-    final_score: 0
-  }
-
-  let totalWeight = 0
-  let weightedSum = 0
-
-  if (components.time_decay) {
-    const raw = scoreTimeDecay(components.time_decay, signal)
-    const weight = components.time_decay.weight
-    breakdown.time_decay = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.price_movement) {
-    const raw = scorePriceMovement(components.price_movement, signal)
-    const weight = components.price_movement.weight
-    breakdown.price_movement = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.position_size) {
-    const raw = scorePositionSize(components.position_size, signal)
-    const weight = components.position_size.weight
-    breakdown.position_size = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.politician_skill) {
-    const raw =
-      winRate !== undefined
-        ? Math.max(0.4, Math.min(0.7, winRate))
-        : components.politician_skill.default_score
-    const weight = components.politician_skill.weight
-    breakdown.politician_skill = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.source_quality) {
-    const raw =
-      components.source_quality.scores[signal.source] ??
-      components.source_quality.scores.default ??
-      0.8
-    const weight = components.source_quality.weight
-    breakdown.source_quality = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0
-
-  return breakdown
-}
+// getDetailedScoring is imported from ./scoring.js
 
 function calculatePositionSize(config: AgentConfig, score: number, availableCash: number): number {
   return productionCalculatePositionSize(

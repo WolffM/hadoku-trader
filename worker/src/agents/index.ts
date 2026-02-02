@@ -183,6 +183,8 @@ export {
   calculateScore,
   // Sync version for simulation/backtesting
   calculateScoreSync,
+  // Detailed breakdown for simulation/debugging
+  getDetailedScoring,
   // Component scoring functions
   scoreTimeDecay,
   scorePriceMovement,

@@ -26,6 +26,7 @@ import {
 } from './utils'
 import {
   daysBetween,
+  getCurrentDate,
   getActiveAgents,
   getAgent,
   getAgentBudget,
@@ -34,12 +35,9 @@ import {
   TRADING_AGENTS,
   AGENT_CONFIGS,
   calculateScoreSync,
-  scoreTimeDecay,
-  scorePriceMovement,
-  scorePositionSize,
+  getDetailedScoring,
   calculatePositionSize,
   type EnrichedSignal,
-  type ScoringConfig,
   type AgentConfig,
   type ScoringBreakdown
 } from './agents'
@@ -805,9 +803,7 @@ export async function handleGetAgentById(env: TraderEnv, agentId: string): Promi
       const entryPrice = pos.avg_cost || pos.entry_price || 0
       const currentPrice = pos.current_price || entryPrice
       const returnPct = entryPrice > 0 ? ((currentPrice - entryPrice) / entryPrice) * 100 : 0
-      const daysHeld = pos.entry_date
-        ? Math.floor((Date.now() - new Date(pos.entry_date).getTime()) / (1000 * 60 * 60 * 24))
-        : 0
+      const daysHeld = pos.entry_date ? daysBetween(pos.entry_date, getCurrentDate()) : 0
 
       return {
         ticker: pos.ticker,
@@ -956,97 +952,7 @@ interface SimulationAgentResult {
   }
 }
 
-// daysBetween is imported from ./agents (originally from filters.ts)
-
-function getDetailedScoring(
-  config: ScoringConfig,
-  signal: EnrichedSignal,
-  winRate: number
-): ScoringBreakdown {
-  const components = config.components
-  const breakdown: ScoringBreakdown = {
-    time_decay: { raw: 0, weight: 0, contribution: 0 },
-    price_movement: { raw: 0, weight: 0, contribution: 0 },
-    position_size: { raw: 0, weight: 0, contribution: 0 },
-    politician_skill: { raw: 0, weight: 0, contribution: 0 },
-    source_quality: { raw: 0, weight: 0, contribution: 0 },
-    final_score: 0
-  }
-
-  let totalWeight = 0
-  let weightedSum = 0
-
-  if (components.time_decay) {
-    const raw = scoreTimeDecay(components.time_decay, signal)
-    const weight = components.time_decay.weight
-    breakdown.time_decay = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.price_movement) {
-    const raw = scorePriceMovement(components.price_movement, signal)
-    const weight = components.price_movement.weight
-    breakdown.price_movement = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.position_size) {
-    const raw = scorePositionSize(components.position_size, signal)
-    const weight = components.position_size.weight
-    breakdown.position_size = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.politician_skill) {
-    const raw =
-      winRate !== undefined
-        ? Math.max(0.4, Math.min(0.7, winRate))
-        : components.politician_skill.default_score
-    const weight = components.politician_skill.weight
-    breakdown.politician_skill = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.source_quality) {
-    const raw =
-      components.source_quality.scores[signal.source] ??
-      components.source_quality.scores.default ??
-      0.8
-    const weight = components.source_quality.weight
-    breakdown.source_quality = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.filing_speed) {
-    let raw = 1.0
-    if (signal.days_since_filing <= 7) {
-      raw = 1.0 + (components.filing_speed.fast_bonus ?? 0.05)
-    } else if (signal.days_since_filing >= 30) {
-      raw = 1.0 + (components.filing_speed.slow_penalty ?? -0.1)
-    }
-    const weight = components.filing_speed.weight
-    breakdown.filing_speed = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  if (components.cross_confirmation) {
-    const raw = 0.5
-    const weight = components.cross_confirmation.weight
-    breakdown.cross_confirmation = { raw, weight, contribution: raw * weight }
-    weightedSum += raw * weight
-    totalWeight += weight
-  }
-
-  breakdown.final_score = totalWeight > 0 ? Math.max(0, Math.min(1, weightedSum / totalWeight)) : 0
-
-  return breakdown
-}
+// getDetailedScoring is imported from ./agents/scoring.ts
 
 /**
  * Wrapper for production calculatePositionSize for simulation context.
