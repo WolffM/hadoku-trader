@@ -114,16 +114,33 @@ export async function runFullSync(env: TraderEnv): Promise<void> {
 import type { components } from './generated/scraper-api'
 
 /**
- * Response from scraper /api/v1/politrades/signals endpoint.
- * Generated from scraper's OpenAPI spec.
+ * Response from scraper /api/v1/politrades/signals/pull endpoint.
+ * Used for incremental sync with cursor pagination.
  */
-type ScraperSignalsResponse = components['schemas']['FetchSignalsResponse']
+type ScraperPullResponse = components['schemas']['SignalsPullResponse']
 
 /**
  * Scraper's Signal type from OpenAPI spec.
  * More permissive than our internal Signal type (allows null/optional fields).
  */
 type ScraperSignal = components['schemas']['Signal']
+
+// =============================================================================
+// Incremental Sync Helpers
+// =============================================================================
+
+/**
+ * Get the latest disclosure date from signals in D1.
+ * Used to determine the starting point for incremental sync.
+ */
+async function getLatestDisclosureDate(env: TraderEnv): Promise<string | null> {
+  const result = await env.TRADER_DB.prepare(
+    `
+    SELECT MAX(disclosure_date) as latest FROM signals
+  `
+  ).first<{ latest: string | null }>()
+  return result?.latest ?? null
+}
 
 /**
  * Convert a scraper signal to our internal Signal format.
@@ -165,43 +182,64 @@ function toInternalSignal(scraperSignal: ScraperSignal): Signal {
 }
 
 /**
- * Fetch signals and market data from hadoku-scraper.
+ * Fetch signals from hadoku-scraper using incremental pull.
+ * Uses cursor pagination to handle large result sets.
  */
 export async function fetchFromScraper(env: TraderEnv): Promise<void> {
   try {
-    console.log('Fetching data from hadoku-scraper...')
+    // Get latest disclosure date for incremental sync
+    const sinceDate = await getLatestDisclosureDate(env)
+    console.log(`Fetching data from hadoku-scraper (since: ${sinceDate ?? 'beginning'})...`)
 
-    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
-      headers: {
-        Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-        Accept: 'application/json'
+    let cursor: string | null = null
+    let hasMore = true
+    let totalSignals = 0
+    let pageCount = 0
+    const maxPages = 50 // Safety limit
+
+    while (hasMore && pageCount < maxPages) {
+      pageCount++
+
+      // Build URL with parameters
+      const params = new URLSearchParams()
+      if (sinceDate) params.set('since', sinceDate)
+      if (cursor) params.set('cursor', cursor)
+
+      const resp = await fetch(
+        `${env.SCRAPER_URL}/api/v1/politrades/signals/pull?${params.toString()}`,
+        {
+          headers: {
+            Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
+            Accept: 'application/json'
+          }
+        }
+      )
+
+      if (!resp.ok) {
+        console.error('Scraper fetch failed:', resp.status, await resp.text())
+        return
       }
-    })
 
-    if (!resp.ok) {
-      console.error('Scraper fetch failed:', resp.status, await resp.text())
-      return
+      const data: ScraperPullResponse = await resp.json()
+
+      console.log(`Page ${pageCount}: ${data.signals.length} signals (has_more: ${data.has_more})`)
+
+      // Store new signals - convert from scraper format to internal format
+      const signals = data.signals.map(toInternalSignal)
+      for (const signal of signals) {
+        await storeSignal(env, signal)
+      }
+
+      totalSignals += signals.length
+      cursor = data.next_cursor ?? null
+      hasMore = data.has_more
     }
 
-    const data: ScraperSignalsResponse = await resp.json()
-
-    console.log(
-      `Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(', ')})`
-    )
-
-    // Log any failed sources
-    const failedSources = Object.keys(data.sources_failed)
-    if (failedSources.length > 0) {
-      console.warn(`Failed to fetch from sources: ${failedSources.join(', ')}`)
+    if (pageCount >= maxPages) {
+      console.warn(`Hit max pages limit (${maxPages}), may have more signals`)
     }
 
-    // Store new signals - convert from scraper format to internal format
-    const signals = data.signals.map(toInternalSignal)
-    for (const signal of signals) {
-      await storeSignal(env, signal)
-    }
-
-    console.log('Scraper data sync completed')
+    console.log(`Scraper data sync completed: ${totalSignals} signals processed`)
   } catch (error) {
     console.error('Scraper fetch error:', error)
   }
@@ -231,10 +269,11 @@ export interface SignalSyncResult {
 }
 
 /**
- * Fetch and sync signals from hadoku-scraper into D1.
+ * Fetch and sync signals from hadoku-scraper into D1 using incremental pull.
  *
  * This is the canonical function for signal acquisition - call it from scheduled
- * handlers or manually to sync new signals.
+ * handlers or manually to sync new signals. Uses cursor pagination to handle
+ * large result sets and incremental sync based on the latest disclosure date.
  *
  * @param env - Environment with SCRAPER_URL, SCRAPER_API_KEY, and TRADER_DB
  * @returns Counts of inserted, skipped (duplicates), and any errors
@@ -243,42 +282,58 @@ export async function syncSignalsFromScraper(env: TraderEnv): Promise<SignalSync
   const result: SignalSyncResult = { inserted: 0, skipped: 0, errors: [] }
 
   try {
-    console.log('Fetching signals from hadoku-scraper...')
+    // Get latest disclosure date we have for incremental sync
+    const sinceDate = await getLatestDisclosureDate(env)
+    console.log(`Fetching signals from hadoku-scraper (since: ${sinceDate ?? 'beginning'})...`)
 
-    const resp = await fetch(`${env.SCRAPER_URL}/api/v1/politrades/signals?limit=500`, {
-      headers: {
-        Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
-        Accept: 'application/json'
+    // Use incremental pull endpoint with cursor pagination
+    let cursor: string | null = null
+    let hasMore = true
+    let pageCount = 0
+    const maxPages = 50 // Safety limit
+
+    while (hasMore && pageCount < maxPages) {
+      pageCount++
+
+      // Build URL with parameters
+      const params = new URLSearchParams()
+      if (sinceDate) params.set('since', sinceDate)
+      if (cursor) params.set('cursor', cursor)
+
+      const url = `${env.SCRAPER_URL}/api/v1/politrades/signals/pull?${params.toString()}`
+
+      const resp = await fetch(url, {
+        headers: {
+          Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
+          Accept: 'application/json'
+        }
+      })
+
+      if (!resp.ok) {
+        const errorText = await resp.text()
+        result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`)
+        return result
       }
-    })
 
-    if (!resp.ok) {
-      const errorText = await resp.text()
-      result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`)
-      return result
+      const data: ScraperPullResponse = await resp.json()
+
+      console.log(`Page ${pageCount}: ${data.signals.length} signals (has_more: ${data.has_more})`)
+
+      // Convert and ingest signals
+      const signals = data.signals.map(toInternalSignal)
+      const batchResult = await ingestSignalBatch(env, signals)
+      result.inserted += batchResult.inserted
+      result.skipped += batchResult.skipped
+      result.errors.push(...batchResult.errors)
+
+      // Update pagination state
+      cursor = data.next_cursor ?? null
+      hasMore = data.has_more
     }
 
-    const data: ScraperSignalsResponse = await resp.json()
-
-    console.log(
-      `Received ${data.total_signals} signals from scraper (sources: ${data.sources_fetched.join(', ')})`
-    )
-
-    // Log any failed sources as warnings
-    const failedSources = Object.keys(data.sources_failed)
-    if (failedSources.length > 0) {
-      console.warn(`Failed to fetch from sources: ${failedSources.join(', ')}`)
-      for (const [source, error] of Object.entries(data.sources_failed)) {
-        result.errors.push(`Source ${source} failed: ${error}`)
-      }
+    if (pageCount >= maxPages) {
+      console.warn(`Hit max pages limit (${maxPages}), may have more signals`)
     }
-
-    // Ingest all signals using the batch function - convert from scraper format
-    const signals = data.signals.map(toInternalSignal)
-    const batchResult = await ingestSignalBatch(env, signals)
-    result.inserted = batchResult.inserted
-    result.skipped = batchResult.skipped
-    result.errors.push(...batchResult.errors)
 
     console.log(
       `Signal sync complete: ${result.inserted} inserted, ${result.skipped} skipped, ${result.errors.length} errors`
