@@ -67,7 +67,8 @@ export default [
       '**/*.test.tsx',
       '**/vite.config.ts',
       '**/vitest.config.ts',
-      '**/test-utils.ts'
+      '**/test-utils.ts',
+      '**/replay-*.ts' // Node.js CLI scripts, not part of worker build
     ]
   },
 
