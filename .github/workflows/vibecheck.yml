@@ -19,6 +19,17 @@ jobs:
         with:
           fetch-depth: 0
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: https://npm.pkg.github.com
+          scope: "@wolffm"
+          cache: pnpm
+
       - name: Run vibeCheck
         uses: WolffM/vibecheck@main
         with:
@@ -28,6 +39,8 @@ jobs:
           confidence_threshold: medium
           skip_issues: false
           autofix_prs: true
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
 
       - name: Upload artifacts
         if: always()
