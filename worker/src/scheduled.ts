@@ -147,6 +147,34 @@ type ScraperPullResponse = components['schemas']['SignalsPullResponse']
 type ScraperSignal = components['schemas']['Signal']
 
 // =============================================================================
+// Scraper Error Handling
+// =============================================================================
+
+interface ScraperErrorBody {
+  message: string
+  requestId: string | null
+}
+
+/**
+ * Parse error response from scraper, extracting request_id for debugging.
+ * Scraper error responses include a request_id field for tracing.
+ */
+async function parseErrorResponse(resp: Response): Promise<ScraperErrorBody> {
+  try {
+    const body = await resp.json()
+    const requestId = (body.request_id as string) ?? null
+    const message = (body.detail as string) ?? (body.error as string) ?? JSON.stringify(body)
+    if (requestId) {
+      console.error(`Scraper error [request_id: ${requestId}]:`, message)
+    }
+    return { message, requestId }
+  } catch {
+    const text = await resp.text().catch(() => 'unknown error')
+    return { message: text, requestId: null }
+  }
+}
+
+// =============================================================================
 // Incremental Sync Helpers
 // =============================================================================
 
@@ -256,9 +284,20 @@ export async function syncSignalsFromScraper(env: TraderEnv): Promise<SignalSync
         }
       })
 
+      // Handle rate limiting with Retry-After backoff
+      if (resp.status === 429) {
+        const retryAfter = parseInt(resp.headers.get('Retry-After') ?? '60', 10)
+        console.log(`Rate limited by scraper, waiting ${retryAfter}s before retry`)
+        await new Promise(r => setTimeout(r, retryAfter * 1000))
+        pageCount-- // Retry same page
+        continue
+      }
+
       if (!resp.ok) {
-        const errorText = await resp.text()
-        result.errors.push(`Scraper fetch failed: ${resp.status} - ${errorText}`)
+        const errorBody = await parseErrorResponse(resp)
+        result.errors.push(
+          `Scraper fetch failed: ${resp.status}${errorBody.requestId ? ` [request_id: ${errorBody.requestId}]` : ''} - ${errorBody.message}`
+        )
         return result
       }
 
@@ -585,9 +624,13 @@ async function fetchMarketPricesWithRetry(
       // Retry on rate limit (429) or server error (5xx)
       if (response.status === 429 || response.status >= 500) {
         if (attempt < maxRetries) {
-          const delay = Math.pow(2, attempt) * 1000
+          // Use Retry-After header if available (429), otherwise exponential backoff
+          const retryAfterSec =
+            response.status === 429 ? parseInt(response.headers.get('Retry-After') ?? '0', 10) : 0
+          const delay = retryAfterSec > 0 ? retryAfterSec * 1000 : Math.pow(2, attempt) * 1000
+          const errorBody = await parseErrorResponse(response)
           console.log(
-            `Rate limited/error (${response.status}), retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`
+            `Rate limited/error (${response.status})${errorBody.requestId ? ` [request_id: ${errorBody.requestId}]` : ''}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`
           )
           await new Promise(r => setTimeout(r, delay))
           continue
@@ -596,7 +639,10 @@ async function fetchMarketPricesWithRetry(
       }
 
       if (!response.ok) {
-        console.error(`Market prices fetch failed: ${response.status}`)
+        const errorBody = await parseErrorResponse(response)
+        console.error(
+          `Market prices fetch failed: ${response.status}${errorBody.requestId ? ` [request_id: ${errorBody.requestId}]` : ''} - ${errorBody.message}`
+        )
         return null
       }
 

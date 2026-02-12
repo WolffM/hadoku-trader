@@ -10,8 +10,8 @@ import type { TraderEnv, Signal } from './types'
 import type { components } from './generated/scraper-api'
 import { syncSignalsFromScraper, ingestSignalBatch } from './scheduled'
 
-// Scraper API response type
-type ScraperSignalsResponse = components['schemas']['FetchSignalsResponse']
+// Scraper API response types
+type ScraperPullResponse = components['schemas']['SignalsPullResponse']
 
 // =============================================================================
 // Mock D1 Database
@@ -204,12 +204,11 @@ function toScraperSignal(signal: Signal): components['schemas']['Signal'] {
   }
 }
 
-function createScraperResponse(signals: Signal[]): ScraperSignalsResponse {
+function createScraperPullResponse(signals: Signal[], hasMore = false): ScraperPullResponse {
   return {
     signals: signals.map(toScraperSignal),
-    sources_fetched: ['capitol_trades', 'senate_stock_watcher'],
-    sources_failed: {},
-    total_signals: signals.length,
+    has_more: hasMore,
+    next_cursor: hasMore ? 'next_page_cursor' : null,
     fetched_at: new Date().toISOString()
   }
 }
@@ -526,11 +525,12 @@ describe('syncSignalsFromScraper', () => {
       })
     ]
 
-    const mockResponse = createScraperResponse(testSignals)
+    const mockResponse = createScraperPullResponse(testSignals)
 
     // Mock fetch
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
+      status: 200,
       json: () => Promise.resolve(mockResponse)
     })
 
@@ -540,9 +540,9 @@ describe('syncSignalsFromScraper', () => {
     expect(result.skipped).toBe(0)
     expect(result.errors).toHaveLength(0)
 
-    // Verify fetch was called with correct params
+    // Verify fetch was called with correct params (pull endpoint)
     expect(globalThis.fetch).toHaveBeenCalledWith(
-      'https://scraper.example.com/api/v1/politrades/signals?limit=500',
+      expect.stringContaining('/api/v1/politrades/signals/pull'),
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer test-scraper-key'
@@ -555,6 +555,8 @@ describe('syncSignalsFromScraper', () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: false,
       status: 500,
+      headers: new Headers(),
+      json: () => Promise.resolve({ detail: 'Internal Server Error', request_id: 'req_abc123' }),
       text: () => Promise.resolve('Internal Server Error')
     })
 
@@ -564,6 +566,33 @@ describe('syncSignalsFromScraper', () => {
     expect(result.skipped).toBe(0)
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]).toContain('500')
+    expect(result.errors[0]).toContain('request_id: req_abc123')
+  })
+
+  it('should handle 429 rate limiting with Retry-After', async () => {
+    let callCount = 0
+    globalThis.fetch = vi.fn().mockImplementation(() => {
+      callCount++
+      if (callCount === 1) {
+        return Promise.resolve({
+          ok: false,
+          status: 429,
+          headers: new Headers({ 'Retry-After': '1' }),
+          json: () => Promise.resolve({ detail: 'Rate limited' }),
+          text: () => Promise.resolve('Rate limited')
+        })
+      }
+      return Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve(createScraperPullResponse([]))
+      })
+    })
+
+    const result = await syncSignalsFromScraper(env)
+
+    expect(callCount).toBe(2)
+    expect(result.errors).toHaveLength(0)
   })
 
   it('should handle network errors gracefully', async () => {
@@ -644,7 +673,8 @@ describe('syncSignalsFromScraper', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(createScraperResponse(scraperSignals))
+      status: 200,
+      json: () => Promise.resolve(createScraperPullResponse(scraperSignals))
     })
 
     const result = await syncSignalsFromScraper(env)
@@ -654,27 +684,18 @@ describe('syncSignalsFromScraper', () => {
     expect(result.errors).toHaveLength(0)
   })
 
-  it('should handle sources_failed in response', async () => {
-    const mockResponse: ScraperSignalsResponse = {
-      signals: [],
-      sources_fetched: ['capitol_trades'],
-      sources_failed: { senate_stock_watcher: 'Rate limit exceeded' },
-      total_signals: 0,
-      fetched_at: new Date().toISOString()
-    }
-
+  it('should handle empty pull response (no signals available)', async () => {
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(mockResponse)
+      status: 200,
+      json: () => Promise.resolve(createScraperPullResponse([]))
     })
 
     const result = await syncSignalsFromScraper(env)
 
     expect(result.inserted).toBe(0)
     expect(result.skipped).toBe(0)
-    // sources_failed errors are now logged but also added to result.errors
-    expect(result.errors).toHaveLength(1)
-    expect(result.errors[0]).toContain('senate_stock_watcher')
+    expect(result.errors).toHaveLength(0)
   })
 })
 
@@ -741,7 +762,8 @@ describe('Integration: Full Sync Flow', () => {
 
     globalThis.fetch = vi.fn().mockResolvedValue({
       ok: true,
-      json: () => Promise.resolve(createScraperResponse(realisticSignals))
+      status: 200,
+      json: () => Promise.resolve(createScraperPullResponse(realisticSignals))
     })
 
     const result = await syncSignalsFromScraper(env)
