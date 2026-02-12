@@ -162,8 +162,8 @@ interface ScraperErrorBody {
 async function parseErrorResponse(resp: Response): Promise<ScraperErrorBody> {
   try {
     const body = await resp.json()
-    const requestId = (body.request_id as string) ?? null
-    const message = (body.detail as string) ?? (body.error as string) ?? JSON.stringify(body)
+    const requestId = body.request_id ?? null
+    const message = body.detail ?? body.error ?? JSON.stringify(body)
     if (requestId) {
       console.error(`Scraper error [request_id: ${requestId}]:`, message)
     }
