@@ -4,7 +4,12 @@
 
 import type { TraderEnv, Signal } from './types'
 import { insertSignal } from './utils'
-import { processAllPendingSignals, resetMonthlyBudgets, monitorPositions } from './agents'
+import {
+  processAllPendingSignals,
+  resetMonthlyBudgets,
+  monitorPositions,
+  computePoliticianRankings
+} from './agents'
 
 // =============================================================================
 // Market Prices Types
@@ -51,8 +56,22 @@ export function createScheduledHandler(env: TraderEnv): (cron: string) => Promis
     console.log('Scheduled task running:', cron)
 
     // Main sync: fetch data, process signals, update performance, handle monthly budget
-    if (cron === '0 */8 * * *') {
+    // Runs once daily after market close (10pm UTC = 5/6pm ET)
+    if (cron === '0 22 * * 1-5') {
       await runFullSync(env)
+    }
+
+    // Recompute politician rankings daily at 6am UTC
+    if (cron === '0 6 * * *') {
+      try {
+        console.log('Computing politician rankings...')
+        const result = await computePoliticianRankings(env)
+        console.log(
+          `Rankings computed: ${result.qualified_politicians}/${result.total_politicians} qualified, top 10: ${result.top_10.map(r => r.politician_name).join(', ')}`
+        )
+      } catch (error) {
+        console.error('Error computing politician rankings:', error)
+      }
     }
 
     // Monitor positions every 15 minutes during market hours (9am-4pm ET, Mon-Fri)
@@ -570,7 +589,7 @@ async function insertMarketPrices(
     const batch = records.slice(i, i + D1_BATCH_SIZE)
     const statements = batch.map(price =>
       env.TRADER_DB.prepare(
-        `INSERT OR REPLACE INTO market_prices
+        `INSERT OR IGNORE INTO market_prices
          (ticker, date, open, high, low, close, volume, source)
          VALUES (?, ?, ?, ?, ?, ?, ?, 'yahoo')`
       ).bind(
@@ -662,8 +681,8 @@ async function fetchMarketPricesWithRetry(
 }
 
 /**
- * Sync market prices from hadoku-scraper.
- * Fetches historical OHLCV data for all tickers we're tracking.
+ * Sync market prices from hadoku-scraper (incremental).
+ * Only fetches missing/stale dates per ticker to minimize D1 row writes.
  * Called daily after market close.
  */
 export async function syncMarketPrices(env: TraderEnv): Promise<void> {
@@ -688,34 +707,71 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
 
     console.log(`Found ${allTickers.length} tickers to sync`)
 
-    // Last 30 days to catch gaps from infrequent tickers
-    const endDate = new Date().toISOString().split('T')[0]
-    const startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+    // Get the latest date we have per ticker
+    const latestDatesResult = await env.TRADER_DB.prepare(
+      `SELECT ticker, MAX(date) as latest_date FROM market_prices GROUP BY ticker`
+    ).all()
 
-    const batchSize = 100
-    let totalInserted = 0
-    let totalErrors = 0
-
-    for (let i = 0; i < allTickers.length; i += batchSize) {
-      const batch = allTickers.slice(i, i + batchSize)
-      console.log(`Fetching batch ${Math.floor(i / batchSize) + 1}: ${batch.length} tickers`)
-
-      const result = await fetchMarketPricesWithRetry(env, batch, startDate, endDate)
-      if (!result) {
-        totalErrors += batch.length
-        continue
-      }
-
-      console.log(
-        `Received ${result.data.record_count} prices for ${result.data.ticker_count} tickers`
-      )
-
-      const insertResult = await insertMarketPrices(env, result.data.records)
-      totalInserted += insertResult.inserted
-      totalErrors += insertResult.errors
+    const latestDateMap = new Map<string, string>()
+    for (const row of latestDatesResult.results as { ticker: string; latest_date: string }[]) {
+      latestDateMap.set(row.ticker, row.latest_date)
     }
 
-    console.log(`Market prices sync complete: ${totalInserted} inserted, ${totalErrors} errors`)
+    const endDate = new Date().toISOString().split('T')[0]
+    const fallbackStart = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0]
+
+    // Split tickers: new (need full 30d) vs existing (only need recent days)
+    const newTickers = allTickers.filter(t => !latestDateMap.has(t))
+    const existingTickers = allTickers.filter(t => latestDateMap.has(t))
+
+    // Only fetch existing tickers that are actually stale (>2 days behind)
+    const staleThreshold = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
+      .toISOString()
+      .split('T')[0]
+    const staleTickers = existingTickers.filter(t => (latestDateMap.get(t) ?? '') < staleThreshold)
+
+    let totalInserted = 0
+    let totalErrors = 0
+    const batchSize = 100
+
+    // Batch 1: New tickers need full 30-day history
+    if (newTickers.length > 0) {
+      console.log(`Fetching full history for ${newTickers.length} new tickers`)
+      for (let i = 0; i < newTickers.length; i += batchSize) {
+        const batch = newTickers.slice(i, i + batchSize)
+        const result = await fetchMarketPricesWithRetry(env, batch, fallbackStart, endDate)
+        if (result) {
+          const insertResult = await insertMarketPrices(env, result.data.records)
+          totalInserted += insertResult.inserted
+          totalErrors += insertResult.errors
+        }
+      }
+    }
+
+    // Batch 2: Stale tickers only need last 3 days (covers weekends/holidays)
+    if (staleTickers.length > 0) {
+      const recentStart = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      console.log(
+        `Fetching recent prices for ${staleTickers.length} stale tickers (since ${recentStart})`
+      )
+      for (let i = 0; i < staleTickers.length; i += batchSize) {
+        const batch = staleTickers.slice(i, i + batchSize)
+        const result = await fetchMarketPricesWithRetry(env, batch, recentStart, endDate)
+        if (result) {
+          const insertResult = await insertMarketPrices(env, result.data.records)
+          totalInserted += insertResult.inserted
+          totalErrors += insertResult.errors
+        }
+      }
+    }
+
+    const upToDate = existingTickers.length - staleTickers.length
+    console.log(
+      `Market prices sync complete: ${totalInserted} inserted, ${totalErrors} errors ` +
+        `(${newTickers.length} new, ${staleTickers.length} stale, ${upToDate} up-to-date)`
+    )
   } catch (error) {
     console.error('Error syncing market prices:', error)
   }
