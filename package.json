@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/trader",
-  "version": "1.1.8",
+  "version": "1.2.1",
   "description": "Stock and crypto trading dashboard for hadoku",
   "type": "module",
   "repository": {
@@ -33,13 +33,12 @@
     "@wolffm/task-ui-components": ">=1.0.0",
     "@wolffm/themes": ">=1.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
-  },
-  "dependencies": {
-    "recharts": "^3.6.0"
+    "react-dom": "^19.0.0",
+    "recharts": "^3.0.0"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
+    "recharts": "^3.6.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
