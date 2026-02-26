@@ -34,7 +34,7 @@ FIDELITY_TOTP_SECRET=your_totp_secret
 FIDELITY_DEFAULT_ACCOUNT=X12345678
 
 # API security
-TRADER_API_SECRET=your_secure_secret
+FIDELITY_API_KEY=your_secure_secret
 
 # Service config
 TRADER_WORKER_PORT=8765
@@ -81,7 +81,7 @@ cloudflared tunnel create trader-worker
 ## Security
 
 - All endpoints (except /health) require `X-API-Key` header
-- The API key must match `TRADER_API_SECRET` env variable
+- The API key must match `FIDELITY_API_KEY` env variable
 - Never expose this service directly to the internet without the tunnel
 
 ## Integration with hadoku-site

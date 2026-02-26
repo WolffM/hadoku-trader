@@ -30,7 +30,7 @@ load_dotenv("../.env")
 FIDELITY_USERNAME = os.environ.get("FIDELITY_USERNAME")
 FIDELITY_PASSWORD = os.environ.get("FIDELITY_PASSWORD")
 FIDELITY_TOTP_SECRET = os.environ.get("FIDELITY_TOTP_SECRET")
-API_SECRET = os.environ.get("TRADER_API_SECRET", "dev-secret")
+API_SECRET = os.environ.get("FIDELITY_API_KEY", "dev-secret")
 DEFAULT_ACCOUNT = os.environ.get("FIDELITY_DEFAULT_ACCOUNT")
 
 

@@ -22,7 +22,7 @@ module.exports = {
         // FIDELITY_PASSWORD: "your_password",
         // FIDELITY_TOTP_SECRET: "your_totp_secret",
         // FIDELITY_DEFAULT_ACCOUNT: "X12345678",
-        // TRADER_API_SECRET: "your_api_secret",
+        // FIDELITY_API_KEY: "your_api_secret",
       },
       // Restart settings
       autorestart: true,

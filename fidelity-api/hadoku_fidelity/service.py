@@ -19,7 +19,7 @@ class TraderConfig:
     username: str = field(default_factory=lambda: os.environ.get("FIDELITY_USERNAME", ""))
     password: str = field(default_factory=lambda: os.environ.get("FIDELITY_PASSWORD", ""))
     totp_secret: str = field(default_factory=lambda: os.environ.get("FIDELITY_TOTP_SECRET", ""))
-    api_secret: str = field(default_factory=lambda: os.environ.get("TRADER_API_SECRET", "dev-secret"))
+    api_secret: str = field(default_factory=lambda: os.environ.get("FIDELITY_API_KEY", "dev-secret"))
     default_account: Optional[str] = field(
         default_factory=lambda: os.environ.get("FIDELITY_DEFAULT_ACCOUNT")
     )

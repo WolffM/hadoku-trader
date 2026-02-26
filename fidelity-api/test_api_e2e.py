@@ -216,7 +216,7 @@ def main():
     )
     parser.add_argument(
         "--api-key",
-        default=os.environ.get("TRADER_API_SECRET", "dev-secret"),
+        default=os.environ.get("FIDELITY_API_KEY", "dev-secret"),
         help="API key for authentication",
     )
     parser.add_argument(
