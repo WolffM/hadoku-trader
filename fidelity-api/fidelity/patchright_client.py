@@ -603,14 +603,11 @@ class FidelityClientPatchright:
             qty_input = page.locator(Selectors.QUANTITY_INPUT)
             await human_fill(page, qty_input, str(int(quantity)))
 
-            # Set order type if limit
-            if limit_price:
-                order_type_dropdown = page.locator(Selectors.ORDER_TYPE_DROPDOWN)
-                await human_click(page, order_type_dropdown, wait_after=False)
-                await minor_delay()
-                await human_click(page, page.get_by_text("Limit", exact=True))
-                limit_input = page.locator(Selectors.LIMIT_PRICE_INPUT)
-                await human_fill(page, limit_input, str(limit_price))
+            # Always use market order
+            order_type_dropdown = page.locator(Selectors.ORDER_TYPE_DROPDOWN)
+            await human_click(page, order_type_dropdown, wait_after=False)
+            await minor_delay()
+            await human_click(page, page.get_by_role("option", name="Market", exact=True))
 
             # Think before previewing
             await think_delay()
