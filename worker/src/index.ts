@@ -47,6 +47,7 @@ export {
   backfillMarketPrices,
   syncSignalsFromScraper,
   ingestSignalBatch,
+  updatePerformanceHistory,
   type SignalSyncResult
 } from './scheduled'
 
@@ -73,5 +74,7 @@ export {
 export * as agents from './agents'
 
 // Direct exports for Phase 5 integration (hadoku-site)
-export { analyzeSignals } from './agents/router'
+export { analyzeSignals, processAllPendingSignals } from './agents/router'
+export { computePoliticianRankings } from './agents/rankings'
+export { monitorPositions } from './agents/monitor'
 export type { TradeAction, EnrichedSignal } from './agents/types'

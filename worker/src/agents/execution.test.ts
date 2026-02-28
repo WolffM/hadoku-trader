@@ -54,7 +54,8 @@ function createMockEnv(
     TUNNEL_URL: 'https://tunnel.example.com',
     TRADER_API_KEY: 'test-api-key',
     SCRAPER_API_KEY: 'scraper-key',
-    SCRAPER_URL: 'https://scraper.example.com'
+    SCRAPER_URL: 'https://scraper.example.com',
+    ADMIN_KEYS: '["test-admin-key"]'
   } as any
 }
 
@@ -307,6 +308,7 @@ describe('Trade Execution Engine', () => {
       expect(global.fetch).toHaveBeenCalledWith('https://tunnel.example.com/execute-trade', {
         method: 'POST',
         headers: {
+          'X-User-Key': 'test-admin-key',
           'X-API-Key': 'test-api-key',
           'Content-Type': 'application/json'
         },

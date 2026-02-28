@@ -2,7 +2,7 @@
  * Scheduled task handlers for the trader worker.
  */
 
-import type { TraderEnv, Signal } from './types'
+import { type TraderEnv, type Signal, getAdminKey } from './types'
 import { insertSignal } from './utils'
 import {
   processAllPendingSignals,
@@ -298,6 +298,7 @@ export async function syncSignalsFromScraper(env: TraderEnv): Promise<SignalSync
 
       const resp = await fetch(url, {
         headers: {
+          'X-User-Key': getAdminKey(env),
           Authorization: `Bearer ${env.SCRAPER_API_KEY}`,
           Accept: 'application/json'
         }
@@ -630,6 +631,7 @@ async function fetchMarketPricesWithRetry(
       const response = await fetch(`${env.SCRAPER_URL}/api/v1/market/historical`, {
         method: 'POST',
         headers: {
+          'X-User-Key': getAdminKey(env),
           'Content-Type': 'application/json',
           Authorization: `Bearer ${env.SCRAPER_API_KEY}`
         },

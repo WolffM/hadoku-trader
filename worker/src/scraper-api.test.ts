@@ -1,32 +1,89 @@
 /**
  * Tests that validate the scraper API response format.
  *
- * These tests call the real scraper API to ensure the response format
- * matches what trader-worker expects. Run with:
- *
+ * When env vars are set, these tests call the real scraper API:
  *   SCRAPER_URL=https://scraper.hadoku.me SCRAPER_API_KEY=xxx pnpm test scraper-api.test.ts
  *
- * Skip in CI by checking for env vars.
+ * When env vars are missing, tests run against a mock response to validate
+ * the expected type structure still holds.
  */
 
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import type { components } from './generated/scraper-api'
 
-// Use generated type from scraper OpenAPI
 type ScraperSignalsResponse = components['schemas']['FetchSignalsResponse']
 
 const SCRAPER_URL = process.env.SCRAPER_URL
 const SCRAPER_API_KEY = process.env.SCRAPER_API_KEY
+const isLive = !!(SCRAPER_URL && SCRAPER_API_KEY)
 
-const describeIfEnv = SCRAPER_URL && SCRAPER_API_KEY ? describe : describe.skip
-
-describeIfEnv('Scraper API Integration', () => {
-  it('GET /api/v1/politrades/signals returns expected format', async () => {
-    const resp = await fetch(`${SCRAPER_URL}/api/v1/politrades/signals?limit=5`, {
-      headers: {
-        Authorization: `Bearer ${SCRAPER_API_KEY}`,
-        Accept: 'application/json'
+const MOCK_RESPONSE: ScraperSignalsResponse = {
+  signals: [
+    {
+      source: 'capitol_trades',
+      politician: { name: 'Nancy Pelosi', chamber: 'house', party: 'D', state: 'CA' },
+      trade: {
+        ticker: 'NVDA',
+        action: 'buy',
+        asset_type: 'stock',
+        trade_date: '2026-01-15',
+        trade_price: 130,
+        disclosure_date: '2026-02-01',
+        disclosure_price: 135,
+        position_size: '$1,001 - $15,000',
+        position_size_min: 1001,
+        position_size_max: 15000,
+        option_type: null,
+        strike_price: null,
+        expiration_date: null
+      },
+      meta: {
+        source_url: 'https://example.com',
+        source_id: 'ct_mock_1',
+        scraped_at: '2026-02-01T00:00:00Z'
       }
+    }
+  ],
+  sources_fetched: ['capitol_trades'],
+  sources_failed: {},
+  total_signals: 1,
+  fetched_at: '2026-02-01T00:00:00Z'
+}
+
+let originalFetch: typeof globalThis.fetch
+
+beforeEach(() => {
+  if (!isLive) {
+    originalFetch = globalThis.fetch
+    globalThis.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve(MOCK_RESPONSE)
+    })
+  }
+})
+
+afterEach(() => {
+  if (!isLive) {
+    globalThis.fetch = originalFetch
+  }
+})
+
+function buildUrl(path: string): string {
+  return isLive ? `${SCRAPER_URL}${path}` : `https://mock-scraper${path}`
+}
+
+function buildHeaders(): Record<string, string> {
+  return {
+    Authorization: `Bearer ${isLive ? SCRAPER_API_KEY : 'mock-key'}`,
+    Accept: 'application/json'
+  }
+}
+
+describe('Scraper API Integration', () => {
+  it('GET /api/v1/politrades/signals returns expected format', async () => {
+    const resp = await fetch(`${buildUrl('/api/v1/politrades/signals')}?limit=5`, {
+      headers: buildHeaders()
     })
 
     expect(resp.ok).toBe(true)
@@ -78,15 +135,14 @@ describeIfEnv('Scraper API Integration', () => {
       expect(signal.meta).toHaveProperty('scraped_at')
     }
 
-    console.log(`✓ Validated ${data.total_signals} signals from ${data.sources_fetched.join(', ')}`)
+    console.log(
+      `✓ Validated ${data.total_signals} signals from ${data.sources_fetched.join(', ')}${isLive ? '' : ' (mocked)'}`
+    )
   })
 
   it('should NOT have legacy fields (success, data, count)', async () => {
-    const resp = await fetch(`${SCRAPER_URL}/api/v1/politrades/signals?limit=1`, {
-      headers: {
-        Authorization: `Bearer ${SCRAPER_API_KEY}`,
-        Accept: 'application/json'
-      }
+    const resp = await fetch(`${buildUrl('/api/v1/politrades/signals')}?limit=1`, {
+      headers: buildHeaders()
     })
 
     const data = await resp.json()

@@ -24,6 +24,19 @@ export interface TraderEnv {
   TRADER_API_KEY: string
   TUNNEL_URL: string // cloudflared tunnel to local fidelity service
   SCRAPER_URL: string // hadoku-scraper API URL for market data
+  ADMIN_KEYS?: string // JSON array of admin keys for edge-router auth
+}
+
+/**
+ * Extract the first admin key from the ADMIN_KEYS JSON array.
+ * Used for X-User-Key header when calling through edge-router.
+ */
+export function getAdminKey(env: TraderEnv): string {
+  try {
+    return JSON.parse(env.ADMIN_KEYS || '[]')[0] || ''
+  } catch {
+    return ''
+  }
 }
 
 // Legacy alias for backwards compatibility

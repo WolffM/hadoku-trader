@@ -3,16 +3,17 @@
  * These can be used directly or through createTraderHandler.
  */
 
-import type {
-  TraderEnv,
-  Signal,
-  ExecuteTradeRequest,
-  ExecuteTradeResponse,
-  BackfillBatchPayload,
-  BackfillSignal,
-  MarketPricesBackfillPayload,
-  MarketPriceData,
-  MarketBackfillTriggerRequest
+import {
+  type TraderEnv,
+  type Signal,
+  type ExecuteTradeRequest,
+  type ExecuteTradeResponse,
+  type BackfillBatchPayload,
+  type BackfillSignal,
+  type MarketPricesBackfillPayload,
+  type MarketPriceData,
+  type MarketBackfillTriggerRequest,
+  getAdminKey
 } from './types'
 import {
   jsonResponse,
@@ -698,6 +699,7 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
       method: 'GET',
       headers: {
+        'X-User-Key': getAdminKey(env),
         'X-API-Key': env.TRADER_API_KEY || ''
       },
       signal: AbortSignal.timeout(5000)
