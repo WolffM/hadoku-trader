@@ -53,6 +53,7 @@ function createMockEnv(
     },
     TUNNEL_URL: 'https://tunnel.example.com',
     TRADER_API_KEY: 'test-api-key',
+    FIDELITY_API_KEY: 'test-fidelity-key',
     SCRAPER_API_KEY: 'scraper-key',
     SCRAPER_URL: 'https://scraper.example.com',
     ADMIN_KEYS: '["test-admin-key"]'
@@ -309,7 +310,7 @@ describe('Trade Execution Engine', () => {
         method: 'POST',
         headers: {
           'X-User-Key': 'test-admin-key',
-          'X-API-Key': 'test-api-key',
+          'X-API-Key': 'test-fidelity-key',
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({

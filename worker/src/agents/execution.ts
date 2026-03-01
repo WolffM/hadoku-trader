@@ -334,7 +334,7 @@ export async function callFidelityApi(
       method: 'POST',
       headers: {
         'X-User-Key': getAdminKey(env),
-        'X-API-Key': env.TRADER_API_KEY,
+        'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify(request)

@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/trader-worker",
-  "version": "1.9.0",
+  "version": "1.9.1",
   "description": "Cloudflare Worker API for hadoku-trader - importable package",
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"

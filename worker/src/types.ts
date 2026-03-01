@@ -25,6 +25,7 @@ export interface TraderEnv {
   TUNNEL_URL: string // cloudflared tunnel to local fidelity service
   SCRAPER_URL: string // hadoku-scraper API URL for market data
   ADMIN_KEYS?: string // JSON array of admin keys for edge-router auth
+  FIDELITY_API_KEY?: string // API key for fidelity-api service auth
 }
 
 /**

@@ -629,8 +629,9 @@ export async function handleExecuteTrade(request: Request, env: TraderEnv): Prom
     const tunnelResponse = await fetch(`${env.TUNNEL_URL}/execute-trade`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': env.TRADER_API_KEY
+        'X-User-Key': getAdminKey(env),
+        'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY,
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify(tradeRequest)
     })
@@ -692,15 +693,12 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
 
   // Check tunnel connectivity
   let tunnelOk = false
-  if (!env.TRADER_API_KEY) {
-    console.error('[health] TRADER_API_KEY is missing from env! Add it to wrangler.toml secrets.')
-  }
   try {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
       method: 'GET',
       headers: {
         'X-User-Key': getAdminKey(env),
-        'X-API-Key': env.TRADER_API_KEY || ''
+        'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY || ''
       },
       signal: AbortSignal.timeout(5000)
     })
