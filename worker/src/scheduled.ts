@@ -626,6 +626,9 @@ async function fetchMarketPricesWithRetry(
   endDate: string,
   maxRetries = 3
 ): Promise<MarketHistoricalResponse | null> {
+  /** Per-fetch timeout (15s) so all 3 retries fit within the 60s phase timeout */
+  const PER_FETCH_TIMEOUT_MS = 15_000
+
   for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
       const response = await fetch(`${env.SCRAPER_URL}/api/v1/market/historical`, {
@@ -639,7 +642,8 @@ async function fetchMarketPricesWithRetry(
           tickers,
           start_date: startDate,
           end_date: endDate
-        })
+        }),
+        signal: AbortSignal.timeout(PER_FETCH_TIMEOUT_MS)
       })
 
       // Retry on rate limit (429) or server error (5xx)
@@ -669,13 +673,17 @@ async function fetchMarketPricesWithRetry(
 
       return await response.json()
     } catch (error) {
+      const isTimeout = error instanceof DOMException && error.name === 'TimeoutError'
+      const label = isTimeout ? 'Fetch timed out' : 'Network error'
       if (attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 1000
-        console.log(`Network error, retrying in ${delay}ms (attempt ${attempt}/${maxRetries})`)
+        console.log(
+          `${label}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : error}`
+        )
         await new Promise(r => setTimeout(r, delay))
         continue
       }
-      console.error('Market prices fetch error:', error)
+      console.error(`Market prices fetch failed after ${maxRetries} attempts (${label}):`, error)
       return null
     }
   }
