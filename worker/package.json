@@ -56,5 +56,12 @@
     "hadoku"
   ],
   "author": "Hadoku",
-  "license": "MIT"
+  "license": "MIT",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild",
+      "sharp",
+      "workerd"
+    ]
+  }
 }
