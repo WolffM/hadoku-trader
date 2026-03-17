@@ -579,7 +579,10 @@ const D1_BATCH_SIZE = 50
  * Run an array of async tasks with a bounded concurrency cap.
  * Collects all results in the order tasks complete.
  */
-async function runConcurrent<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
+export async function runConcurrent<T>(
+  tasks: (() => Promise<T>)[],
+  concurrency: number
+): Promise<T[]> {
   const results: T[] = []
   const queue = [...tasks]
   const workers = Array.from({ length: concurrency }, async () => {
