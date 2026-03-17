@@ -9,8 +9,8 @@ export const SOURCE_LABELS: Record<string, string> = {
   unusual_whales: 'Unusual Whales',
   capitol_trades: 'Capitol Trades',
   quiver_quant: 'Quiver Quant',
-  house_stock_watcher: 'House Watcher',
-  senate_stock_watcher: 'Senate Watcher'
+  house_stock_watcher: 'House Stock Watcher',
+  senate_stock_watcher: 'Senate Stock Watcher'
 }
 
 /**

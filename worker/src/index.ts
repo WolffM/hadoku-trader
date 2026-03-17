@@ -48,6 +48,7 @@ export {
   syncSignalsFromScraper,
   ingestSignalBatch,
   updatePerformanceHistory,
+  runConcurrent,
   type SignalSyncResult
 } from './scheduled'
 
