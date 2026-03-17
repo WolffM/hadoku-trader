@@ -576,6 +576,23 @@ async function calculateSP500Return(env: TraderEnv): Promise<number> {
 const D1_BATCH_SIZE = 50
 
 /**
+ * Run an array of async tasks with a bounded concurrency cap.
+ * Collects all results in the order tasks complete.
+ */
+async function runConcurrent<T>(tasks: (() => Promise<T>)[], concurrency: number): Promise<T[]> {
+  const results: T[] = []
+  const queue = [...tasks]
+  const workers = Array.from({ length: concurrency }, async () => {
+    while (queue.length) {
+      const task = queue.shift()!
+      results.push(await task())
+    }
+  })
+  await Promise.all(workers)
+  return results
+}
+
+/**
  * Insert market price records into D1 using batch operations.
  * @returns Count of inserted records and errors
  */
@@ -673,12 +690,13 @@ async function fetchMarketPricesWithRetry(
 
       return await response.json()
     } catch (error) {
-      const isTimeout = error instanceof DOMException && error.name === 'TimeoutError'
+      const isTimeout = error instanceof Error && error.name === 'TimeoutError'
       const label = isTimeout ? 'Fetch timed out' : 'Network error'
       if (attempt < maxRetries) {
         const delay = Math.pow(2, attempt) * 1000
+        const errMsg = error instanceof Error ? error.message : String(error)
         console.log(
-          `${label}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries}): ${error instanceof Error ? error.message : error}`
+          `${label}, retrying in ${delay}ms (attempt ${attempt}/${maxRetries}): ${errMsg}`
         )
         await new Promise(r => setTimeout(r, delay))
         continue
@@ -745,18 +763,28 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
     let totalInserted = 0
     let totalErrors = 0
     const batchSize = 100
+    const FETCH_CONCURRENCY = 3
 
     // Batch 1: New tickers need full 30-day history
     if (newTickers.length > 0) {
-      console.log(`Fetching full history for ${newTickers.length} new tickers`)
+      console.log(
+        `Fetching full history for ${newTickers.length} new tickers (concurrency=${FETCH_CONCURRENCY})`
+      )
+      const batches: string[][] = []
       for (let i = 0; i < newTickers.length; i += batchSize) {
-        const batch = newTickers.slice(i, i + batchSize)
-        const result = await fetchMarketPricesWithRetry(env, batch, fallbackStart, endDate)
-        if (result) {
-          const insertResult = await insertMarketPrices(env, result.data.records)
-          totalInserted += insertResult.inserted
-          totalErrors += insertResult.errors
-        }
+        batches.push(newTickers.slice(i, i + batchSize))
+      }
+      const results = await runConcurrent(
+        batches.map(batch => async () => {
+          const result = await fetchMarketPricesWithRetry(env, batch, fallbackStart, endDate)
+          if (!result) return { inserted: 0, errors: batch.length }
+          return insertMarketPrices(env, result.data.records)
+        }),
+        FETCH_CONCURRENCY
+      )
+      for (const r of results) {
+        totalInserted += r.inserted
+        totalErrors += r.errors
       }
     }
 
@@ -764,16 +792,23 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
     if (staleTickers.length > 0) {
       const recentStart = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
       console.log(
-        `Fetching recent prices for ${staleTickers.length} stale tickers (since ${recentStart})`
+        `Fetching recent prices for ${staleTickers.length} stale tickers (since ${recentStart}, concurrency=${FETCH_CONCURRENCY})`
       )
+      const batches: string[][] = []
       for (let i = 0; i < staleTickers.length; i += batchSize) {
-        const batch = staleTickers.slice(i, i + batchSize)
-        const result = await fetchMarketPricesWithRetry(env, batch, recentStart, endDate)
-        if (result) {
-          const insertResult = await insertMarketPrices(env, result.data.records)
-          totalInserted += insertResult.inserted
-          totalErrors += insertResult.errors
-        }
+        batches.push(staleTickers.slice(i, i + batchSize))
+      }
+      const results = await runConcurrent(
+        batches.map(batch => async () => {
+          const result = await fetchMarketPricesWithRetry(env, batch, recentStart, endDate)
+          if (!result) return { inserted: 0, errors: batch.length }
+          return insertMarketPrices(env, result.data.records)
+        }),
+        FETCH_CONCURRENCY
+      )
+      for (const r of results) {
+        totalInserted += r.inserted
+        totalErrors += r.errors
       }
     }
 
