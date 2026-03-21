@@ -761,7 +761,20 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
     const staleThreshold = new Date(Date.now() - 2 * 24 * 60 * 60 * 1000)
       .toISOString()
       .split('T')[0]
-    const staleTickers = existingTickers.filter(t => (latestDateMap.get(t) ?? '') < staleThreshold)
+    // Cap stale tickers per run: CF Workers have a 60s wall-clock response limit.
+    // With batchSize=100 and FETCH_CONCURRENCY=3, each wave of 3 batches takes ~15-20s.
+    // New tickers consume ~15s, leaving ~40s for stale. Cap at 200 to stay well under limit.
+    // In catch-up scenarios (many stale), the cron will process them across multiple daily runs.
+    const STALE_TICKERS_PER_RUN = 200
+    const allStaleTickers = existingTickers.filter(
+      t => (latestDateMap.get(t) ?? '') < staleThreshold
+    )
+    const staleTickers = allStaleTickers.slice(0, STALE_TICKERS_PER_RUN)
+    if (allStaleTickers.length > STALE_TICKERS_PER_RUN) {
+      console.log(
+        `Stale ticker backlog: ${allStaleTickers.length} total, processing ${STALE_TICKERS_PER_RUN} this run`
+      )
+    }
 
     let totalInserted = 0
     let totalErrors = 0
