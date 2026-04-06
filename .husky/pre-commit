@@ -19,44 +19,71 @@ pnpm run format
 
 echo "✅ Linting and formatting complete!"
 
-# Bump version on every commit to ensure unique versions for publishing
-echo "📦 Bumping version..."
+# Bump version on every commit to ensure unique versions for publishing.
+# Applies to all three packages in this repo:
+#   @wolffm/trader         (package.json)
+#   @wolffm/trader-worker  (worker/package.json)
+#   hadoku-fidelity        (fidelity-api/pyproject.toml)
+echo "📦 Bumping versions..."
 
-# Read current version from package.json
-current_version=$(node -p "require('./package.json').version")
-major=$(echo ${current_version} | cut -d. -f1)
-minor=$(echo ${current_version} | cut -d. -f2)
-patch=$(echo ${current_version} | cut -d. -f3)
+# Bump a semver string — rolls patch over at .20 to keep numbers manageable
+bump_version() {
+  cur="$1"
+  major=$(echo "$cur" | cut -d. -f1)
+  minor=$(echo "$cur" | cut -d. -f2)
+  patch=$(echo "$cur" | cut -d. -f3)
+  if [ "$patch" -eq 20 ]; then
+    echo "${major}.$((minor + 1)).0"
+  else
+    echo "${major}.${minor}.$((patch + 1))"
+  fi
+}
 
-# Rollover at .20 to keep patch numbers manageable
-if [ ${patch} -eq 20 ]; then
-  new_minor=$((minor + 1))
-  new_version="${major}.${new_minor}.0"
-  echo "🚀 Rolling over to minor version"
-else
-  new_patch=$((patch + 1))
-  new_version="${major}.${minor}.${new_patch}"
-  echo "📈 Incrementing patch version"
-fi
-
-# Update package.json with new version
+# 1. @wolffm/trader (root package.json)
+trader_cur=$(node -p "require('./package.json').version")
+trader_new=$(bump_version "$trader_cur")
 node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
-pkg.version = '${new_version}';
+pkg.version = '${trader_new}';
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
+echo "  @wolffm/trader: ${trader_cur} → ${trader_new}"
 
-echo "✅ Version bumped: ${current_version} → ${new_version}"
+# 2. @wolffm/trader-worker (worker/package.json)
+worker_cur=$(node -p "require('./worker/package.json').version")
+worker_new=$(bump_version "$worker_cur")
+node -e "
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('worker/package.json', 'utf8'));
+pkg.version = '${worker_new}';
+fs.writeFileSync('worker/package.json', JSON.stringify(pkg, null, 2) + '\n');
+"
+echo "  @wolffm/trader-worker: ${worker_cur} → ${worker_new}"
 
-# Update lock file
+# 3. hadoku-fidelity (fidelity-api/pyproject.toml)
+fidelity_cur=$(python3 -c "
+import re
+m = re.search(r'^version = \"(.+?)\"', open('fidelity-api/pyproject.toml').read(), re.M)
+print(m.group(1))
+")
+fidelity_new=$(bump_version "$fidelity_cur")
+FIDELITY_NEW="$fidelity_new" python3 -c "
+import re, os
+path = 'fidelity-api/pyproject.toml'
+content = open(path).read()
+updated = re.sub(r'^version = \".+?\"', 'version = \"' + os.environ['FIDELITY_NEW'] + '\"', content, flags=re.M)
+open(path, 'w').write(updated)
+"
+echo "  hadoku-fidelity: ${fidelity_cur} → ${fidelity_new}"
+
+# Update root lockfile
 pnpm install --lockfile-only
 
-# Stage the version changes
-git add package.json pnpm-lock.yaml
+# Stage all version file changes
+git add package.json worker/package.json fidelity-api/pyproject.toml pnpm-lock.yaml
 
 # Re-stage only the files that were originally staged (after lint/format may have modified them)
-# This avoids accidentally staging unrelated working directory changes
 if [ -n "${STAGED_FILES}" ]; then
   echo "${STAGED_FILES}" | xargs -r git add
 fi
