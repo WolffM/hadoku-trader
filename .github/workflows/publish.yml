@@ -193,7 +193,7 @@ jobs:
       - name: Check if Python package changed
         id: python_changed
         run: |
-          if git diff --name-only HEAD~1 HEAD | grep -qE '^(fidelity-api/|trader-worker/)'; then
+          if git diff --name-only HEAD~1 HEAD | grep -qE '^fidelity-api/'; then
             echo "changed=true" >> $GITHUB_OUTPUT
             echo "✓ Python package has changes"
           else
