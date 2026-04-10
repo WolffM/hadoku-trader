@@ -90,20 +90,27 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        """Manage app lifecycle."""
+        """Manage app lifecycle.
+
+        Browser init is attempted but non-fatal — the server starts
+        regardless and reports readiness via /health.  This avoids
+        PM2 crash-loops when Chrome fails to launch transiently.
+        """
         print("Starting hadoku-fidelity trader service...")
 
-        # Initialize the async service
-        await service.initialize()
-
-        if auto_authenticate and service_config.has_credentials:
-            print("Credentials found, attempting authentication...")
-            if await service.authenticate():
-                print("Successfully authenticated with Fidelity")
-            else:
-                print("Warning: Authentication failed")
-        elif not service_config.has_credentials:
-            print("Warning: Missing Fidelity credentials in environment")
+        try:
+            await service.initialize()
+            if auto_authenticate and service_config.has_credentials:
+                print("Credentials found, attempting authentication...")
+                if await service.authenticate():
+                    print("Successfully authenticated with Fidelity")
+                else:
+                    print("Warning: Authentication failed — browser is ready but login failed")
+            elif not service_config.has_credentials:
+                print("Warning: Missing Fidelity credentials in environment")
+        except Exception as e:
+            print(f"Warning: Browser initialization failed: {e}")
+            print("Server will start anyway — browser will be retried on first request")
 
         yield
 
@@ -137,7 +144,7 @@ def create_app(
 
     @app.get("/health", response_model=HealthResponse)
     async def health_check():
-        """Health check endpoint."""
+        """Health check endpoint. Reports browser + auth readiness."""
         accounts = None
         if service.authenticated:
             try:
@@ -146,8 +153,9 @@ def create_app(
             except Exception:
                 pass
 
+        status = "ok" if service._initialized else "degraded"
         return HealthResponse(
-            status="ok",
+            status=status,
             authenticated=service.authenticated,
             accounts=accounts,
         )
@@ -159,6 +167,12 @@ def create_app(
     )
     async def execute_trade(request: TradeRequest):
         """Execute a trade on Fidelity."""
+        if not service._initialized:
+            try:
+                await service.initialize()
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Browser not ready: {e}")
+
         success, message, details = await service.execute_trade(
             ticker=request.ticker,
             action=request.action,
@@ -184,6 +198,12 @@ def create_app(
     @app.get("/accounts", dependencies=[Depends(verify_api_key)])
     async def get_accounts():
         """Get all Fidelity accounts and their balances."""
+        if not service._initialized:
+            try:
+                await service.initialize()
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Browser not ready: {e}")
+
         if not service.authenticated:
             if not await service.authenticate():
                 raise HTTPException(status_code=503, detail="Not authenticated")
@@ -193,10 +213,13 @@ def create_app(
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
-        """Force re-authentication with Fidelity."""
-        if await service.refresh():
-            return {"success": True, "message": "Session refreshed"}
-        else:
-            raise HTTPException(status_code=503, detail="Failed to authenticate")
+        """Force re-authentication. Also retries browser init if needed."""
+        try:
+            if await service.refresh():
+                return {"success": True, "message": "Session refreshed"}
+            else:
+                raise HTTPException(status_code=503, detail="Failed to authenticate")
+        except RuntimeError as e:
+            raise HTTPException(status_code=503, detail=f"Browser init failed: {e}")
 
     return app

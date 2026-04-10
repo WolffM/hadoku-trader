@@ -5,6 +5,7 @@ Uses Patchright (patched Playwright) to avoid CDP detection that triggers
 Fidelity's bot detection.
 """
 
+import asyncio
 import os
 from typing import Optional
 from dataclasses import dataclass, field
@@ -31,6 +32,13 @@ class TraderConfig:
         return all([self.username, self.password, self.totp_secret])
 
 
+# Browser launch can fail transiently on Windows (Chrome process dies during
+# startup, especially right after a PM2 restart kills the previous instance).
+# Retry a few times with backoff before giving up.
+_INIT_MAX_RETRIES = 3
+_INIT_BASE_DELAY = 2.0  # seconds
+
+
 class TraderService:
     """
     Async service layer for Fidelity trading operations.
@@ -53,18 +61,43 @@ class TraderService:
         self._initialized: bool = False
 
     async def initialize(self) -> None:
-        """Initialize the Patchright client. Must be called before other methods."""
+        """Initialize the Patchright client with retry on transient browser failures."""
         if self._initialized:
             return
 
-        self._client = FidelityClientPatchright(
-            headless=self.config.headless,
-            save_state=True,
-            profile_path=self.config.profile_path,
-            debug=False,
+        last_error: Optional[Exception] = None
+        for attempt in range(_INIT_MAX_RETRIES):
+            try:
+                client = FidelityClientPatchright(
+                    headless=self.config.headless,
+                    save_state=True,
+                    profile_path=self.config.profile_path,
+                    debug=False,
+                )
+                await client.initialize()
+                self._client = client
+                self._initialized = True
+                if attempt > 0:
+                    print(f"[INIT] Browser launched on attempt {attempt + 1}")
+                return
+            except Exception as e:
+                last_error = e
+                # Clean up the failed client before retrying
+                try:
+                    await client.close()
+                except Exception:
+                    pass
+                if attempt < _INIT_MAX_RETRIES - 1:
+                    delay = _INIT_BASE_DELAY * (attempt + 1)
+                    print(
+                        f"[INIT] Browser launch failed (attempt {attempt + 1}/{_INIT_MAX_RETRIES}): "
+                        f"{e!r} — retrying in {delay:.0f}s"
+                    )
+                    await asyncio.sleep(delay)
+
+        raise RuntimeError(
+            f"Browser failed to launch after {_INIT_MAX_RETRIES} attempts: {last_error!r}"
         )
-        await self._client.initialize()
-        self._initialized = True
 
     @property
     def client(self) -> FidelityClientPatchright:
