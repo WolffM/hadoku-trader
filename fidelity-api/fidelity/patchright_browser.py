@@ -87,24 +87,21 @@ class PatchrightBrowserAsync:
             ],
         )
 
-        # Create context with realistic settings
+        # Let Patchright derive the user agent from the actual Chrome binary.
+        # Hardcoding a UA version (e.g. Chrome/131) causes a mismatch when
+        # the system Chrome auto-updates, which is a top bot-detection signal.
         context_options = {
             "no_viewport": True,  # Patchright recommendation for stealth
-            "user_agent": (
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-                "AppleWebKit/537.36 (KHTML, like Gecko) "
-                "Chrome/131.0.0.0 Safari/537.36"
-            ),
             "locale": "en-US",
             "timezone_id": "America/New_York",
         }
 
         if self.save_state and self._storage_path and os.path.exists(self._storage_path):
-            # Check if storage file has content
             try:
                 with open(self._storage_path, "r") as f:
                     storage_data = json.load(f)
-                if storage_data:  # Only use if not empty
+                # Only restore state if it has cookies (not an empty dict)
+                if storage_data and storage_data.get("cookies"):
                     context_options["storage_state"] = self._storage_path
             except (json.JSONDecodeError, KeyError):
                 pass  # Skip invalid storage files
@@ -119,6 +116,11 @@ class PatchrightBrowserAsync:
             )
 
         self._page = await self._context.new_page()
+
+        # Log the effective user agent for debugging UA-mismatch issues
+        ua = await self._page.evaluate("navigator.userAgent")
+        print(f"[BROWSER] User-Agent: {ua}")
+
         self._initialized = True
         return self
 

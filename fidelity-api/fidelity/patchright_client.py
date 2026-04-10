@@ -107,11 +107,7 @@ class FidelityClientPatchright:
         try:
             page = self._browser.page
 
-            # Navigate to login page with natural delay
-            await page.goto(URLs.LOGIN)
-            await page_load_delay()
-
-            # Sometimes do a refresh like a human would if page seems slow
+            # Navigate to login page
             await page.goto(URLs.LOGIN)
             await page_load_delay()
 
@@ -140,10 +136,22 @@ class FidelityClientPatchright:
             await page_load_delay()
             await self._browser.wait_for_loading()
 
+            # Check for inline error messages (bot detection, wrong creds, etc.)
+            error_selectors = [
+                page.locator(".pvd-inline-alert--error"),
+                page.locator("[role='alert']"),
+                page.get_by_text("Sorry, we can't complete this action", exact=False),
+                page.get_by_text("please try again", exact=False),
+            ]
+            for err in error_selectors:
+                if await err.count() > 0 and await err.first.is_visible():
+                    error_text = await err.first.inner_text()
+                    print(f"[LOGIN] BLOCKED by Fidelity: {error_text.strip()[:200]}")
+                    return (False, False)
+
             # Check if already logged in (session restored from storage)
             if "summary" in page.url:
                 print("[LOGIN] Already logged in (session restored)")
-                # Still need to wait for page to stabilize
                 await page.wait_for_timeout(2000)
                 await self._verify_page_connection()
                 return (True, True)
