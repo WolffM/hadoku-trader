@@ -174,6 +174,35 @@ class FidelityClientPatchright:
             traceback.print_exc()
             return (False, False)
 
+    async def _find_totp_input(self):
+        """Find the TOTP code input field using multiple strategies.
+
+        Fidelity periodically changes the attributes on this field, so we
+        try several selectors in priority order and log what we find.
+        """
+        page = self._browser.page
+
+        # Strategies in priority order — most specific first
+        strategies = [
+            ("maxlength=6", page.locator('input[maxlength="6"]')),
+            ("placeholder XXXXXX", page.get_by_placeholder(Selectors.TOTP_INPUT)),
+            ("inputmode=numeric", page.locator('input[inputmode="numeric"]')),
+            ("type=tel", page.locator('input[type="tel"]')),
+            ("aria-label code", page.locator('input[aria-label*="code" i]')),
+            ("aria-label security", page.locator('input[aria-label*="security" i]')),
+            ("type=text visible", page.locator('input[type="text"]:visible')),
+        ]
+
+        for name, locator in strategies:
+            count = await locator.count()
+            if count > 0 and await locator.first.is_visible():
+                print(f"[2FA] Found TOTP input via '{name}' ({count} match(es))")
+                return locator.first
+            elif count > 0:
+                print(f"[2FA] Selector '{name}' matched {count} but not visible")
+
+        return None
+
     async def _handle_2fa(
         self,
         totp_secret: Optional[str],
@@ -185,40 +214,34 @@ class FidelityClientPatchright:
         await self._browser.wait_for_loading()
         await think_delay()
 
-        # Debug: print current URL and page title
         print(f"[2FA] Current URL: {page.url}")
         print(f"[2FA] Page title: {await page.title()}")
 
-        # Wait longer for 2FA page to fully load
-        await page.wait_for_timeout(2000)
+        # Wait for 2FA page to fully render
+        await page.wait_for_timeout(3000)
 
-        # Debug: check what's on the page
-        totp_input = page.locator('input[maxlength="6"]')
-        totp_count = await totp_input.count()
-        print(f"[2FA] TOTP input (maxlength=6) count: {totp_count}")
-
-        # Also try the placeholder selector
-        totp_placeholder = page.get_by_placeholder(Selectors.TOTP_INPUT)
-        placeholder_count = await totp_placeholder.count()
-        print(f"[2FA] TOTP placeholder input count: {placeholder_count}")
-
-        # Check for any input fields
+        # Dump visible inputs for debugging
         all_inputs = page.locator("input")
         input_count = await all_inputs.count()
         print(f"[2FA] Total input fields on page: {input_count}")
+        for i in range(min(input_count, 15)):
+            inp = all_inputs.nth(i)
+            try:
+                attrs = await inp.evaluate(
+                    "el => ({type: el.type, maxlength: el.maxLength, placeholder: el.placeholder, "
+                    "name: el.name, id: el.id, inputmode: el.inputMode, "
+                    "ariaLabel: el.getAttribute('aria-label'), visible: el.offsetParent !== null})"
+                )
+                print(f"[2FA]   input[{i}]: {attrs}")
+            except Exception:
+                pass
 
-        # Try the TOTP input first
-        if totp_count > 0 and await totp_input.first.is_visible():
-            print("[2FA] Found TOTP input, proceeding with TOTP login")
-            if totp_secret:
-                return await self._complete_totp_login(totp_secret, save_device)
-            return (True, False)
+        # Try to find the TOTP input
+        totp_field = await self._find_totp_input()
 
-        # Also try placeholder-based detection
-        if placeholder_count > 0 and await totp_placeholder.first.is_visible():
-            print("[2FA] Found TOTP by placeholder, proceeding with TOTP login")
+        if totp_field:
             if totp_secret:
-                return await self._complete_totp_login(totp_secret, save_device)
+                return await self._complete_totp_login(totp_secret, save_device, totp_field)
             return (True, False)
 
         print("[2FA] No TOTP input found, checking for SMS option...")
@@ -240,10 +263,11 @@ class FidelityClientPatchright:
 
         if sms_visible:
             await human_click(page, sms_button)
-            await human_click(page, page.get_by_placeholder(Selectors.TOTP_INPUT))
-            return (True, False)
+            # Re-search for TOTP input after SMS flow
+            totp_field = await self._find_totp_input()
+            if totp_field:
+                return (True, False)
 
-        # If we get here, we couldn't find any 2FA option
         print("[2FA] ERROR: Could not find TOTP or SMS option")
         print("[2FA] Taking screenshot for debugging...")
         await page.screenshot(path="2fa_debug_patchright.png")
@@ -253,6 +277,7 @@ class FidelityClientPatchright:
         self,
         totp_secret: str,
         save_device: bool,
+        totp_field=None,
     ) -> tuple[bool, bool]:
         """Complete login with TOTP using human-like behavior."""
         page = self._browser.page
@@ -261,10 +286,17 @@ class FidelityClientPatchright:
         await think_delay()
 
         code = pyotp.TOTP(totp_secret).now()
-        totp_input = page.get_by_placeholder(Selectors.TOTP_INPUT)
 
+        # Use the already-found field, or re-search as fallback
+        if totp_field is None:
+            totp_field = await self._find_totp_input()
+        if totp_field is None:
+            print("[2FA] Cannot find TOTP input for code entry")
+            return (False, False)
+
+        print(f"[2FA] Entering TOTP code...")
         # Type the code like a human
-        await human_type(page, totp_input, code)
+        await human_type(page, totp_field, code)
 
         if save_device:
             await minor_delay()
