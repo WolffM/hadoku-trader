@@ -160,10 +160,14 @@ class FidelityClientPatchright:
             if totp_secret == "NA":
                 totp_secret = None
 
-            # Handle 2FA
-            if "login" in page.url:
+            # Handle 2FA — Fidelity may redirect to a different URL for the
+            # authenticator page (not always "login" in the URL)
+            current_url = page.url
+            print(f"[LOGIN] Post-login URL: {current_url}")
+            if "summary" not in current_url:
                 return await self._handle_2fa(totp_secret, save_device)
 
+            print(f"[LOGIN] Unexpected state — URL: {current_url}")
             return (False, False)
 
         except PatchrightTimeoutError:
