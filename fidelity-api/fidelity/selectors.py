@@ -11,7 +11,9 @@ Centralizes all magic strings for easier maintenance.
 class URLs:
     """Fidelity page URLs."""
 
-    # Authentication
+    # Authentication — Fidelity may change this path (was /login/full-page,
+    # then /signin/retail). The login method navigates here but does NOT rely
+    # on matching this URL after redirect.
     LOGIN = "https://digital.fidelity.com/prgw/digital/login/full-page"
 
     # Portfolio

@@ -136,38 +136,27 @@ class FidelityClientPatchright:
             await page_load_delay()
             await self._browser.wait_for_loading()
 
-            # Check for inline error messages (bot detection, wrong creds, etc.)
-            error_selectors = [
-                page.locator(".pvd-inline-alert--error"),
-                page.locator("[role='alert']"),
-                page.get_by_text("Sorry, we can't complete this action", exact=False),
-                page.get_by_text("please try again", exact=False),
-            ]
-            for err in error_selectors:
-                if await err.count() > 0 and await err.first.is_visible():
-                    error_text = await err.first.inner_text()
-                    print(f"[LOGIN] BLOCKED by Fidelity: {error_text.strip()[:200]}")
-                    return (False, False)
+            # Detect page state by CONTENT, not URL.
+            # Fidelity changes URLs without notice (login/full-page → signin/retail).
+            page_state = await self._detect_page_state(page)
+            print(f"[LOGIN] Page state: {page_state} | URL: {page.url}")
 
-            # Check if already logged in (session restored from storage)
-            if "summary" in page.url:
+            if page_state == "error":
+                return (False, False)
+            if page_state == "logged_in":
                 print("[LOGIN] Already logged in (session restored)")
                 await page.wait_for_timeout(2000)
                 await self._verify_page_connection()
                 return (True, True)
-
-            # Normalize TOTP
-            if totp_secret == "NA":
-                totp_secret = None
-
-            # Handle 2FA — Fidelity may redirect to a different URL for the
-            # authenticator page (not always "login" in the URL)
-            current_url = page.url
-            print(f"[LOGIN] Post-login URL: {current_url}")
-            if "summary" not in current_url:
+            if page_state == "2fa":
+                if totp_secret == "NA":
+                    totp_secret = None
                 return await self._handle_2fa(totp_secret, save_device)
 
-            print(f"[LOGIN] Unexpected state — URL: {current_url}")
+            # Unknown state — screenshot and fail loudly
+            print(f"[LOGIN] Unknown page state after login submission")
+            print(f"[LOGIN] Title: {await page.title()}")
+            await page.screenshot(path="login_unknown_state.png")
             return (False, False)
 
         except PatchrightTimeoutError:
@@ -329,14 +318,20 @@ class FidelityClientPatchright:
                 print(f"[LOGIN] Redirect wait failed: {e}, checking current URL...")
                 print(f"[LOGIN] Current URL: {page.url}")
 
-        # Verify we're no longer on login page
-        if "login" in page.url:
-            print("[LOGIN] Still on login page after TOTP - login may have failed")
+        # Detect post-TOTP page state — don't rely on URL patterns
+        post_totp_state = await self._detect_page_state(page)
+        print(f"[LOGIN] Post-TOTP state: {post_totp_state}")
+
+        if post_totp_state == "error":
+            print("[LOGIN] Error after TOTP submission")
+            return (False, False)
+        if post_totp_state == "2fa":
+            print("[LOGIN] Still on 2FA page after TOTP — code may have been rejected")
             return (False, False)
 
         # Navigate to summary page if we're not already there
-        if "portfolio/summary" not in page.url:
-            print(f"[LOGIN] Not on summary page ({page.url}), navigating there...")
+        if post_totp_state != "logged_in":
+            print(f"[LOGIN] Not on portfolio yet ({page.url}), navigating to summary...")
             await page.goto(URLs.SUMMARY, wait_until="domcontentloaded")
             await self._browser.wait_for_loading()
 
@@ -364,6 +359,66 @@ class FidelityClientPatchright:
         except Exception as e:
             print(f"[VERIFY] Page connection FAILED: {e}")
             raise RuntimeError(f"Page connection lost: {e}")
+
+    async def _detect_page_state(self, page) -> str:
+        """Detect current page state by content, not URL.
+
+        Returns one of: 'logged_in', '2fa', 'error', 'unknown'.
+
+        This is the key robustness measure — Fidelity can change URLs at
+        any time, but the page content (portfolio elements, TOTP inputs,
+        error messages) is more stable.
+        """
+        # Check for error messages first (bot detection, wrong creds)
+        error_indicators = [
+            page.locator(".pvd-inline-alert--error"),
+            page.locator("[role='alert']"),
+            page.get_by_text("Sorry, we can't complete this action", exact=False),
+            page.get_by_text("please try again", exact=False),
+            page.get_by_text("unable to log in", exact=False),
+        ]
+        for err in error_indicators:
+            try:
+                if await err.count() > 0 and await err.first.is_visible():
+                    error_text = await err.first.inner_text()
+                    print(f"[LOGIN] BLOCKED: {error_text.strip()[:200]}")
+                    return "error"
+            except Exception:
+                pass
+
+        # Check for logged-in state (portfolio page elements)
+        logged_in_indicators = [
+            "portfolio" in page.url,
+            "summary" in page.url,
+            await page.locator(".posweb-row-account").count() > 0,
+            await page.get_by_text("Total", exact=False).count() > 0
+            and "portfolio" in page.url,
+        ]
+        if any(logged_in_indicators):
+            return "logged_in"
+
+        # Check for 2FA state (TOTP input, authenticator text)
+        totp_field = await self._find_totp_input()
+        if totp_field:
+            return "2fa"
+
+        # Also check for 2FA page text without visible input yet
+        twofa_text_indicators = [
+            page.get_by_text("Enter the code", exact=False),
+            page.get_by_text("authenticator app", exact=False),
+            page.get_by_text("security code", exact=False),
+            page.get_by_text("Two-factor", exact=False),
+            page.get_by_text("Text me the code", exact=False),
+            page.get_by_text("Try another way", exact=False),
+        ]
+        for indicator in twofa_text_indicators:
+            try:
+                if await indicator.count() > 0 and await indicator.first.is_visible():
+                    return "2fa"
+            except Exception:
+                pass
+
+        return "unknown"
 
     async def _check_save_device_box(self) -> None:
         """Check the save device checkbox."""
