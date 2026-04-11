@@ -22,8 +22,8 @@ Congressional trade copying system. Three independently-published packages in on
 
 ## Cross-Repo Contracts
 
-- **hadoku-site** (`../hadoku-site/`) imports `@wolffm/trader-worker`, mounts `@wolffm/trader`
-- **hadoku-scraper** (`../hadoku-scraper/`) provides signals via `GET /api/v1/politrades/signals/pull`
+- **hadoku_site** (`../hadoku_site/`) imports `@wolffm/trader-worker`, mounts `@wolffm/trader`
+- **hadoku-scrape** (`../hadoku-scrape/`) provides signals via `GET /api/v1/politrades/signals/pull`
 - **Tunnel**: local fidelity-api via cloudflared at `hadoku.me/mgmt/api/fidelity`
 - **Dispatch**: `publish.yml` sends `packages_updated` event to `WolffM/hadoku_site`
 - Version bumps are automatic via pre-commit hook (`.husky/pre-commit`)
