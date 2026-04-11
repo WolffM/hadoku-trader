@@ -63,70 +63,55 @@ class AccountInfo(BaseModel):
 # =============================================================================
 
 
-def create_app(
-    config: Optional[TraderConfig] = None,
-    auto_authenticate: bool = True,
-) -> FastAPI:
+def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
     """
     Create a FastAPI application for the trader service.
 
-    Args:
-        config: Optional TraderConfig. If not provided, loads from environment.
-        auto_authenticate: Whether to authenticate on startup.
-
-    Returns:
-        FastAPI application ready to run with uvicorn.
-
-    Usage:
-        # In hadoku-site's PM2 service runner:
-        from hadoku_fidelity import create_app
-        app = create_app()
-
-        # Then run with uvicorn:
-        # uvicorn main:app --host 127.0.0.1 --port 8765
+    Browser and Fidelity auth are fully lazy — nothing launches until
+    a trade or account request actually needs it. This keeps PM2
+    restarts instant (no headed Chrome popping up on every restart).
     """
     service_config = config or TraderConfig()
     service = TraderService(service_config)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        """Manage app lifecycle.
-
-        Browser init is attempted but non-fatal — the server starts
-        regardless and reports readiness via /health.  This avoids
-        PM2 crash-loops when Chrome fails to launch transiently.
-        """
-        print("Starting hadoku-fidelity trader service...")
-
-        try:
-            await service.initialize()
-            if auto_authenticate and service_config.has_credentials:
-                print("Credentials found, attempting authentication...")
-                if await service.authenticate():
-                    print("Successfully authenticated with Fidelity")
-                else:
-                    print("Warning: Authentication failed — browser is ready but login failed")
-            elif not service_config.has_credentials:
-                print("Warning: Missing Fidelity credentials in environment")
-        except Exception as e:
-            print(f"Warning: Browser initialization failed: {e}")
-            print("Server will start anyway — browser will be retried on first request")
-
+        """Server starts immediately. Browser launches on first real request."""
+        print("Starting hadoku-fidelity trader service (lazy auth)...")
         yield
-
         print("Shutting down trader service...")
         await service.close()
 
     app = FastAPI(
         title="Hadoku Trader Service",
         description="Fidelity trade execution service for hadoku",
-        version="1.1.0",
+        version="1.2.0",
         lifespan=lifespan,
     )
 
-    # Store service in app state for access in routes
     app.state.service = service
     app.state.config = service_config
+
+    # =============================================================================
+    # Helpers
+    # =============================================================================
+
+    async def _ensure_browser():
+        """Lazy-init browser on first request that needs it."""
+        if not service._initialized:
+            print("[LAZY] Initializing browser on first request...")
+            try:
+                await service.initialize()
+            except Exception as e:
+                raise HTTPException(status_code=503, detail=f"Browser not ready: {e}")
+
+    async def _ensure_authenticated():
+        """Lazy-init browser + authenticate on first request that needs it."""
+        await _ensure_browser()
+        if not service.authenticated:
+            print("[LAZY] Authenticating on first request...")
+            if not await service.authenticate():
+                raise HTTPException(status_code=503, detail="Fidelity authentication failed")
 
     # =============================================================================
     # Auth Dependency
@@ -144,20 +129,11 @@ def create_app(
 
     @app.get("/health", response_model=HealthResponse)
     async def health_check():
-        """Health check endpoint. Reports browser + auth readiness."""
-        accounts = None
-        if service.authenticated:
-            try:
-                account_list = await service.get_accounts()
-                accounts = [a["account_number"] for a in account_list]
-            except Exception:
-                pass
-
-        status = "ok" if service._initialized else "degraded"
+        """Health check — always fast. Does NOT trigger browser/auth."""
         return HealthResponse(
-            status=status,
+            status="ok" if service._initialized else "idle",
             authenticated=service.authenticated,
-            accounts=accounts,
+            accounts=None,
         )
 
     @app.post(
@@ -166,12 +142,8 @@ def create_app(
         dependencies=[Depends(verify_api_key)],
     )
     async def execute_trade(request: TradeRequest):
-        """Execute a trade on Fidelity."""
-        if not service._initialized:
-            try:
-                await service.initialize()
-            except Exception as e:
-                raise HTTPException(status_code=503, detail=f"Browser not ready: {e}")
+        """Execute a trade on Fidelity. Triggers browser + auth if needed."""
+        await _ensure_authenticated()
 
         success, message, details = await service.execute_trade(
             ticker=request.ticker,
@@ -185,7 +157,6 @@ def create_app(
         if not success and "Not authenticated" in message:
             raise HTTPException(status_code=503, detail=message)
 
-        # Extract alert code from details
         alert = details.get("alert", "UNKNOWN") if details else "UNKNOWN"
 
         return TradeResponse(
@@ -197,23 +168,14 @@ def create_app(
 
     @app.get("/accounts", dependencies=[Depends(verify_api_key)])
     async def get_accounts():
-        """Get all Fidelity accounts and their balances."""
-        if not service._initialized:
-            try:
-                await service.initialize()
-            except Exception as e:
-                raise HTTPException(status_code=503, detail=f"Browser not ready: {e}")
-
-        if not service.authenticated:
-            if not await service.authenticate():
-                raise HTTPException(status_code=503, detail="Not authenticated")
-
+        """Get all Fidelity accounts. Triggers browser + auth if needed."""
+        await _ensure_authenticated()
         accounts = await service.get_accounts()
         return {"accounts": [AccountInfo(**a) for a in accounts]}
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
-        """Force re-authentication. Also retries browser init if needed."""
+        """Force re-authentication."""
         try:
             if await service.refresh():
                 return {"success": True, "message": "Session refreshed"}
