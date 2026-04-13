@@ -65,7 +65,7 @@ export async function executeTrade(
   console.log(`[EXECUTION]   Ticker: ${signal.ticker}, Action: ${signal.action}`)
   console.log(`[EXECUTION]   Position Size: $${positionSize.toFixed(2)}`)
   console.log(`[EXECUTION]   Current Price: $${signal.current_price.toFixed(2)}`)
-  console.log(`[EXECUTION]   DRY_RUN: ${isDryRun()}`)
+  console.log(`[EXECUTION]   DRY_RUN: ${isDryRun(env)}`)
 
   // Calculate shares from position size and current price (fractional shares enabled)
   const shares = calculateShares(positionSize, signal.current_price, ENABLE_FRACTIONAL_SHARES)
@@ -107,7 +107,7 @@ export async function executeTrade(
     console.log(`[EXECUTION]   Calling Fidelity API via tunnel...`)
     console.log(`[EXECUTION]   Default Account: ${defaultAccount ?? '(not configured)'}`)
     console.log(
-      `[EXECUTION]   Request: { ticker: ${signal.ticker}, action: ${signal.action}, quantity: ${shares}, account: ${defaultAccount}, dry_run: ${isDryRun()} }`
+      `[EXECUTION]   Request: { ticker: ${signal.ticker}, action: ${signal.action}, quantity: ${shares}, account: ${defaultAccount}, dry_run: ${isDryRun(env)} }`
     )
 
     const apiResponse = await callFidelityApi(env, {
@@ -115,7 +115,7 @@ export async function executeTrade(
       quantity: shares,
       action: signal.action,
       account: defaultAccount, // Read from D1 config
-      dry_run: isDryRun()
+      dry_run: isDryRun(env)
     })
 
     console.log(`[EXECUTION]   Fidelity API Response: ${JSON.stringify(apiResponse)}`)
@@ -402,7 +402,7 @@ export async function executeSellOrder(
       quantity: shares,
       action: 'sell',
       account: defaultAccount, // Read from D1 config
-      dry_run: isDryRun()
+      dry_run: isDryRun(env)
     })
 
     if (!response.success) {
