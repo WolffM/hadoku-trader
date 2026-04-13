@@ -89,6 +89,22 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
 
+      - name: Verify UI publish appeared on registry
+        if: steps.ui_changed.outputs.changed == 'true'
+        run: |
+          # Defense in depth: pnpm publish does not fail loudly on
+          # duplicate-version no-ops in pnpm 9+. Verify the version actually
+          # landed on the registry.
+          package_name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if ! npm view "${package_name}@${version}" version --registry=https://npm.pkg.github.com 2>/dev/null | grep -q "$version"; then
+            echo "❌ ERROR: ${package_name}@${version} did not appear on the registry after publish"
+            exit 1
+          fi
+          echo "✓ Verified ${package_name}@${version} on registry"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
     outputs:
       published: ${{ steps.ui_changed.outputs.changed }}
 
@@ -172,6 +188,21 @@ jobs:
         if: steps.worker_changed.outputs.changed == 'true'
         working-directory: worker
         run: pnpm publish --no-git-checks
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
+
+      - name: Verify worker publish appeared on registry
+        if: steps.worker_changed.outputs.changed == 'true'
+        working-directory: worker
+        run: |
+          # See UI verify step for rationale.
+          package_name=$(node -p "require('./package.json').name")
+          version=$(node -p "require('./package.json').version")
+          if ! npm view "${package_name}@${version}" version --registry=https://npm.pkg.github.com 2>/dev/null | grep -q "$version"; then
+            echo "❌ ERROR: ${package_name}@${version} did not appear on the registry after publish"
+            exit 1
+          fi
+          echo "✓ Verified ${package_name}@${version} on registry"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.HADOKU_SITE_TOKEN }}
 
