@@ -59,6 +59,11 @@ class TraderService:
         self._client: Optional[FidelityClientPatchright] = None
         self._authenticated: bool = False
         self._initialized: bool = False
+        # Serializes all browser operations. The underlying Patchright client
+        # has a single page/browser context, so concurrent execute_trade or
+        # get_accounts calls would navigate on top of each other and corrupt
+        # in-flight orders. Every caller waits its turn.
+        self._browser_lock: asyncio.Lock = asyncio.Lock()
 
     async def initialize(self) -> None:
         """Initialize the Patchright client with retry on transient browser failures."""
@@ -155,14 +160,15 @@ class TraderService:
             return False, "No account specified", None
 
         try:
-            success, error_message, alert_code = await self.client.transaction(
-                stock=ticker.upper(),
-                quantity=quantity,
-                action=action.lower(),
-                account=target_account,
-                dry=dry_run,
-                limit_price=limit_price,
-            )
+            async with self._browser_lock:
+                success, error_message, alert_code = await self.client.transaction(
+                    stock=ticker.upper(),
+                    quantity=quantity,
+                    action=action.lower(),
+                    account=target_account,
+                    dry=dry_run,
+                    limit_price=limit_price,
+                )
 
             if success:
                 action_word = "previewed" if dry_run else "executed"
@@ -193,7 +199,8 @@ class TraderService:
                 return []
 
         try:
-            account_info = await self.client.get_account_info()
+            async with self._browser_lock:
+                account_info = await self.client.get_account_info()
             if not account_info:
                 return []
 
@@ -220,9 +227,10 @@ class TraderService:
 
     async def refresh(self) -> bool:
         """Force re-authentication."""
-        await self.close()
-        await self.initialize()
-        return await self.authenticate()
+        async with self._browser_lock:
+            await self.close()
+            await self.initialize()
+            return await self.authenticate()
 
     async def close(self) -> None:
         """Close the browser and clean up."""
