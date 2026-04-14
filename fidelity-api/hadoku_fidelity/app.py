@@ -230,17 +230,69 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
 
     @app.get("/accounts", dependencies=[Depends(verify_api_key)])
     async def get_accounts():
-        """Get all Fidelity accounts. Triggers browser + auth if needed."""
+        """
+        Get all Fidelity accounts. Triggers browser + auth if needed.
+
+        Returns an NDJSON stream for the same reason /execute-trade does:
+        scraping the Fidelity positions page takes 60-120s of browser
+        automation, which exceeds Cloudflare's 60s edge idle-stream timeout
+        on a plain JSON response. Heartbeats keep the connection alive.
+
+        Response format:
+            {"event":"heartbeat"}          (every ~20s while working)
+            ...
+            {"event":"result","data":{"accounts":[...]}}     (final line)
+          OR
+            {"event":"result","data":{"error":"..."}}        (final line on error)
+        """
         await _ensure_authenticated()
-        try:
-            accounts = await service.get_accounts()
-        except RuntimeError as e:
-            # service.get_accounts() now raises on failure instead of silently
-            # returning []. Surface the real error so callers can act on it
-            # (previously every failure looked like "no accounts", which hid
-            # every browser/auth/scrape bug behind a 200 OK).
-            raise HTTPException(status_code=503, detail=f"get_accounts failed: {e}")
-        return {"accounts": [AccountInfo(**a) for a in accounts]}
+
+        async def generate():
+            accounts_task = asyncio.create_task(service.get_accounts())
+
+            yield b'{"event":"heartbeat"}\n'
+
+            while not accounts_task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(accounts_task),
+                        timeout=_HEARTBEAT_INTERVAL_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    yield b'{"event":"heartbeat"}\n'
+
+            try:
+                raw_accounts = accounts_task.result()
+            except Exception as e:
+                yield (
+                    json.dumps(
+                        {"event": "result", "data": {"error": f"get_accounts failed: {e!r}"}}
+                    ).encode()
+                    + b"\n"
+                )
+                return
+
+            # Validate each row through AccountInfo so schema drift surfaces
+            # as an exception in this line rather than silently mis-shaped JSON.
+            try:
+                payload = {"accounts": [AccountInfo(**a).model_dump() for a in raw_accounts]}
+            except Exception as e:
+                yield (
+                    json.dumps(
+                        {
+                            "event": "result",
+                            "data": {"error": f"AccountInfo validation failed: {e!r}"},
+                        }
+                    ).encode()
+                    + b"\n"
+                )
+                return
+
+            yield (
+                json.dumps({"event": "result", "data": payload}).encode() + b"\n"
+            )
+
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
