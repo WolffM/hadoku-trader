@@ -67,6 +67,22 @@ class AccountInfo(BaseModel):
     positions: list[dict]
 
 
+class DebugNavRequest(BaseModel):
+    """Payload for POST /debug/nav — navigate current browser to a URL and dump state."""
+
+    url: str
+    wait_ms: int = 3000  # fixed post-nav sleep before capturing
+    html_limit: int = 500_000  # cap returned HTML to avoid massive payloads
+
+
+class DebugEvalRequest(BaseModel):
+    """Payload for POST /debug/eval — run arbitrary JS on the current page."""
+
+    script: str
+    url: Optional[str] = None  # if provided, navigate first
+    wait_ms: int = 1000
+
+
 # =============================================================================
 # App Factory
 # =============================================================================
@@ -296,7 +312,7 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
-        """Force re-authentication."""
+        """Force re-authentication. Alias: POST /login."""
         try:
             if await service.refresh():
                 return {"success": True, "message": "Session refreshed"}
@@ -304,5 +320,131 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
                 raise HTTPException(status_code=503, detail="Failed to authenticate")
         except RuntimeError as e:
             raise HTTPException(status_code=503, detail=f"Browser init failed: {e}")
+
+    @app.post("/login", dependencies=[Depends(verify_api_key)])
+    async def login():
+        """
+        Explicit login. Launches the browser if needed, authenticates, and
+        returns success when ready. If already authenticated, returns success
+        without redoing the full browser restart. Use /refresh-session for
+        a forced close+reinit+auth cycle.
+        """
+        try:
+            await _ensure_browser()
+            if service.authenticated:
+                return {"success": True, "message": "Already authenticated"}
+            if await service.authenticate():
+                return {"success": True, "message": "Login successful"}
+            raise HTTPException(status_code=503, detail="Login failed")
+        except HTTPException:
+            raise
+        except Exception as e:
+            raise HTTPException(status_code=503, detail=f"Login error: {e!r}")
+
+    # =============================================================================
+    # Debug endpoints — temporary diagnostic tools for fixing broken scrapers
+    # =============================================================================
+    # These let us navigate the live authenticated browser and dump DOM / run
+    # JS to figure out why get_account_info() is hanging on the positions page.
+    # API-keyed and lock-protected like the real endpoints. Remove once /accounts
+    # is reliable.
+
+    @app.post("/debug/nav", dependencies=[Depends(verify_api_key)])
+    async def debug_nav(request: DebugNavRequest):
+        """
+        Navigate the current browser page to a URL and dump its state.
+
+        Returns NDJSON stream ending in:
+            {"event":"result","data":{"url":"...", "title":"...", "html":"..."}}
+
+        The html field is truncated to request.html_limit characters so we
+        don't produce massive streams. For targeted inspection use /debug/eval.
+        """
+        await _ensure_authenticated()
+
+        async def generate():
+            async def _do_nav():
+                async with service._browser_lock:
+                    page = service.client._browser.page
+                    await page.goto(request.url, wait_until="domcontentloaded")
+                    await page.wait_for_timeout(request.wait_ms)
+                    final_url = page.url
+                    try:
+                        title = await page.title()
+                    except Exception as e:
+                        title = f"<title error: {e!r}>"
+                    try:
+                        html = await page.content()
+                    except Exception as e:
+                        html = f"<content error: {e!r}>"
+                    return {
+                        "url": final_url,
+                        "title": title,
+                        "html_length": len(html),
+                        "html": html[: request.html_limit],
+                        "truncated": len(html) > request.html_limit,
+                    }
+
+            task = asyncio.create_task(_do_nav())
+            yield b'{"event":"heartbeat"}\n'
+            while not task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(task), timeout=_HEARTBEAT_INTERVAL_SECONDS
+                    )
+                except asyncio.TimeoutError:
+                    yield b'{"event":"heartbeat"}\n'
+            try:
+                data = task.result()
+            except Exception as e:
+                data = {"error": f"{e!r}"}
+            yield (json.dumps({"event": "result", "data": data}).encode() + b"\n")
+
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
+
+    @app.post("/debug/eval", dependencies=[Depends(verify_api_key)])
+    async def debug_eval(request: DebugEvalRequest):
+        """
+        Run arbitrary JavaScript against the current page and return the result.
+
+        If request.url is provided, navigates there first. Use this to probe
+        the DOM directly — much lighter than dumping full HTML.
+
+        Example script: "return document.querySelectorAll('.posweb-row-account').length"
+
+        Playwright's page.evaluate wraps the script in a function body, so
+        the script should return a JSON-serializable value.
+        """
+        await _ensure_authenticated()
+
+        async def generate():
+            async def _do_eval():
+                async with service._browser_lock:
+                    page = service.client._browser.page
+                    if request.url:
+                        await page.goto(request.url, wait_until="domcontentloaded")
+                        await page.wait_for_timeout(request.wait_ms)
+                    result = await page.evaluate(request.script)
+                    return {
+                        "url": page.url,
+                        "result": result,
+                    }
+
+            task = asyncio.create_task(_do_eval())
+            yield b'{"event":"heartbeat"}\n'
+            while not task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(task), timeout=_HEARTBEAT_INTERVAL_SECONDS
+                    )
+                except asyncio.TimeoutError:
+                    yield b'{"event":"heartbeat"}\n'
+            try:
+                data = task.result()
+            except Exception as e:
+                data = {"error": f"{e!r}"}
+            yield (json.dumps({"event": "result", "data": data}).encode() + b"\n")
+
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
 
     return app
