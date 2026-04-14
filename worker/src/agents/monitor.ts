@@ -290,18 +290,23 @@ export async function getAllOpenPositions(env: TraderEnv): Promise<PositionRow[]
 }
 
 /**
- * Get current price for a ticker from positions table.
+ * Get current price for a ticker from the latest market_prices row.
+ *
+ * Previously read positions.current_price, but nothing in the codebase
+ * ever writes to that column — it starts NULL on insert and stays NULL
+ * forever. The effect was that monitor-positions always reported "No
+ * price available" and stop-loss / take-profit could never fire.
+ * market_prices is populated daily by syncMarketPrices (scheduled.ts)
+ * for every open position's ticker, so it's the authoritative source.
  */
 async function getCurrentPriceForTicker(env: TraderEnv, ticker: string): Promise<number | null> {
   const row = await env.TRADER_DB.prepare(
-    `
-    SELECT current_price FROM positions WHERE ticker = ? AND current_price IS NOT NULL LIMIT 1
-  `
+    `SELECT close FROM market_prices WHERE ticker = ? ORDER BY date DESC LIMIT 1`
   )
     .bind(ticker)
     .first()
 
-  return (row?.current_price as number) ?? null
+  return (row?.close as number) ?? null
 }
 
 /**
