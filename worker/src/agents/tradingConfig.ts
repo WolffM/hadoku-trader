@@ -45,8 +45,12 @@ export const ENABLE_TRADING = true
  * Enable fractional shares
  * - true: Buy partial shares (e.g., 2.5 shares)
  * - false: Round down to whole shares only
+ *
+ * Disabled because Fidelity's Patchright-driven market-order form silently
+ * truncates fractional quantities to whole shares, leaving D1 out of sync
+ * with the actual order (e.g. D1: 2.617 shares / $118.73, real order: 2 shares).
  */
-export const ENABLE_FRACTIONAL_SHARES = true
+export const ENABLE_FRACTIONAL_SHARES = false
 
 /**
  * Minimum position age before selling (in days)
