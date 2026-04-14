@@ -6,13 +6,22 @@ Usage in hadoku-site:
     app = create_app()
 """
 
+import asyncio
+import json
 from contextlib import asynccontextmanager
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from .service import TraderService, TraderConfig
+
+
+# Heartbeat interval for streaming trade responses. Must be shorter than
+# Cloudflare's edge idle-stream timeout (60s on Free plan). 20s gives us
+# three heartbeat windows per CF kill window — plenty of slack.
+_HEARTBEAT_INTERVAL_SECONDS = 20
 
 
 # =============================================================================
@@ -138,33 +147,86 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
 
     @app.post(
         "/execute-trade",
-        response_model=TradeResponse,
         dependencies=[Depends(verify_api_key)],
     )
     async def execute_trade(request: TradeRequest):
-        """Execute a trade on Fidelity. Triggers browser + auth if needed."""
+        """
+        Execute a trade on Fidelity. Triggers browser + auth if needed.
+
+        Returns an NDJSON stream rather than a single JSON body so that
+        Cloudflare's edge idle-stream timeout (60s on Free plan) doesn't
+        kill the connection during the 40-90s Patchright automation.
+
+        Response body format (one JSON object per line):
+            {"event": "heartbeat"}          (emitted every ~20s while working)
+            ...
+            {"event": "result", "data": {TradeResponse fields}}   (final line)
+
+        Callers should read the entire body and parse the last non-heartbeat
+        line as the real result. Failure inside the stream is also delivered
+        as a result event with success=False.
+        """
         await _ensure_authenticated()
 
-        success, message, details = await service.execute_trade(
-            ticker=request.ticker,
-            action=request.action,
-            quantity=request.quantity,
-            account=request.account,
-            dry_run=request.dry_run,
-            limit_price=request.limit_price,
-        )
+        async def generate():
+            trade_task = asyncio.create_task(
+                service.execute_trade(
+                    ticker=request.ticker,
+                    action=request.action,
+                    quantity=request.quantity,
+                    account=request.account,
+                    dry_run=request.dry_run,
+                    limit_price=request.limit_price,
+                )
+            )
 
-        if not success and "Not authenticated" in message:
-            raise HTTPException(status_code=503, detail=message)
+            # Emit a heartbeat immediately so the edge sees first-byte in <1s
+            # (the kill is an idle timer, not a total-time cap).
+            yield b'{"event":"heartbeat"}\n'
 
-        alert = details.get("alert", "UNKNOWN") if details else "UNKNOWN"
+            while not trade_task.done():
+                try:
+                    await asyncio.wait_for(
+                        asyncio.shield(trade_task),
+                        timeout=_HEARTBEAT_INTERVAL_SECONDS,
+                    )
+                except asyncio.TimeoutError:
+                    yield b'{"event":"heartbeat"}\n'
 
-        return TradeResponse(
-            success=success,
-            message=message,
-            alert=alert,
-            details=details,
-        )
+            try:
+                success, message, details = trade_task.result()
+            except Exception as e:
+                # Any unhandled exception inside service.execute_trade becomes
+                # a failed-result event rather than a 500 stack trace, so the
+                # caller always gets a structured outcome.
+                result_payload = {
+                    "success": False,
+                    "message": f"Internal error: {e!r}",
+                    "alert": "UNKNOWN",
+                    "order_id": None,
+                    "details": None,
+                }
+                yield (
+                    json.dumps({"event": "result", "data": result_payload})
+                    .encode()
+                    + b"\n"
+                )
+                return
+
+            alert = details.get("alert", "UNKNOWN") if details else "UNKNOWN"
+            result_payload = {
+                "success": success,
+                "message": message,
+                "alert": alert,
+                "order_id": None,
+                "details": details,
+            }
+            yield (
+                json.dumps({"event": "result", "data": result_payload}).encode()
+                + b"\n"
+            )
+
+        return StreamingResponse(generate(), media_type="application/x-ndjson")
 
     @app.get("/accounts", dependencies=[Depends(verify_api_key)])
     async def get_accounts():

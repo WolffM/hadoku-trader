@@ -351,16 +351,54 @@ export async function callFidelityApi(
       }
     }
 
-    const data: FidelityTradeResponse = await response.json()
-    console.log(`[FIDELITY_API] Response data: ${JSON.stringify(data)}`)
+    // fidelity-api returns NDJSON: zero or more {"event":"heartbeat"} lines
+    // followed by one {"event":"result","data":{...}} line. The streaming
+    // format is what keeps the request alive across CF's 60s edge
+    // idle-stream timeout during long Patchright automation.
+    const text = await response.text()
+    let lastResult: FidelityTradeResponse | null = null
+    let heartbeatCount = 0
+    for (const rawLine of text.split('\n')) {
+      const line = rawLine.trim()
+      if (!line) continue
+      let parsed: unknown
+      try {
+        parsed = JSON.parse(line)
+      } catch {
+        console.log(`[FIDELITY_API] malformed NDJSON line: ${line.slice(0, 120)}`)
+        continue
+      }
+      const obj = parsed as { event?: string; data?: FidelityTradeResponse }
+      if (obj.event === 'heartbeat') {
+        heartbeatCount++
+        continue
+      }
+      if (obj.event === 'result' && obj.data) {
+        lastResult = obj.data
+      }
+    }
 
-    if (data.success && request.dry_run) {
+    if (!lastResult) {
+      console.log(
+        `[FIDELITY_API] ERROR: NDJSON stream ended without a result event (heartbeats=${heartbeatCount})`
+      )
+      return {
+        success: false,
+        error: `Stream ended without result event (${heartbeatCount} heartbeats received)`
+      }
+    }
+
+    console.log(
+      `[FIDELITY_API] Result after ${heartbeatCount} heartbeat(s): ${JSON.stringify(lastResult)}`
+    )
+
+    if (lastResult.success && request.dry_run) {
       console.log(`[FIDELITY_API] *** DRY RUN - Trade was PREVIEWED but NOT executed ***`)
-    } else if (data.success) {
+    } else if (lastResult.success) {
       console.log(`[FIDELITY_API] *** LIVE TRADE - Order submitted! ***`)
     }
 
-    return data
+    return lastResult
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : 'Network error'
     console.log(`[FIDELITY_API] EXCEPTION: ${errorMsg}`)

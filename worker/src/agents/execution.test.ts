@@ -32,12 +32,23 @@ function createMockEnv(
 ) {
   const { tunnelResponse = { success: true, order_id: 'ORD123' } } = overrides
 
+  // Build an NDJSON body matching what fidelity-api now emits: one or more
+  // heartbeat lines followed by a final result event. callFidelityApi reads
+  // the body via .text() and parses the last result line.
+  const ndjsonBody = [
+    '{"event":"heartbeat"}',
+    JSON.stringify({ event: 'result', data: tunnelResponse })
+  ].join('\n')
+
   // Mock fetch for Fidelity API
   global.fetch = vi.fn().mockResolvedValue({
     ok: tunnelResponse.success,
     status: tunnelResponse.success ? 200 : 500,
+    // .json() retained for any legacy callers in tests; real code only uses .text()
     json: vi.fn().mockResolvedValue(tunnelResponse),
-    text: vi.fn().mockResolvedValue(tunnelResponse.error ?? '')
+    text: vi
+      .fn()
+      .mockResolvedValue(tunnelResponse.success ? ndjsonBody : (tunnelResponse.error ?? ''))
   })
 
   return {
