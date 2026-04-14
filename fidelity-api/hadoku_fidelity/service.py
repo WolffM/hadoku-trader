@@ -136,6 +136,26 @@ class TraderService:
         self._authenticated = step1 and step2
         return self._authenticated
 
+    async def _ensure_page_alive(self) -> None:
+        """
+        Detect a dead Patchright page and auto-recover.
+
+        Called before acquiring the browser lock for a new op. If the page
+        reference is closed (TargetClosedError / RuntimeError from
+        _verify_page_connection), force a full refresh so the queued caller
+        doesn't inherit a poisoned browser from a prior failed trade.
+
+        refresh() itself acquires the browser lock, so this must run OUTSIDE
+        the lock to avoid deadlock.
+        """
+        if not self._initialized or self._client is None:
+            return
+        try:
+            await self._client._verify_page_connection()
+        except Exception as e:
+            print(f"[SERVICE] Page dead before op ({e!r}), forcing refresh...")
+            await self.refresh()
+
     async def execute_trade(
         self,
         ticker: str,
@@ -158,6 +178,9 @@ class TraderService:
         target_account = account or self.config.default_account
         if not target_account:
             return False, "No account specified", None
+
+        # Health gate: if the page died in a prior op, refresh before queueing.
+        await self._ensure_page_alive()
 
         try:
             async with self._browser_lock:
@@ -193,37 +216,46 @@ class TraderService:
             }
 
     async def get_accounts(self) -> list[dict]:
-        """Get all accounts and their positions."""
+        """
+        Get all accounts and their positions.
+
+        Raises RuntimeError on failure so callers can distinguish a genuinely
+        empty account list from a broken browser/auth state. Previously this
+        silently returned [] on any exception, which hid every failure behind
+        a 200 OK empty response and made verification impossible.
+        """
         if not self._authenticated:
             if not await self.authenticate():
-                return []
+                raise RuntimeError("Fidelity authentication failed")
 
-        try:
-            async with self._browser_lock:
-                account_info = await self.client.get_account_info()
-            if not account_info:
-                return []
+        # Health gate: refresh if the page died since last op.
+        await self._ensure_page_alive()
 
-            accounts = []
-            for acc_num, account in account_info.items():
-                accounts.append({
-                    "account_number": acc_num,
-                    "nickname": getattr(account, 'nickname', None),
-                    "balance": account.balance,
-                    "positions": [
-                        {
-                            "ticker": s.ticker,
-                            "quantity": s.quantity,
-                            "last_price": s.last_price,
-                            "value": s.value,
-                        }
-                        for s in account.stocks
-                    ],
-                })
-            return accounts
+        async with self._browser_lock:
+            account_info = await self.client.get_account_info()
 
-        except Exception:
-            return []
+        if not account_info:
+            raise RuntimeError(
+                "get_account_info returned empty — browser scrape likely failed"
+            )
+
+        accounts = []
+        for acc_num, account in account_info.items():
+            accounts.append({
+                "account_number": acc_num,
+                "nickname": getattr(account, 'nickname', None),
+                "balance": account.balance,
+                "positions": [
+                    {
+                        "ticker": s.ticker,
+                        "quantity": s.quantity,
+                        "last_price": s.last_price,
+                        "value": s.value,
+                    }
+                    for s in account.stocks
+                ],
+            })
+        return accounts
 
     async def refresh(self) -> bool:
         """Force re-authentication."""

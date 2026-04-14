@@ -170,7 +170,14 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
     async def get_accounts():
         """Get all Fidelity accounts. Triggers browser + auth if needed."""
         await _ensure_authenticated()
-        accounts = await service.get_accounts()
+        try:
+            accounts = await service.get_accounts()
+        except RuntimeError as e:
+            # service.get_accounts() now raises on failure instead of silently
+            # returning []. Surface the real error so callers can act on it
+            # (previously every failure looked like "no accounts", which hid
+            # every browser/auth/scrape bug behind a 200 OK).
+            raise HTTPException(status_code=503, detail=f"get_accounts failed: {e}")
         return {"accounts": [AccountInfo(**a) for a in accounts]}
 
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
