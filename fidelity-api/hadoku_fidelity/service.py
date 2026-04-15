@@ -33,16 +33,13 @@ class TraderConfig:
         )
     )
     headless: bool = False  # Headed mode by default - headless unreliable with Fidelity
-    # Browser storage state file (Patchright cookies + localStorage) is written
-    # here. Using ~/.hadoku-fidelity/ instead of cwd so the file survives
-    # package reinstalls / deploys, lives outside any git-tracked directory
-    # (it holds session cookies, which are secrets), and is stable across
-    # PM2 restarts even if the cwd moves for any reason.
+    # Browser storage state lives at cwd/Fidelity_Patchright.json. cwd is the
+    # pm2 process working directory (hadoku_site root) which is stable across
+    # deploys, and Fidelity*.json is in hadoku_site's .gitignore so the file
+    # isn't committed. This matches the earlier known-working configuration.
+    # Overridable via FIDELITY_PROFILE_PATH if you want to relocate it.
     profile_path: str = field(
-        default_factory=lambda: os.environ.get(
-            "FIDELITY_PROFILE_PATH",
-            os.path.expanduser("~/.hadoku-fidelity"),
-        )
+        default_factory=lambda: os.environ.get("FIDELITY_PROFILE_PATH", ".")
     )
 
     @property

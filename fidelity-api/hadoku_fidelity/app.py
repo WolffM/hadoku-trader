@@ -134,11 +134,6 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
     async def _ensure_authenticated():
         """Lazy-init browser + authenticate on first request that needs it."""
         await _ensure_browser()
-        # Detect a dead page before attempting auth — if the page closed after
-        # initialize() (e.g. TargetClosedError from a prior op), _ensure_page_alive
-        # calls refresh() which tears down and re-launches the browser so the
-        # subsequent authenticate() has a live page to work with.
-        await service._ensure_page_alive()
         if not service.authenticated:
             print("[LAZY] Authenticating on first request...")
             if not await service.authenticate():
