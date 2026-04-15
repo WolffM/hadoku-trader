@@ -10,6 +10,8 @@ Key differences:
 - No need for playwright-stealth (Patchright handles it)
 """
 
+import os
+import time
 import traceback
 from typing import Optional
 
@@ -290,6 +292,29 @@ class FidelityClientPatchright:
         print(f"[2FA] Entering TOTP code...")
         # Type the code like a human
         await human_type(page, totp_field, code)
+
+        # DIAGNOSTIC: always dump the 2FA page DOM + screenshot right after
+        # the TOTP code is entered and before Continue is clicked. This is
+        # the exact moment the "Remember this device" checkbox is visible.
+        # Captured to disk so we can fix _check_save_device_box()'s stale
+        # selector offline without risking another broken login attempt
+        # that trips Fidelity's "Sorry, we can't complete this action"
+        # error state. Runs regardless of save_device value — no DOM
+        # mutation, read-only.
+        try:
+            dump_ts = int(time.time())
+            dump_base = os.path.join(os.getcwd(), f"2fa-debug-{dump_ts}")
+            html = await page.content()
+            with open(dump_base + ".html", "w", encoding="utf-8") as f:
+                f.write(html)
+            print(f"[2FA-DEBUG] DOM dumped to {dump_base}.html ({len(html)} bytes)")
+            try:
+                await page.screenshot(path=dump_base + ".png", full_page=True)
+                print(f"[2FA-DEBUG] Screenshot saved to {dump_base}.png")
+            except Exception as se:
+                print(f"[2FA-DEBUG] screenshot failed (non-fatal): {se!r}")
+        except Exception as de:
+            print(f"[2FA-DEBUG] DOM dump failed (non-fatal): {de!r}")
 
         if save_device:
             await minor_delay()
