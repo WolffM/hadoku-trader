@@ -50,6 +50,8 @@ class Stock:
     quantity: float
     last_price: float
     value: float
+    cost_basis: Optional[float] = None
+    is_cash: bool = False  # True for money-market / cash rows
 
     def to_dict(self) -> dict:
         """Convert to dictionary format for backward compatibility."""
@@ -58,6 +60,8 @@ class Stock:
             "quantity": self.quantity,
             "last_price": self.last_price,
             "value": self.value,
+            "cost_basis": self.cost_basis,
+            "is_cash": self.is_cash,
         }
 
     @classmethod
@@ -68,6 +72,8 @@ class Stock:
             quantity=float(data["quantity"]),
             last_price=float(data["last_price"]),
             value=float(data["value"]),
+            cost_basis=(float(data["cost_basis"]) if data.get("cost_basis") is not None else None),
+            is_cash=bool(data.get("is_cash", False)),
         )
 
 

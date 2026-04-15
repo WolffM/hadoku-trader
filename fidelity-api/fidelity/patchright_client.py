@@ -549,13 +549,27 @@ class FidelityClientPatchright:
 
     async def get_account_info(self) -> dict[str, Account]:
         """
-        Get account information from positions page.
+        Get account information from the positions page.
+
+        AG Grid splits each row across two containers:
+        - `.ag-pinned-left-cols-container` holds the symbol/ticker cell
+        - `.ag-center-cols-container` holds all numeric data cells
+
+        Rows are correlated across containers by their shared `row-id`
+        attribute. The old locator-per-row approach tried to find data
+        cells as descendants of a pinned row, which never matched and
+        hung `.inner_text()` waiting for elements that cannot exist in
+        that subtree.
+
+        The fix is a single `page.evaluate()` that walks the DOM once,
+        groups position rows under their preceding account row, and
+        correlates pinned tickers with center-container data cells by
+        `row-id`. Atomic, fast, and immune to the pinned/center split.
 
         Returns:
             Dict mapping account numbers to Account objects.
         """
         try:
-            # Verify page connection before navigation
             await self._verify_page_connection()
 
             page = self._browser.page
@@ -564,67 +578,142 @@ class FidelityClientPatchright:
             await self._browser.wait_for_loading()
             await page.wait_for_timeout(2000)
 
+            scrape_js = r"""() => {
+                const parseMoney = (s) => {
+                    if (!s) return null;
+                    const cleaned = s.replace(/[$,\s]/g, '').trim();
+                    if (!cleaned) return null;
+                    const n = parseFloat(cleaned);
+                    return isNaN(n) ? null : n;
+                };
+
+                // Walk pinned-side rows in DOM order. Account rows act as group
+                // headers; position rows that follow belong to the last seen
+                // account until the next account row appears.
+                const pinned = document.querySelector('.ag-pinned-left-cols-container');
+                if (!pinned) {
+                    return { error: 'pinned-left container not found', accounts: [] };
+                }
+                const centerContainer = document.querySelector('.ag-center-cols-container');
+                if (!centerContainer) {
+                    return { error: 'center container not found', accounts: [] };
+                }
+
+                const allRows = Array.from(
+                    pinned.querySelectorAll('.posweb-row-account, .posweb-row-position')
+                );
+
+                const accounts = [];
+                let current = null;
+
+                for (const row of allRows) {
+                    if (row.classList.contains('posweb-row-account')) {
+                        const accNumEl = row.querySelector('.posweb-cell-account_secondary');
+                        const accNameEl = row.querySelector('.posweb-cell-account_primary');
+                        current = {
+                            account_number: accNumEl ? accNumEl.innerText.trim() : null,
+                            nickname: accNameEl ? accNameEl.innerText.trim() : null,
+                            positions: [],
+                        };
+                        if (current.account_number) {
+                            accounts.push(current);
+                        }
+                        continue;
+                    }
+                    if (!current) continue;
+
+                    const rowId = row.getAttribute('row-id');
+                    if (!rowId) continue;
+
+                    // Ticker lives inside the pinned row
+                    const tickerEl = row.querySelector(
+                        '.posweb-cell-symbol-name_container span'
+                    );
+                    let ticker = tickerEl ? tickerEl.innerText.trim() : '';
+                    // Cash / money-market rows don't have a real ticker — they
+                    // often show a description instead. Detect and mark.
+                    const descEl = row.querySelector('.posweb-cell-symbol-description');
+                    const description = descEl ? descEl.innerText.trim() : '';
+                    const isCash = /cash|money market|held in/i.test(description)
+                        || /^cash$/i.test(ticker);
+                    if (!ticker && isCash) ticker = 'CASH';
+                    if (!ticker) continue;
+
+                    // Data cells live in a sibling <div row-id="..."> in the
+                    // center container.
+                    const centerRow = centerContainer.querySelector(
+                        `[row-id="${rowId}"]`
+                    );
+                    if (!centerRow) continue;
+
+                    const pickText = (sel) => {
+                        const el = centerRow.querySelector(sel);
+                        return el ? el.innerText : null;
+                    };
+
+                    const qty = parseMoney(pickText('.posweb-cell-quantity_value'))
+                        ?? parseMoney(pickText('.posweb-cell-quantity'));
+                    const price = parseMoney(pickText('.posweb-cell-last_price'));
+                    const value = parseMoney(pickText('.posweb-cell-current_value'));
+                    const costBasis = parseMoney(pickText('.posweb-cell-cost_basis'));
+
+                    current.positions.push({
+                        ticker: ticker,
+                        quantity: qty,
+                        last_price: price,
+                        value: value,
+                        cost_basis: costBasis,
+                        is_cash: isCash,
+                        row_id: rowId,
+                    });
+                }
+
+                return { accounts: accounts };
+            }"""
+
+            scrape = await page.evaluate(scrape_js)
+            if scrape.get("error"):
+                print(f"[ACCOUNT] scrape error: {scrape['error']}")
+                return {}
+
             accounts: dict[str, Account] = {}
-
-            # Get all account rows (AG Grid)
-            account_rows = page.locator(Selectors.ACCOUNT_CONTAINER)
-            acc_count = await account_rows.count()
-
-            for i in range(acc_count):
-                acc_row = account_rows.nth(i)
-
-                try:
-                    acc_num_elem = acc_row.locator(Selectors.ACCOUNT_NUMBER).first
-                    acc_num = await acc_num_elem.inner_text()
-                    acc_num = acc_num.strip()
-                except Exception:
+            for raw_acc in scrape.get("accounts", []):
+                acc_num = raw_acc.get("account_number")
+                if not acc_num:
                     continue
 
-                stocks = []
+                stocks: list[Stock] = []
                 total_value = 0.0
-
-                position_rows = page.locator(Selectors.POSITION_ROW)
-                pos_count = await position_rows.count()
-
-                for j in range(pos_count):
-                    row = position_rows.nth(j)
+                for p in raw_acc.get("positions", []):
                     try:
-                        ticker_elem = row.locator(Selectors.POSITION_TICKER).first
-                        ticker = await ticker_elem.inner_text()
-                        ticker = ticker.strip()
-
-                        if not ticker or ticker == "":
-                            continue
-
-                        qty_elem = row.locator(Selectors.POSITION_QUANTITY).first
-                        qty_text = await qty_elem.inner_text()
-                        qty = float(qty_text.replace(",", "").strip())
-
-                        price_elem = row.locator(Selectors.POSITION_PRICE).first
-                        price_text = await price_elem.inner_text()
-                        price = float(price_text.replace("$", "").replace(",", "").strip())
-
-                        value_elem = row.locator(Selectors.POSITION_VALUE).first
-                        value_text = await value_elem.inner_text()
-                        value = float(value_text.replace("$", "").replace(",", "").strip())
-
-                        stocks.append(Stock(
-                            ticker=ticker,
-                            quantity=qty,
-                            last_price=price,
-                            value=value,
-                        ))
-                        total_value += value
-
-                    except Exception:
+                        qty = float(p.get("quantity") or 0)
+                        price = float(p.get("last_price") or 0)
+                        value = float(p.get("value") or 0)
+                        cost_basis = p.get("cost_basis")
+                        cost_basis_f = float(cost_basis) if cost_basis is not None else None
+                    except (TypeError, ValueError) as e:
+                        print(f"[ACCOUNT] skipping malformed row for {p.get('ticker')}: {e}")
                         continue
+
+                    stocks.append(Stock(
+                        ticker=p.get("ticker") or "UNKNOWN",
+                        quantity=qty,
+                        last_price=price,
+                        value=value,
+                        cost_basis=cost_basis_f,
+                        is_cash=bool(p.get("is_cash", False)),
+                    ))
+                    total_value += value
 
                 accounts[acc_num] = Account(
                     account_number=acc_num,
+                    nickname=raw_acc.get("nickname"),
                     balance=total_value,
                     stocks=stocks,
                 )
 
+            print(f"[ACCOUNT] scraped {len(accounts)} account(s), "
+                  f"{sum(len(a.stocks) for a in accounts.values())} position(s) total")
             return accounts
 
         except Exception as e:

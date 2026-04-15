@@ -70,15 +70,21 @@ class Selectors:
     ORDER_ERROR = ".pvd-inline-alert--error"
     ORDER_CONFIRMATION = ".order-confirmation"
 
-    # Positions page (AG Grid based)
+    # Positions page (AG Grid based). The grid splits each row across two
+    # containers: the pinned-left column holds the symbol/ticker, and the
+    # center container holds all numeric data cells. Rows are correlated
+    # across containers by their `row-id` attribute. Do NOT use these
+    # selectors with a Playwright `row.locator(...)` pattern — a data-cell
+    # selector on a pinned row will never match. See get_account_info() in
+    # patchright_client.py for the single-page.evaluate() scrape.
     ACCOUNT_CONTAINER = ".posweb-row-account"
     ACCOUNT_NUMBER = ".posweb-cell-account_secondary"
     POSITION_ROW = ".posweb-row-position"
-    POSITION_TICKER = ".posweb-cell-symbol-name"
+    POSITION_TICKER = ".posweb-cell-symbol-name_container"
     POSITION_QUANTITY = ".posweb-cell-quantity_value"
-    POSITION_PRICE = ".posweb-cell-stack-item-last_price"
+    POSITION_PRICE = ".posweb-cell-last_price"  # was posweb-cell-stack-item-last_price (0 matches)
     POSITION_VALUE = ".posweb-cell-current_value"
-    POSITION_COST_BASIS = ".posweb-cell-cost_basis_value"
+    POSITION_COST_BASIS = ".posweb-cell-cost_basis"  # was posweb-cell-cost_basis_value (1 stray match)
 
     # Account selector (nav)
     ACCOUNT_SELECTOR_CONTAINER = 'nav[data-testid="ap143528-accounts-selector-container"]'

@@ -241,16 +241,24 @@ class TraderService:
 
         accounts = []
         for acc_num, account in account_info.items():
+            # Cash rows are surfaced as regular positions with is_cash=True so
+            # the caller can distinguish them and also compute a cash total.
+            cash_total = sum(
+                (s.value or 0.0) for s in account.stocks if getattr(s, "is_cash", False)
+            )
             accounts.append({
                 "account_number": acc_num,
                 "nickname": getattr(account, 'nickname', None),
                 "balance": account.balance,
+                "cash": cash_total,
                 "positions": [
                     {
                         "ticker": s.ticker,
                         "quantity": s.quantity,
                         "last_price": s.last_price,
                         "value": s.value,
+                        "cost_basis": getattr(s, "cost_basis", None),
+                        "is_cash": getattr(s, "is_cash", False),
                     }
                     for s in account.stocks
                 ],

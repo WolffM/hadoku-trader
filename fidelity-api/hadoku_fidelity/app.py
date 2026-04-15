@@ -64,6 +64,7 @@ class AccountInfo(BaseModel):
     account_number: str
     nickname: Optional[str]
     balance: float
+    cash: float = 0.0
     positions: list[dict]
 
 
@@ -394,6 +395,13 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
                     )
                 except asyncio.TimeoutError:
                     yield b'{"event":"heartbeat"}\n'
+                except Exception:
+                    # Inner task raised non-timeout. The task is now done; let
+                    # the loop exit and the result extractor below surface the
+                    # exception as a result event instead of crashing the
+                    # stream (which previously returned HTTP/2 INTERNAL_ERROR
+                    # and the client only saw one heartbeat).
+                    break
             try:
                 data = task.result()
             except Exception as e:
@@ -439,6 +447,12 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
                     )
                 except asyncio.TimeoutError:
                     yield b'{"event":"heartbeat"}\n'
+                except Exception:
+                    # Inner task raised — break out and let the result
+                    # extractor report it as a result event instead of
+                    # crashing the NDJSON stream (previously returned HTTP/2
+                    # INTERNAL_ERROR with the client only seeing one heartbeat).
+                    break
             try:
                 data = task.result()
             except Exception as e:
