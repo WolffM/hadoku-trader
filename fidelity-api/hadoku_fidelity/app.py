@@ -316,6 +316,52 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
 
         return StreamingResponse(generate(), media_type="application/x-ndjson")
 
+    @app.post("/reset-profile", dependencies=[Depends(verify_api_key)])
+    async def reset_profile():
+        """
+        Delete the browser storage-state file (cookies/localStorage) and close
+        the browser if open. The NEXT request will start completely fresh —
+        no stored session, new Chrome process, full login+2FA required.
+
+        Use this when Chrome is stuck crashing on startup due to a corrupted
+        storage-state file. Does NOT require the browser to be working.
+        """
+        import os
+        import glob
+
+        # Close existing browser without trying to save state
+        if service._initialized and service._client:
+            try:
+                service._client._browser.save_state = False  # don't overwrite on close
+                await service._client.close()
+            except Exception as e:
+                print(f"[RESET] close error (ignored): {e!r}")
+        service._authenticated = False
+        service._initialized = False
+        service._client = None
+
+        # Delete all storage state files in the profile directory
+        profile_dir = service.config.profile_path
+        deleted = []
+        try:
+            pattern = os.path.join(profile_dir, "Fidelity_Patchright*.json")
+            for f in glob.glob(pattern):
+                try:
+                    os.remove(f)
+                    deleted.append(os.path.basename(f))
+                    print(f"[RESET] Deleted {f}")
+                except Exception as e:
+                    print(f"[RESET] Could not delete {f}: {e!r}")
+        except Exception as e:
+            print(f"[RESET] glob error: {e!r}")
+
+        return {
+            "success": True,
+            "message": "Profile cleared. Next request will start fresh with full login+2FA.",
+            "deleted_files": deleted,
+            "profile_dir": str(profile_dir),
+        }
+
     @app.post("/refresh-session", dependencies=[Depends(verify_api_key)])
     async def refresh_session():
         """Force re-authentication. Alias: POST /login."""
