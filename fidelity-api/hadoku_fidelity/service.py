@@ -151,17 +151,18 @@ class TraderService:
         if not self.config.has_credentials:
             return False
 
-        # save_device=True tells Fidelity to "Remember this device" — it
-        # writes a long-lived trust cookie so subsequent logins skip the
-        # 2FA prompt entirely. The first login after a new storage-state
-        # file still needs a TOTP, but from then on re-auth is just
-        # username/password. Combined with the persistent profile_path,
-        # this eliminates the headed 2FA popup on every PM2 restart.
+        # save_device is currently False because the underlying
+        # _check_save_device_box() selector is brittle and caused Fidelity
+        # to show "Sorry, we can't complete this action right now" when the
+        # checkbox couldn't be found. Re-enable after the checkbox selector
+        # is validated against the live 2FA DOM. The persistent profile_path
+        # still gives us cookie-restore across restarts when cookies are
+        # still valid — we just lose the "skip 2FA" benefit until then.
         step1, step2 = await self.client.login(
             username=self.config.username,
             password=self.config.password,
             totp_secret=self.config.totp_secret,
-            save_device=True,
+            save_device=False,
         )
 
         self._authenticated = step1 and step2

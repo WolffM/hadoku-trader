@@ -421,10 +421,29 @@ class FidelityClientPatchright:
         return "unknown"
 
     async def _check_save_device_box(self) -> None:
-        """Check the save device checkbox."""
+        """
+        Check the 'Remember this device' checkbox if it's present.
+
+        This function is a best-effort no-op: if the checkbox isn't on the
+        page, or the selector doesn't match, or the click fails for any
+        reason, we log a warning and return. Previously a missing checkbox
+        caused .check() to hang waiting for the element, leaving Fidelity's
+        login flow in a bad state and surfacing 'Sorry, we can't complete
+        this action right now' on the page. Login completion must never
+        depend on the checkbox working — worst case we just don't get the
+        trust cookie and have to 2FA again next time.
+        """
         page = self._browser.page
-        checkbox = page.locator("label").filter(has_text="Don't ask me again on this")
-        await checkbox.check()
+        try:
+            checkbox = page.locator("label").filter(has_text="Don't ask me again on this")
+            count = await checkbox.count()
+            if count == 0:
+                print("[2FA] save-device checkbox not found — skipping (login will still proceed)")
+                return
+            await checkbox.check(timeout=5000)
+            print("[2FA] save-device checkbox checked")
+        except Exception as e:
+            print(f"[2FA] save-device checkbox interaction failed: {e!r} — continuing login")
 
     # =========================================================================
     # Account Info
