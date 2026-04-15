@@ -33,7 +33,17 @@ class TraderConfig:
         )
     )
     headless: bool = False  # Headed mode by default - headless unreliable with Fidelity
-    profile_path: str = "."
+    # Browser storage state file (Patchright cookies + localStorage) is written
+    # here. Using ~/.hadoku-fidelity/ instead of cwd so the file survives
+    # package reinstalls / deploys, lives outside any git-tracked directory
+    # (it holds session cookies, which are secrets), and is stable across
+    # PM2 restarts even if the cwd moves for any reason.
+    profile_path: str = field(
+        default_factory=lambda: os.environ.get(
+            "FIDELITY_PROFILE_PATH",
+            os.path.expanduser("~/.hadoku-fidelity"),
+        )
+    )
 
     @property
     def has_credentials(self) -> bool:
@@ -77,6 +87,13 @@ class TraderService:
         """Initialize the Patchright client with retry on transient browser failures."""
         if self._initialized:
             return
+
+        # Make sure the storage directory exists before Patchright tries to
+        # read/write the cookies JSON from it.
+        try:
+            os.makedirs(self.config.profile_path, exist_ok=True)
+        except Exception as e:
+            print(f"[INIT] warning: could not create profile_path {self.config.profile_path}: {e}")
 
         last_error: Optional[Exception] = None
         for attempt in range(_INIT_MAX_RETRIES):
@@ -134,11 +151,17 @@ class TraderService:
         if not self.config.has_credentials:
             return False
 
+        # save_device=True tells Fidelity to "Remember this device" — it
+        # writes a long-lived trust cookie so subsequent logins skip the
+        # 2FA prompt entirely. The first login after a new storage-state
+        # file still needs a TOTP, but from then on re-auth is just
+        # username/password. Combined with the persistent profile_path,
+        # this eliminates the headed 2FA popup on every PM2 restart.
         step1, step2 = await self.client.login(
             username=self.config.username,
             password=self.config.password,
             totp_secret=self.config.totp_secret,
-            save_device=False,
+            save_device=True,
         )
 
         self._authenticated = step1 and step2
