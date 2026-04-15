@@ -566,24 +566,25 @@ class FidelityClientPatchright:
             traceback.print_exc()
             return []
 
-    async def get_account_info(self) -> dict[str, Account]:
+    async def get_account_info(
+        self, target_account: Optional[str] = None
+    ) -> dict[str, Account]:
         """
         Get account information from the positions page.
 
-        AG Grid splits each row across two containers:
-        - `.ag-pinned-left-cols-container` holds the symbol/ticker cell
-        - `.ag-center-cols-container` holds all numeric data cells
+        If target_account is provided, navigate to the positions view scoped
+        to that single account (Fidelity accepts ?ACCOUNT=<num> on the
+        positions URL — same URL pattern their own UI uses when you click
+        an account from the left rail). This is both faster and more
+        reliable: the all-accounts view has 5 accounts worth of rows to
+        hydrate and AG Grid often doesn't finish populating on cold start
+        within a reasonable timeout. Scoping to one account means a few
+        dozen rows at most.
 
-        Rows are correlated across containers by their shared `row-id`
-        attribute. The old locator-per-row approach tried to find data
-        cells as descendants of a pinned row, which never matched and
-        hung `.inner_text()` waiting for elements that cannot exist in
-        that subtree.
-
-        The fix is a single `page.evaluate()` that walks the DOM once,
-        groups position rows under their preceding account row, and
-        correlates pinned tickers with center-container data cells by
-        `row-id`. Atomic, fast, and immune to the pinned/center split.
+        AG Grid splits each row across two containers — pinned-left for
+        the ticker, center for all numeric data — and rows are correlated
+        by their shared `row-id` attribute. The scrape is a single
+        `page.evaluate()` that walks the DOM once, immune to the split.
 
         Returns:
             Dict mapping account numbers to Account objects.
@@ -592,10 +593,46 @@ class FidelityClientPatchright:
             await self._verify_page_connection()
 
             page = self._browser.page
-            print("[ACCOUNT] Navigating to positions page...")
-            await page.goto(URLs.POSITIONS, wait_until="domcontentloaded")
-            await self._browser.wait_for_loading()
-            await page.wait_for_timeout(2000)
+            if target_account:
+                url = f"{URLs.POSITIONS}?ACCOUNT={target_account}"
+                print(f"[ACCOUNT] Navigating to positions scoped to {target_account}...")
+            else:
+                url = URLs.POSITIONS
+                print("[ACCOUNT] Navigating to positions page (all accounts)...")
+            await page.goto(url, wait_until="domcontentloaded")
+            # Deliberately NOT calling self._browser.wait_for_loading() here.
+            # That helper iterates 4 Fidelity spinner selectors with a 30s
+            # timeout each (up to 2 minutes of silent blocking) and at least
+            # one of those spinners on the positions page gets stuck in
+            # "visible" state from AG Grid's own loading overlay — even after
+            # the page is fully interactive to a human observer. The row-
+            # attach wait below is a more reliable readiness signal: it
+            # unblocks as soon as actual data is in the DOM.
+            # AG Grid populates rows asynchronously via XHR after DOMContentLoaded.
+            # A fixed 2s wait was fine on a warm browser but too short on cold-start
+            # where network + hydration stack up. Wait for at least one account row
+            # to actually appear in the DOM before running the scrape. 30s timeout
+            # covers both cold and warm cases; ticks quickly on a warm page.
+            try:
+                await page.locator(".posweb-row-account").first.wait_for(
+                    state="attached", timeout=30_000
+                )
+            except Exception as e:
+                # If rows don't appear, dump a diagnostic so we can see WHY
+                # (page URL, title, visible content) instead of returning empty.
+                diag = await page.evaluate(r"""() => ({
+                    url: document.location.href,
+                    title: document.title,
+                    bodyTextLen: (document.body && document.body.innerText || '').length,
+                    agRows: document.querySelectorAll('.ag-row').length,
+                    postebRowAccount: document.querySelectorAll('.posweb-row-account').length,
+                    pinnedContainer: !!document.querySelector('.ag-pinned-left-cols-container'),
+                    centerContainer: !!document.querySelector('.ag-center-cols-container'),
+                })""")
+                raise RuntimeError(
+                    f"positions page never rendered account rows within 30s: "
+                    f"{e!r} | diagnostic={diag}"
+                )
 
             scrape_js = r"""() => {
                 const parseMoney = (s) => {
@@ -692,11 +729,30 @@ class FidelityClientPatchright:
 
             scrape = await page.evaluate(scrape_js)
             if scrape.get("error"):
+                # Propagate the specific scrape error up so the caller sees
+                # what went wrong (previously this was swallowed to an empty
+                # dict and re-surfaced as a generic "browser scrape likely
+                # failed" from the service layer).
                 print(f"[ACCOUNT] scrape error: {scrape['error']}")
-                return {}
+                raise RuntimeError(f"positions scrape JS reported: {scrape['error']}")
+
+            raw_accounts_list = scrape.get("accounts", [])
+            if not raw_accounts_list:
+                # The scrape JS ran, containers existed, but no account rows
+                # were walked. Dump a diagnostic so we can see why.
+                diag = await page.evaluate(r"""() => ({
+                    url: document.location.href,
+                    title: document.title,
+                    postebRowAccount: document.querySelectorAll('.posweb-row-account').length,
+                    postebRowPosition: document.querySelectorAll('.posweb-row-position').length,
+                    agRows: document.querySelectorAll('.ag-row').length,
+                })""")
+                raise RuntimeError(
+                    f"positions scrape found no accounts. diagnostic={diag}"
+                )
 
             accounts: dict[str, Account] = {}
-            for raw_acc in scrape.get("accounts", []):
+            for raw_acc in raw_accounts_list:
                 acc_num = raw_acc.get("account_number")
                 if not acc_num:
                     continue

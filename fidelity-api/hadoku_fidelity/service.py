@@ -292,7 +292,13 @@ class TraderService:
         await self._ensure_page_alive()
 
         async with self._browser_lock:
-            account_info = await self.client.get_account_info()
+            # Scope the positions-page scrape to the trading account. The
+            # all-accounts view has too many rows for AG Grid to hydrate
+            # reliably on cold start, and we only care about this one
+            # account anyway.
+            account_info = await self.client.get_account_info(
+                target_account=self.config.trading_account
+            )
 
         if not account_info:
             raise RuntimeError(
