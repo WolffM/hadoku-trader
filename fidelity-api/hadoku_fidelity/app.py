@@ -209,6 +209,14 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
                     )
                 except asyncio.TimeoutError:
                     yield b'{"event":"heartbeat"}\n'
+                except Exception:
+                    # Task raised something other than a heartbeat timeout.
+                    # Break out and let the result-extraction block below
+                    # surface it as a structured error event instead of
+                    # letting the exception crash the generator — which
+                    # silently closes the NDJSON stream with only a
+                    # heartbeat and no visible failure reason.
+                    break
 
             try:
                 success, message, details = trade_task.result()
@@ -277,6 +285,12 @@ def create_app(config: Optional[TraderConfig] = None) -> FastAPI:
                     )
                 except asyncio.TimeoutError:
                     yield b'{"event":"heartbeat"}\n'
+                except Exception:
+                    # Task raised something other than a heartbeat timeout.
+                    # Break out and let the result-extraction block below
+                    # surface it as a structured error event instead of
+                    # letting the exception crash the generator.
+                    break
 
             try:
                 raw_accounts = accounts_task.result()
