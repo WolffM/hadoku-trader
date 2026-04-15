@@ -21,8 +21,16 @@ class TraderConfig:
     password: str = field(default_factory=lambda: os.environ.get("FIDELITY_PASSWORD", ""))
     totp_secret: str = field(default_factory=lambda: os.environ.get("FIDELITY_TOTP_SECRET", ""))
     api_secret: str = field(default_factory=lambda: os.environ.get("FIDELITY_API_KEY", "dev-secret"))
-    default_account: Optional[str] = field(
-        default_factory=lambda: os.environ.get("FIDELITY_DEFAULT_ACCOUNT")
+    # THE single account the auto-trader is allowed to touch. /accounts is
+    # filtered to this account and /execute-trade rejects any request for a
+    # different one. Set via FIDELITY_TRADING_ACCOUNT (the preferred name),
+    # falling back to FIDELITY_DEFAULT_ACCOUNT for backwards compat with any
+    # remaining shell env pinning the old name.
+    trading_account: Optional[str] = field(
+        default_factory=lambda: (
+            os.environ.get("FIDELITY_TRADING_ACCOUNT")
+            or os.environ.get("FIDELITY_DEFAULT_ACCOUNT")
+        )
     )
     headless: bool = False  # Headed mode by default - headless unreliable with Fidelity
     profile_path: str = "."
@@ -175,9 +183,27 @@ class TraderService:
             if not await self.authenticate():
                 return False, "Not authenticated with Fidelity", None
 
-        target_account = account or self.config.default_account
-        if not target_account:
-            return False, "No account specified", None
+        # Lock the trader to the one account we're allowed to touch.
+        # If the caller didn't specify, we use the configured trading_account.
+        # If the caller specified something DIFFERENT, refuse — nothing should
+        # be dispatching trades against any other account on this Fidelity
+        # login (Individual, 401K, HSA, etc).
+        if not self.config.trading_account:
+            return (
+                False,
+                "No trading_account configured — set FIDELITY_TRADING_ACCOUNT",
+                None,
+            )
+        target_account = account or self.config.trading_account
+        if target_account != self.config.trading_account:
+            return (
+                False,
+                (
+                    f"Refusing to trade on account {target_account} — "
+                    f"this service is locked to {self.config.trading_account}"
+                ),
+                {"alert": "ACCOUNT_MISMATCH"},
+            )
 
         # Health gate: if the page died in a prior op, refresh before queueing.
         await self._ensure_page_alive()
@@ -217,16 +243,29 @@ class TraderService:
 
     async def get_accounts(self) -> list[dict]:
         """
-        Get all accounts and their positions.
+        Return the configured trading account with its positions and cash.
 
-        Raises RuntimeError on failure so callers can distinguish a genuinely
-        empty account list from a broken browser/auth state. Previously this
-        silently returned [] on any exception, which hid every failure behind
-        a 200 OK empty response and made verification impossible.
+        Although the underlying scrape walks every account on the Fidelity
+        login (Individual, TOD, 401K, HSA, etc.), this method filters the
+        result down to just `trading_account` — the one account we're
+        allowed to touch. Returning every account would be both noisy and
+        a safety hazard (a caller could end up asking for trades on the
+        wrong one).
+
+        Raises:
+          RuntimeError on auth failure, scrape failure, missing
+          trading_account config, or if the configured trading account
+          isn't present in the scrape result (indicates either a typo in
+          config or a Fidelity UI change).
         """
         if not self._authenticated:
             if not await self.authenticate():
                 raise RuntimeError("Fidelity authentication failed")
+
+        if not self.config.trading_account:
+            raise RuntimeError(
+                "No trading_account configured — set FIDELITY_TRADING_ACCOUNT"
+            )
 
         # Health gate: refresh if the page died since last op.
         await self._ensure_page_alive()
@@ -238,6 +277,19 @@ class TraderService:
             raise RuntimeError(
                 "get_account_info returned empty — browser scrape likely failed"
             )
+
+        if self.config.trading_account not in account_info:
+            scraped = list(account_info.keys())
+            raise RuntimeError(
+                f"Trading account {self.config.trading_account} not found in "
+                f"scrape — got {scraped}. Either the config is wrong or the "
+                f"Fidelity positions page is hiding the account."
+            )
+
+        # Filter to the single allowed account.
+        account_info = {
+            self.config.trading_account: account_info[self.config.trading_account]
+        }
 
         accounts = []
         for acc_num, account in account_info.items():
