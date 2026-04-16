@@ -447,26 +447,22 @@ class FidelityClientPatchright:
 
     async def _check_save_device_box(self) -> None:
         """
-        Check the 'Remember this device' checkbox if it's present.
+        Check the 'Don't ask me again on this device' checkbox if present.
 
-        This function is a best-effort no-op: if the checkbox isn't on the
-        page, or the selector doesn't match, or the click fails for any
-        reason, we log a warning and return. Previously a missing checkbox
-        caused .check() to hang waiting for the element, leaving Fidelity's
-        login flow in a bad state and surfacing 'Sorry, we can't complete
-        this action right now' on the page. Login completion must never
-        depend on the checkbox working — worst case we just don't get the
-        trust cookie and have to 2FA again next time.
+        The real input has id=dom-trust-device-checkbox but is visually
+        hidden by Fidelity's pvd-checkbox CSS, so Playwright's default
+        actionability checks reject it. We click the label instead, which
+        is the visible element users actually click. Best-effort no-op if
+        the element isn't on the page.
         """
         page = self._browser.page
         try:
-            checkbox = page.locator("label").filter(has_text="Don't ask me again on this")
-            count = await checkbox.count()
-            if count == 0:
-                print("[2FA] save-device checkbox not found — skipping (login will still proceed)")
+            label = page.locator('label[for="dom-trust-device-checkbox"]')
+            if await label.count() == 0:
+                print("[2FA] save-device label not found — skipping (login will still proceed)")
                 return
-            await checkbox.check(timeout=5000)
-            print("[2FA] save-device checkbox checked")
+            await label.first.click(timeout=5000)
+            print("[2FA] save-device checkbox checked via label click")
         except Exception as e:
             print(f"[2FA] save-device checkbox interaction failed: {e!r} — continuing login")
 
