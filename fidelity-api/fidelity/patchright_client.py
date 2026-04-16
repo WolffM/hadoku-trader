@@ -883,20 +883,17 @@ class FidelityClientPatchright:
             action_text = "Buy" if action.lower() == "buy" else "Sell"
             await human_click(page, page.get_by_text(action_text, exact=True))
 
-            # Enter quantity.
-            # Fractional quantities used to be silently truncated with
-            # str(int(quantity)), e.g. 2.617 -> "2", which left the worker
-            # thinking it had bought 2.617 shares for $118.73 while Fidelity
-            # had only executed 2 shares. Fractional is currently unsupported
-            # in this form path, so reject non-integer input loudly instead of
-            # quietly rounding.
-            if float(quantity) != int(quantity):
-                raise ValueError(
-                    f"Fractional quantity {quantity} not supported on market "
-                    f"orders via this form path — caller must send whole shares"
-                )
+            # Enter quantity. Fidelity's equity order form accepts fractional
+            # share quantities directly in the #eqt-shared-quantity input
+            # (verified via DOM probe: 0.5 and 2.5 stick after input+blur).
+            # Earlier str(int(quantity)) silently truncated decimals, leaving
+            # the worker thinking it bought 2.617 shares while Fidelity only
+            # executed 2. Format with up to 4 decimals and strip trailing
+            # zeros so whole-share orders send "2" (not "2.0000") and
+            # fractional orders keep their precision.
+            qty_str = f"{float(quantity):.4f}".rstrip("0").rstrip(".")
             qty_input = page.locator(Selectors.QUANTITY_INPUT)
-            await human_fill(page, qty_input, str(int(quantity)))
+            await human_fill(page, qty_input, qty_str)
 
             # Always use market order
             order_type_dropdown = page.locator(Selectors.ORDER_TYPE_DROPDOWN)

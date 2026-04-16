@@ -46,11 +46,13 @@ export const ENABLE_TRADING = true
  * - true: Buy partial shares (e.g., 2.5 shares)
  * - false: Round down to whole shares only
  *
- * Disabled because Fidelity's Patchright-driven market-order form silently
- * truncates fractional quantities to whole shares, leaving D1 out of sync
- * with the actual order (e.g. D1: 2.617 shares / $118.73, real order: 2 shares).
+ * Fidelity's equity order form accepts decimal quantities directly in the
+ * #eqt-shared-quantity input (verified via DOM probe: 0.5 and 2.5 stick
+ * after input+blur, no validation wipe). Prior silent truncation was an
+ * artifact of our Python-side str(int(quantity)) cast, now fixed to
+ * format as decimal with trailing zeros stripped.
  */
-export const ENABLE_FRACTIONAL_SHARES = false
+export const ENABLE_FRACTIONAL_SHARES = true
 
 /**
  * Minimum position age before selling (in days)

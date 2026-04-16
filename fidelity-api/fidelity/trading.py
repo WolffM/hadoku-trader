@@ -346,7 +346,7 @@ class FidelityTrading:
             qty_input = page.get_by_label("Quantity")
 
         qty_input.click(force=True)
-        qty_input.fill(str(int(quantity)))
+        qty_input.fill(f"{float(quantity):.4f}".rstrip("0").rstrip("."))
 
     def _set_order_type(
         self,

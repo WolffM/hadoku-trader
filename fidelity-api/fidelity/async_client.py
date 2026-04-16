@@ -429,9 +429,10 @@ class FidelityClientAsync:
             action_text = "Buy" if action.lower() == "buy" else "Sell"
             await human_click(page, page.get_by_text(action_text, exact=True))
 
-            # Enter quantity
+            # Enter quantity (accepts fractional — strip trailing zeros)
             qty_input = page.locator(Selectors.QUANTITY_INPUT)
-            await human_fill(page, qty_input, str(int(quantity)))
+            qty_str = f"{float(quantity):.4f}".rstrip("0").rstrip(".")
+            await human_fill(page, qty_input, qty_str)
 
             # Set order type if limit
             if limit_price:
