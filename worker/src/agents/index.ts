@@ -98,8 +98,7 @@ export {
 // =============================================================================
 
 export {
-  // Master switches
-  DRY_RUN,
+  // Master switch
   ENABLE_TRADING,
   // Execution settings
   ENABLE_FRACTIONAL_SHARES,
@@ -115,7 +114,6 @@ export {
   LOG_API_CALLS,
   // Helpers
   isDryRun,
-  isLiveTradingEnabled,
   getTradingConfigSummary
 } from './tradingConfig'
 

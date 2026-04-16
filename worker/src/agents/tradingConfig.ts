@@ -10,27 +10,6 @@
 // =============================================================================
 
 /**
- * DRY RUN MODE
- * - true: All trades are simulated, no real orders placed
- * - false: Live trading enabled, real orders will execute
- *
- * Can be overridden via environment variable ENABLE_LIVE_TRADING=true
- * ⚠️ Default is TRUE for safety - must explicitly enable live trading
- */
-export const DRY_RUN = true
-
-/**
- * Check if live trading is enabled via environment.
- * This allows runtime control without rebuilding the package.
- */
-export function isLiveTradingEnabled(env?: { ENABLE_LIVE_TRADING?: string }): boolean {
-  if (env?.ENABLE_LIVE_TRADING === 'true') {
-    return true
-  }
-  return false
-}
-
-/**
  * ENABLE TRADING
  * Master kill switch. When false, no trades will be attempted at all.
  * Signals will still be processed and scored, but execution is blocked.
@@ -113,26 +92,25 @@ export const LOG_API_CALLS = false
 // =============================================================================
 
 /**
- * Get effective dry_run setting
- * Returns true if either DRY_RUN is enabled or trading is disabled.
- * Can be overridden by passing env with ENABLE_LIVE_TRADING=true
+ * Is this invocation a dry run?
+ * Live trading requires ENABLE_LIVE_TRADING=true in the env AND the
+ * ENABLE_TRADING kill switch on. Anything else is a dry run — the trade
+ * gets previewed but no real order is submitted to Fidelity.
  */
 export function isDryRun(env?: { ENABLE_LIVE_TRADING?: string }): boolean {
-  // If live trading is explicitly enabled in env, not a dry run
-  if (isLiveTradingEnabled(env)) {
-    return false
-  }
-  return DRY_RUN || !ENABLE_TRADING
+  if (!ENABLE_TRADING) return true
+  return env?.ENABLE_LIVE_TRADING !== 'true'
 }
 
 /**
  * Get trading config summary for logging
  */
-export function getTradingConfigSummary(): Record<string, unknown> {
+export function getTradingConfigSummary(env?: {
+  ENABLE_LIVE_TRADING?: string
+}): Record<string, unknown> {
   return {
-    dry_run: DRY_RUN,
     enable_trading: ENABLE_TRADING,
-    effective_dry_run: isDryRun(),
+    dry_run: isDryRun(env),
     fractional_shares: ENABLE_FRACTIONAL_SHARES,
     min_position_age_days: MIN_POSITION_AGE_DAYS,
     process_immediately: PROCESS_SIGNALS_IMMEDIATELY,

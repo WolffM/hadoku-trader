@@ -26,7 +26,7 @@ export interface TraderEnv {
   SCRAPER_URL: string // hadoku-scraper API URL for market data
   ADMIN_KEYS?: string // JSON array of admin keys for edge-router auth
   FIDELITY_API_KEY?: string // API key for fidelity-api service auth
-  ENABLE_LIVE_TRADING?: string // 'true' to bypass DRY_RUN and submit real orders
+  ENABLE_LIVE_TRADING?: string // 'true' submits real orders; anything else is a dry run
 }
 
 /**

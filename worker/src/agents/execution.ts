@@ -65,7 +65,7 @@ export async function executeTrade(
   console.log(`[EXECUTION]   Ticker: ${signal.ticker}, Action: ${signal.action}`)
   console.log(`[EXECUTION]   Position Size: $${positionSize.toFixed(2)}`)
   console.log(`[EXECUTION]   Current Price: $${signal.current_price.toFixed(2)}`)
-  console.log(`[EXECUTION]   DRY_RUN: ${isDryRun(env)}`)
+  console.log(`[EXECUTION]   dry_run: ${isDryRun(env)}`)
 
   // Calculate shares from position size and current price (fractional shares enabled)
   const shares = calculateShares(positionSize, signal.current_price, ENABLE_FRACTIONAL_SHARES)
