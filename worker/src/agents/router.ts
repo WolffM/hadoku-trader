@@ -492,16 +492,49 @@ export async function getUnprocessedSignals(env: TraderEnv): Promise<RawSignalRo
 }
 
 /**
- * Mark a signal as processed.
+ * Mark a signal as processed, recording the rollup decision and — if all
+ * agents skipped — a joined per-agent reason string for retrospective
+ * analysis. `execution_decision` is `'execute'` when any agent executed,
+ * `'skip'` when all skipped or no agents ran, or `null` when the caller
+ * has no decision data (preserves prior behavior for non-agent callers).
  */
-export async function markSignalProcessed(env: TraderEnv, signalId: string): Promise<void> {
+export async function markSignalProcessed(
+  env: TraderEnv,
+  signalId: string,
+  executionDecision: 'execute' | 'skip' | null = null,
+  skipReason: string | null = null
+): Promise<void> {
   await env.TRADER_DB.prepare(
     `
-    UPDATE signals SET processed_at = ? WHERE id = ?
+    UPDATE signals SET processed_at = ?, execution_decision = ?, skip_reason = ? WHERE id = ?
   `
   )
-    .bind(new Date().toISOString(), signalId)
+    .bind(new Date().toISOString(), executionDecision, skipReason, signalId)
     .run()
+}
+
+/**
+ * Roll up per-agent decisions to a signal-level execution_decision + skip_reason.
+ * - If any agent executed: ('execute', null)
+ * - If all agents skipped: ('skip', "<agent>:<reason>;...")
+ * - If no agents ran: ('skip', 'no_active_agents')
+ */
+export function summarizeDecisions(decisions: AgentDecision[]): {
+  executionDecision: 'execute' | 'skip'
+  skipReason: string | null
+} {
+  if (decisions.length === 0) {
+    return { executionDecision: 'skip', skipReason: 'no_active_agents' }
+  }
+  const anyExecuted = decisions.some(d => d.action === 'execute' || d.action === 'execute_half')
+  if (anyExecuted) {
+    return { executionDecision: 'execute', skipReason: null }
+  }
+  const joined = decisions
+    .map(d => `${d.agent_id}:${d.decision_reason}`)
+    .join(';')
+    .slice(0, 500)
+  return { executionDecision: 'skip', skipReason: joined }
 }
 
 /**
@@ -550,12 +583,13 @@ export async function processAllPendingSignals(env: TraderEnv): Promise<{
 
     if (currentPrice === 0) {
       console.warn(`[PROCESS] No price available for ${signal.ticker}, skipping signal`)
-      await markSignalProcessed(env, signal.id)
+      await markSignalProcessed(env, signal.id, 'skip', 'no_current_price')
       continue
     }
 
     const decisions = await routeSignalToAgents(env, signal, currentPrice)
-    await markSignalProcessed(env, signal.id)
+    const { executionDecision, skipReason } = summarizeDecisions(decisions)
+    await markSignalProcessed(env, signal.id, executionDecision, skipReason)
 
     results.push({
       signal_id: signal.id,

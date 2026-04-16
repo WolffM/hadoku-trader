@@ -203,6 +203,7 @@ export {
   // Signal processing
   getUnprocessedSignals,
   markSignalProcessed,
+  summarizeDecisions,
   getCurrentPrice,
   processAllPendingSignals,
   // Pure analysis function (Phase 5)
