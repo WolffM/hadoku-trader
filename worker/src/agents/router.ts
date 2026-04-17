@@ -244,8 +244,8 @@ async function executeDecision(
   // Get current budget
   const budget = await getAgentBudget(env, agent.id)
 
-  // Calculate position size
-  const positionSize = calculatePositionSize(
+  // Calculate position size + capture the sizing reasoning for audit
+  const { size: positionSize, reasoning: sizingReasoning } = calculatePositionSize(
     agent,
     decision.score,
     budget,
@@ -254,17 +254,30 @@ async function executeDecision(
     signal.position_size_min // Congressional position size for smart_budget mode
   )
 
+  // Always persist the sizing reasoning so retrospectives can see how this
+  // trade's final dollar amount was chosen — including when it was clamped
+  // by budget_remaining or zeroed by below_min_threshold.
+  const reasoningJson = JSON.stringify(sizingReasoning)
+  console.log(`[ROUTER]   Sizing reasoning: ${reasoningJson}`)
+
   // Check if position size is valid
   if (positionSize === 0) {
-    // Update trade record to reflect skip due to size being zero
+    // Update trade record to reflect skip due to size being zero.
+    // Preserve the sizing reasoning so we can see exactly why (budget
+    // exhausted vs below-min-threshold vs no-op formula).
     await env.TRADER_DB.prepare(
-      `UPDATE trades SET decision = 'skip_size_zero', status = 'skipped' WHERE id = ?`
+      `UPDATE trades SET decision = 'skip_size_zero', status = 'skipped', reasoning_json = ? WHERE id = ?`
     )
-      .bind(tradeId)
+      .bind(reasoningJson, tradeId)
       .run()
 
     return { positionSize: 0, success: false }
   }
+
+  // Persist reasoning on the pending row before execution
+  await env.TRADER_DB.prepare(`UPDATE trades SET reasoning_json = ? WHERE id = ?`)
+    .bind(reasoningJson, tradeId)
+    .run()
 
   // Execute the trade
   const result = await executeTrade(env, agent, signal, decision, positionSize, tradeId)
@@ -638,7 +651,7 @@ export async function analyzeSignals(
 
       if (decision.action === 'execute' || decision.action === 'execute_half') {
         const budget = await getAgentBudget(env, agent.id)
-        positionSize = calculatePositionSize(
+        const result = calculatePositionSize(
           agent,
           decision.score ?? 0,
           budget,
@@ -646,6 +659,7 @@ export async function analyzeSignals(
           decision.action === 'execute_half',
           signal.position_size_min // Congressional position size for smart_budget mode
         )
+        positionSize = result.size
         quantity = calculateShares(positionSize, signal.current_price, true) // Fractional shares
       }
 

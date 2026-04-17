@@ -216,7 +216,8 @@ export {
   // Position sizing calculation
   calculatePositionSize,
   calculateShares,
-  validatePositionSize
+  validatePositionSize,
+  type SizingReasoning
 } from './sizing'
 
 // =============================================================================

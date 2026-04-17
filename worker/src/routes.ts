@@ -973,7 +973,7 @@ function calculateSimPositionSize(
     false, // isHalfSize
     undefined, // congressionalPositionSize
     undefined // availableCapital (use monthly_budget)
-  )
+  ).size
 }
 
 function runAgentSimulation(

@@ -16,6 +16,34 @@ import { roundTo } from './filters'
 // =============================================================================
 
 /**
+ * Per-trade sizing telemetry. Captures what the sizing formula computed
+ * and which constraint (if any) clamped it. Written to trades.reasoning_json
+ * so retrospective audits can see WHY a decision ended up at its final
+ * dollar amount — especially when budget.remaining caps a $140 target to
+ * a $31 real-cash allocation.
+ */
+export interface SizingReasoning {
+  mode: 'score_squared' | 'score_linear' | 'equal_split' | 'smart_budget'
+  score: number | null
+  budget_basis: number // monthly_budget or availableCapital
+  budget_remaining_at_eval: number // what budget.remaining was when this ran
+  raw_size: number // formula output before any caps or half-size
+  half_size_applied: boolean
+  caps: {
+    max_position_amount: number // absolute $ cap from config
+    max_position_pct_limit: number // budgetBasis × max_position_pct
+    budget_remaining: number // = budget.remaining (what truly gates us)
+  }
+  final_size: number // what we'll actually size the order at
+  bound_by:
+    | 'none' // raw formula output fit under every cap
+    | 'max_position_amount' // clamped by agent.sizing.max_position_amount
+    | 'max_position_pct' // clamped by max_position_pct × budget_basis
+    | 'budget_remaining' // clamped by how much cash is left
+    | 'below_min_threshold' // result < min_position_amount so zeroed out
+}
+
+/**
  * Calculate the position size (dollar amount) for a trade.
  *
  * @param agent - Agent configuration with sizing rules
@@ -27,7 +55,8 @@ import { roundTo } from './filters'
  * @param availableCapital - Optional: use this as the budget basis instead of monthly_budget.
  *                           For portfolio simulation with compounding returns, pass the total
  *                           available cash so position sizes scale with portfolio growth.
- * @returns Position size in dollars, or 0 if below minimum threshold
+ * @returns { size, reasoning } — size in dollars (0 if below min threshold),
+ *          reasoning captures the full sizing story including which cap bit.
  */
 export function calculatePositionSize(
   agent: AgentConfig,
@@ -37,12 +66,12 @@ export function calculatePositionSize(
   isHalfSize = false,
   congressionalPositionSize?: number,
   availableCapital?: number
-): number {
+): { size: number; reasoning: SizingReasoning } {
   const sizing = agent.sizing
-  let size: number
 
   // Use availableCapital for compounding, otherwise use fixed monthly_budget
   const budgetBasis = availableCapital ?? agent.monthly_budget
+  let size: number
 
   switch (sizing.mode) {
     case 'score_squared':
@@ -86,31 +115,62 @@ export function calculatePositionSize(
       throw new Error(`Unknown sizing mode: ${String(sizing.mode)}`)
   }
 
+  const rawSize = size
+
   // Apply half-size multiplier for execute_half decisions
   if (isHalfSize) {
     size = size * 0.5
   }
+  const sizeAfterHalf = size
 
   // Apply constraints in order of priority
   // 1. Max position amount (absolute cap) - scales with budget ratio for compounding
   const maxAmount = availableCapital
     ? sizing.max_position_amount * (availableCapital / agent.monthly_budget)
     : sizing.max_position_amount
-  size = Math.min(size, maxAmount)
+  const maxPctLimit = budgetBasis * sizing.max_position_pct
 
-  // 2. Max position percentage (relative to budget basis)
-  size = Math.min(size, budgetBasis * sizing.max_position_pct)
+  const sizeAfterMaxAmount = Math.min(size, maxAmount)
+  const sizeAfterMaxPct = Math.min(sizeAfterMaxAmount, maxPctLimit)
+  const sizeAfterBudget = Math.min(sizeAfterMaxPct, budget.remaining)
 
-  // 3. Budget remaining (can't spend more than available)
-  size = Math.min(size, budget.remaining)
-
-  // Check minimum threshold - return 0 if below minimum
-  if (size < sizing.min_position_amount) {
-    return 0
+  // Determine which constraint bit, if any
+  let bound_by: SizingReasoning['bound_by'] = 'none'
+  if (sizeAfterBudget < sizeAfterMaxPct) {
+    bound_by = 'budget_remaining'
+  } else if (sizeAfterMaxPct < sizeAfterMaxAmount) {
+    bound_by = 'max_position_pct'
+  } else if (sizeAfterMaxAmount < sizeAfterHalf) {
+    bound_by = 'max_position_amount'
   }
 
-  // Round to cents
-  return roundTo(size, 2)
+  size = sizeAfterBudget
+
+  // Check minimum threshold - zero out if below minimum
+  if (size < sizing.min_position_amount) {
+    bound_by = 'below_min_threshold'
+    size = 0
+  } else {
+    size = roundTo(size, 2)
+  }
+
+  const reasoning: SizingReasoning = {
+    mode: sizing.mode,
+    score,
+    budget_basis: budgetBasis,
+    budget_remaining_at_eval: budget.remaining,
+    raw_size: roundTo(rawSize, 2),
+    half_size_applied: isHalfSize,
+    caps: {
+      max_position_amount: maxAmount,
+      max_position_pct_limit: maxPctLimit,
+      budget_remaining: budget.remaining
+    },
+    final_size: size,
+    bound_by
+  }
+
+  return { size, reasoning }
 }
 
 /**

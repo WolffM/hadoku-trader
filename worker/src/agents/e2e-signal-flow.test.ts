@@ -451,13 +451,13 @@ describe('End-to-End Signal Flow', () => {
         1,
         false,
         100001 // Congressional position size
-      )
+      ).size
 
       // score_linear: base_amount × score = 200 × 0.8 = 160
       expect(sizeChatGPT).toBeCloseTo(160, 0)
 
       // Test score_linear mode (Claude)
-      const sizeClaude = calculatePositionSize(CLAUDE_CONFIG, 0.8, budget, 1, false, 100001)
+      const sizeClaude = calculatePositionSize(CLAUDE_CONFIG, 0.8, budget, 1, false, 100001).size
 
       // score_linear: base_amount × score = 15 × 0.8 = 12
       expect(sizeClaude).toBeCloseTo(12, 0)
@@ -478,7 +478,7 @@ describe('End-to-End Signal Flow', () => {
         1,
         false, // Full size
         100001
-      )
+      ).size
 
       const halfSize = calculatePositionSize(
         CHATGPT_CONFIG,
@@ -487,7 +487,7 @@ describe('End-to-End Signal Flow', () => {
         1,
         true, // Half size
         100001
-      )
+      ).size
 
       expect(halfSize).toBeCloseTo(fullSize / 2, 0)
 
@@ -495,19 +495,49 @@ describe('End-to-End Signal Flow', () => {
     })
 
     it('should respect max_position_amount cap', () => {
-      const budget = { total: 10000, spent: 0, remaining: 10000 } // Large budget
+      // Custom config with a low max_position_amount and a formula that
+      // raw-sizes above it (base_amount × score = 5000 × 1.0 = $5000 raw,
+      // clamped to max_position_amount = $100).
+      const highBaseCfg: typeof CHATGPT_CONFIG = {
+        ...CHATGPT_CONFIG,
+        sizing: {
+          ...CHATGPT_CONFIG.sizing,
+          base_amount: 5000,
+          max_position_amount: 100
+        }
+      }
+      const budget = { total: 10000, spent: 0, remaining: 10000 }
+      const { size, reasoning } = calculatePositionSize(highBaseCfg, 1.0, budget, 1, false)
+      expect(size).toBe(100)
+      expect(reasoning.bound_by).toBe('max_position_amount')
+    })
 
-      const size = calculatePositionSize(
-        CHATGPT_CONFIG, // max_position_amount = 1000
-        1.0, // Perfect score
+    it('should clamp to budget.remaining and mark bound_by accordingly', () => {
+      // Simulates production state: $1000 monthly, $968 spent, $32 left
+      const budget = { total: 1000, spent: 968, remaining: 32 }
+      const { size, reasoning } = calculatePositionSize(
+        CHATGPT_CONFIG,
+        0.7, // would raw-size at 200 × 0.7 = 140
         budget,
         1,
-        false,
-        100001
+        false
       )
+      expect(reasoning.raw_size).toBeCloseTo(140, 0)
+      expect(size).toBeCloseTo(32, 0)
+      expect(reasoning.bound_by).toBe('budget_remaining')
+      expect(reasoning.final_size).toBeCloseTo(32, 0)
+    })
 
-      // Should be capped at max_position_amount
-      expect(size).toBeLessThanOrEqual(CHATGPT_CONFIG.sizing.max_position_amount)
+    it('should return below_min_threshold when budget is too small to clear min', () => {
+      // Hypothetical agent config with min_position_amount > remaining
+      const pickyConfig: typeof CHATGPT_CONFIG = {
+        ...CHATGPT_CONFIG,
+        sizing: { ...CHATGPT_CONFIG.sizing, min_position_amount: 50 }
+      }
+      const budget = { total: 1000, spent: 970, remaining: 30 }
+      const { size, reasoning } = calculatePositionSize(pickyConfig, 0.7, budget, 1, false)
+      expect(size).toBe(0)
+      expect(reasoning.bound_by).toBe('below_min_threshold')
     })
   })
 
