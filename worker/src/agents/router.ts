@@ -241,6 +241,37 @@ async function executeDecision(
   decision: AgentDecision,
   tradeId: string
 ): Promise<{ positionSize: number; success: boolean }> {
+  // Idempotency guard: if another non-failed trade row already exists for
+  // this (agent, signal) pair, short-circuit before re-hitting Fidelity.
+  // Prevents the double-submit pattern where a CF edge 120s timeout kills
+  // the HTTP connection mid-Fidelity-call, the signal stays processed_at
+  // IS NULL, a later batch re-routes it, and we place the same order
+  // twice (today's HOG — filled 6 sh + queued 6.432 sh for the same
+  // Tim Moore signal).
+  const existing = await env.TRADER_DB.prepare(
+    `SELECT id, status FROM trades
+     WHERE agent_id = ? AND signal_id = ? AND id != ?
+       AND status IN ('executed', 'pending')
+     LIMIT 1`
+  )
+    .bind(agent.id, signal.id, tradeId)
+    .first()
+
+  if (existing) {
+    const duplicate = existing as { id: string; status: string }
+    console.warn(
+      `[ROUTER]   Duplicate guard: trade ${duplicate.id} (${duplicate.status}) already exists ` +
+        `for agent=${agent.id} signal=${signal.id}; skipping re-submit of ${tradeId}`
+    )
+    await env.TRADER_DB.prepare(
+      `UPDATE trades SET decision = 'skip_duplicate', status = 'skipped',
+          error_message = ? WHERE id = ?`
+    )
+      .bind(`Duplicate of ${duplicate.id} (${duplicate.status})`, tradeId)
+      .run()
+    return { positionSize: 0, success: false }
+  }
+
   // Get current budget
   const budget = await getAgentBudget(env, agent.id)
 
