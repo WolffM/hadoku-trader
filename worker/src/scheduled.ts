@@ -78,6 +78,17 @@ export function createScheduledHandler(env: TraderEnv): (cron: string) => Promis
     // Note: Cloudflare cron uses UTC, adjust times accordingly
     if (cron === '*/15 14-21 * * 1-5') {
       try {
+        // Refresh prices for all open-position tickers first so
+        // monitorPositions sees intraday data, not yesterday's close.
+        // The daily syncMarketPrices at 22 UTC has a 2-day stale threshold,
+        // which is too coarse for 15-min stop-loss / take-profit checks.
+        const refreshResult = await refreshOpenPositionPrices(env)
+        if (refreshResult.errors > 0) {
+          console.warn(
+            `Position-ticker price refresh: ${refreshResult.inserted} inserted, ${refreshResult.errors} errors`
+          )
+        }
+
         console.log('Monitoring positions for exit conditions...')
         const result = await monitorPositions(env)
         console.log(
@@ -836,6 +847,37 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
   } catch (error) {
     console.error('Error syncing market prices:', error)
   }
+}
+
+/**
+ * Focused refresh for mark-to-market: fetch today's prices for every
+ * open-position ticker, regardless of staleness threshold.
+ *
+ * syncMarketPrices skips tickers that are <2 days stale, which is too
+ * coarse for the 15-min monitor cron. This runs before monitorPositions
+ * so stop-loss / take-profit / total_return_pct all see intraday data.
+ */
+export async function refreshOpenPositionPrices(
+  env: TraderEnv
+): Promise<{ inserted: number; errors: number; tickerCount: number }> {
+  const tickersResult = await env.TRADER_DB.prepare(
+    `SELECT DISTINCT ticker FROM positions WHERE status = 'open' ORDER BY ticker`
+  ).all()
+  const tickers = tickersResult.results.map(r => r.ticker as string)
+
+  if (tickers.length === 0) {
+    return { inserted: 0, errors: 0, tickerCount: 0 }
+  }
+
+  const endDate = new Date().toISOString().split('T')[0]
+  const startDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+
+  const result = await fetchMarketPricesWithRetry(env, tickers, startDate, endDate)
+  if (!result) {
+    return { inserted: 0, errors: tickers.length, tickerCount: tickers.length }
+  }
+  const insertResult = await insertMarketPrices(env, result.data.records)
+  return { ...insertResult, tickerCount: tickers.length }
 }
 
 /**

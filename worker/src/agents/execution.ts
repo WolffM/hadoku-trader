@@ -101,6 +101,15 @@ export async function executeTrade(
   const actualTotal = shares * signal.current_price
   console.log(`[EXECUTION]   Actual Total: $${actualTotal.toFixed(2)}`)
 
+  // Reserve budget BEFORE submitting so a pending/queued order still counts
+  // against remaining cash. Without this reservation, a signal submitted
+  // but not yet filled (e.g. after-hours market order queued by Fidelity)
+  // is invisible to subsequent sizing calls — the next signal reads the
+  // old remaining and oversubmits against cash Fidelity has already set
+  // aside for our pending order. Refund on failure / exception below.
+  await updateAgentBudget(env, agent.id, actualTotal)
+  let budgetReserved = true
+
   try {
     // Call Fidelity API
     const defaultAccount = await getDefaultAccount(env)
@@ -121,7 +130,10 @@ export async function executeTrade(
     console.log(`[EXECUTION]   Fidelity API Response: ${JSON.stringify(apiResponse)}`)
 
     if (!apiResponse.success) {
-      // API call failed
+      // API call failed — refund the reservation
+      await updateAgentBudget(env, agent.id, -actualTotal)
+      budgetReserved = false
+
       await updateTradeExecution(env, tradeId, {
         quantity: shares,
         price: signal.current_price,
@@ -144,6 +156,7 @@ export async function executeTrade(
     }
 
     // API call succeeded - create position and update trade
+    // (budget stays reserved at actualTotal)
     const positionId = await createPosition(
       env,
       agent.id,
@@ -162,9 +175,6 @@ export async function executeTrade(
       executed_at: now
     })
 
-    // Update agent budget
-    await updateAgentBudget(env, agent.id, actualTotal)
-
     return {
       success: true,
       trade_id: tradeId,
@@ -177,6 +187,11 @@ export async function executeTrade(
     }
   } catch (error) {
     const errorMessage = error instanceof Error ? error.message : 'Unknown error'
+
+    // Refund the reservation so an exception doesn't permanently drain budget
+    if (budgetReserved) {
+      await updateAgentBudget(env, agent.id, -actualTotal)
+    }
 
     await updateTradeExecution(env, tradeId, {
       quantity: shares,

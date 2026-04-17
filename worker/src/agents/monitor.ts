@@ -40,6 +40,12 @@ export async function monitorPositions(env: TraderEnv): Promise<MonitorResult> {
           continue
         }
 
+        // Mark-to-market: always persist the latest price on the position
+        // row so /agents total_return_pct and any downstream consumer see
+        // a non-null current_price.
+        await updatePositionCurrentPrice(env, position.id, currentPrice)
+        position.current_price = currentPrice
+
         // Update highest price if new high
         if (currentPrice > position.highest_price) {
           await updateHighestPrice(env, position.id, currentPrice)
@@ -307,6 +313,20 @@ async function getCurrentPriceForTicker(env: TraderEnv, ticker: string): Promise
     .first()
 
   return (row?.close as number) ?? null
+}
+
+/**
+ * Mark-to-market: write the latest price onto an open position so
+ * /agents total_return_pct and similar reads don't see NULL.
+ */
+export async function updatePositionCurrentPrice(
+  env: TraderEnv,
+  positionId: string,
+  currentPrice: number
+): Promise<void> {
+  await env.TRADER_DB.prepare(`UPDATE positions SET current_price = ? WHERE id = ?`)
+    .bind(currentPrice, positionId)
+    .run()
 }
 
 /**

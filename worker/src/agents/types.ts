@@ -474,6 +474,7 @@ export interface PositionRow {
   entry_price: number
   entry_date: string
   cost_basis: number
+  current_price: number | null // Mark-to-market value; written by monitorPositions on its 15-min cron
   highest_price: number // For trailing stops
   asset_type: AssetType
   status: 'open' | 'closed'

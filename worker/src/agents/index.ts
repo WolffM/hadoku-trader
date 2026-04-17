@@ -243,7 +243,8 @@ export {
   monitorPositions,
   checkExitConditions,
   closePosition,
-  updateHighestPrice
+  updateHighestPrice,
+  updatePositionCurrentPrice
 } from './monitor'
 
 // =============================================================================

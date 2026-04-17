@@ -721,7 +721,9 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
 
 /**
  * Calculate total return percentage from an array of positions.
- * Each position should have cost_basis, current_price, and quantity fields.
+ * Each position should have cost_basis, current_price, and shares fields
+ * (column name matches the positions table — NOT `quantity`, which was a
+ * prior typo that collapsed the aggregate to -100% on every agent).
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function calculatePositionsReturnPct(positions: any[]): number {
@@ -729,7 +731,7 @@ function calculatePositionsReturnPct(positions: any[]): number {
   let totalCurrentValue = 0
   for (const pos of positions) {
     totalCostBasis += (pos.cost_basis as number) || 0
-    totalCurrentValue += ((pos.current_price as number) || 0) * ((pos.quantity as number) || 0)
+    totalCurrentValue += ((pos.current_price as number) || 0) * ((pos.shares as number) || 0)
   }
   return totalCostBasis > 0 ? ((totalCurrentValue - totalCostBasis) / totalCostBasis) * 100 : 0
 }
