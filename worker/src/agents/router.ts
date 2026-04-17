@@ -16,7 +16,7 @@ import {
   getActiveAgentsWithTopPoliticians,
   getAgentBudget,
   countAgentPositions,
-  countAgentTickerPositionsToday,
+  countAgentTickerPositions,
   getAgentTickerPosition
 } from './loader'
 import { closePosition } from './monitor'
@@ -407,9 +407,13 @@ async function checkPositionLimits(
     }
   }
 
-  // Check max per ticker (per day - prevents duplicate buys on same day)
-  const tickerPositionsToday = await countAgentTickerPositionsToday(env, agent.id, ticker)
-  if (tickerPositionsToday >= agent.sizing.max_per_ticker) {
+  // Check max per ticker across ALL currently-open positions. Semantics:
+  // "1 per ticker at a time" (matches config comments). Prevents the agent
+  // from re-entering a ticker it already holds — even on a new day — so
+  // concurrent exposure to a single name stays capped regardless of how
+  // many politicians confirm the thesis.
+  const concurrentTickerPositions = await countAgentTickerPositions(env, agent.id, ticker)
+  if (concurrentTickerPositions >= agent.sizing.max_per_ticker) {
     return {
       allowed: false,
       reason: 'skip_max_ticker'
