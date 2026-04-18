@@ -175,7 +175,13 @@ export function calculatePositionSize(
 
 /**
  * Calculate shares from position size and price.
- * Rounds down to nearest whole share (or 0.001 for fractional).
+ *
+ * Rounds DOWN in both modes so shares × price can never exceed positionSize.
+ * Fractional resolves to 0.001 (Fidelity's minimum fractional share unit);
+ * whole-share mode floors to the nearest integer. Math.round was used
+ * previously for fractional — a 0.11899... rawShares rounded up to 0.119,
+ * which multiplied by the pre-sized price overshot the budget by the
+ * rounding delta and caused spent > total_budget.
  */
 export function calculateShares(
   positionSize: number,
@@ -187,8 +193,8 @@ export function calculateShares(
   const rawShares = positionSize / pricePerShare
 
   if (allowFractional) {
-    // Round to 3 decimal places for fractional shares
-    return roundTo(rawShares, 3)
+    // Floor to 3 decimal places so qty × price <= positionSize, always
+    return Math.floor(rawShares * 1000) / 1000
   }
 
   // Round down to whole shares

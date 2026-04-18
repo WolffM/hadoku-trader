@@ -1,15 +1,16 @@
 /**
  * Scheduled task handlers for the trader worker.
+ *
+ * trader-api is HTTP-driven in production — `wrangler.toml` has `crons = []`.
+ * Cron orchestration lives in hadoku_site's monitoring-api worker, which
+ * POSTs to mgmt-api → dispatches to individual HTTP routes on trader-api.
+ * The signal-sync, market-price-sync, and performance-update helpers here
+ * are retained so future orchestration can plug them back in via HTTP
+ * endpoints without re-implementing them from scratch.
  */
 
 import { type TraderEnv, type Signal, getAdminKey } from './types'
 import { insertSignal } from './utils'
-import {
-  processAllPendingSignals,
-  resetMonthlyBudgets,
-  monitorPositions,
-  computePoliticianRankings
-} from './agents'
 
 // =============================================================================
 // Market Prices Types
@@ -33,131 +34,6 @@ interface MarketHistoricalResponse {
     ticker_count: number
     start_date: string
     end_date: string
-  }
-}
-
-/**
- * Creates a scheduled handler for cron jobs.
- *
- * Usage in hadoku-site:
- * ```typescript
- * import { createScheduledHandler } from 'hadoku-trader/worker';
- *
- * export default {
- *   async scheduled(event, env) {
- *     const handler = createScheduledHandler(env);
- *     await handler(event.cron);
- *   }
- * }
- * ```
- */
-export function createScheduledHandler(env: TraderEnv): (cron: string) => Promise<void> {
-  return async (cron: string): Promise<void> => {
-    console.log('Scheduled task running:', cron)
-
-    // Main sync: fetch data, process signals, update performance, handle monthly budget
-    // Runs once daily after market close (10pm UTC = 5/6pm ET)
-    if (cron === '0 22 * * 1-5') {
-      await runFullSync(env)
-    }
-
-    // Recompute politician rankings daily at 6am UTC
-    if (cron === '0 6 * * *') {
-      try {
-        console.log('Computing politician rankings...')
-        const result = await computePoliticianRankings(env)
-        console.log(
-          `Rankings computed: ${result.qualified_politicians}/${result.total_politicians} qualified, top 10: ${result.top_10.map(r => r.politician_name).join(', ')}`
-        )
-      } catch (error) {
-        console.error('Error computing politician rankings:', error)
-      }
-    }
-
-    // Monitor positions every 15 minutes during market hours (9am-4pm ET, Mon-Fri)
-    // Note: Cloudflare cron uses UTC, adjust times accordingly
-    if (cron === '*/15 14-21 * * 1-5') {
-      try {
-        // Refresh prices for all open-position tickers first so
-        // monitorPositions sees intraday data, not yesterday's close.
-        // The daily syncMarketPrices at 22 UTC has a 2-day stale threshold,
-        // which is too coarse for 15-min stop-loss / take-profit checks.
-        const refreshResult = await refreshOpenPositionPrices(env)
-        if (refreshResult.errors > 0) {
-          console.warn(
-            `Position-ticker price refresh: ${refreshResult.inserted} inserted, ${refreshResult.errors} errors`
-          )
-        }
-
-        console.log('Monitoring positions for exit conditions...')
-        const result = await monitorPositions(env)
-        console.log(
-          `Position monitoring complete: ${result.positions_checked} checked, ${result.exits_triggered} exits`
-        )
-        if (result.exits.length > 0) {
-          console.log('Exits executed:', result.exits)
-        }
-        if (result.errors.length > 0) {
-          console.warn('Monitoring errors:', result.errors)
-        }
-      } catch (error) {
-        console.error('Error monitoring positions:', error)
-      }
-    }
-  }
-}
-
-/**
- * Run the full sync: fetch data, process signals, update performance, handle monthly budget.
- * This is the main scheduled job that runs every 8 hours.
- */
-export async function runFullSync(env: TraderEnv): Promise<void> {
-  const startTime = Date.now()
-  console.log('=== Starting full sync ===')
-
-  try {
-    // 1. Fetch signals from scraper using incremental sync
-    const syncResult = await syncSignalsFromScraper(env)
-    if (syncResult.errors.length > 0) {
-      console.warn('Signal sync had errors:', syncResult.errors)
-    }
-
-    // 2. Sync historical market prices
-    await syncMarketPrices(env)
-
-    // 3. Process pending signals through agents
-    console.log('Processing pending signals through agents...')
-    const processResult = await processAllPendingSignals(env)
-    console.log(`Processed ${processResult.processed_count} signals through agents`)
-
-    // 4. Update performance history
-    await updatePerformanceHistory(env)
-
-    // 5. Check if we need to add monthly budget (1st of month)
-    const today = new Date()
-    if (today.getUTCDate() === 1) {
-      // Only run once on the 1st - check if we already did it today
-      const lastBudgetAdd = await env.TRADER_DB.prepare(
-        "SELECT value FROM config WHERE key = 'last_budget_add_date'"
-      ).first()
-
-      const todayStr = today.toISOString().split('T')[0]
-      if (lastBudgetAdd?.value !== todayStr) {
-        console.log('Resetting monthly budgets for all agents...')
-        await resetMonthlyBudgets(env)
-        console.log('Monthly budgets reset successfully')
-        await env.TRADER_DB.prepare(
-          'INSERT OR REPLACE INTO config (key, value, updated_at) VALUES (?, ?, ?)'
-        )
-          .bind('last_budget_add_date', todayStr, new Date().toISOString())
-          .run()
-      }
-    }
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(1)
-    console.log(`=== Full sync completed in ${elapsed}s ===`)
-  } catch (error) {
-    console.error('Full sync error:', error)
   }
 }
 
@@ -847,37 +723,6 @@ export async function syncMarketPrices(env: TraderEnv): Promise<void> {
   } catch (error) {
     console.error('Error syncing market prices:', error)
   }
-}
-
-/**
- * Focused refresh for mark-to-market: fetch today's prices for every
- * open-position ticker, regardless of staleness threshold.
- *
- * syncMarketPrices skips tickers that are <2 days stale, which is too
- * coarse for the 15-min monitor cron. This runs before monitorPositions
- * so stop-loss / take-profit / total_return_pct all see intraday data.
- */
-export async function refreshOpenPositionPrices(
-  env: TraderEnv
-): Promise<{ inserted: number; errors: number; tickerCount: number }> {
-  const tickersResult = await env.TRADER_DB.prepare(
-    `SELECT DISTINCT ticker FROM positions WHERE status = 'open' ORDER BY ticker`
-  ).all()
-  const tickers = tickersResult.results.map(r => r.ticker as string)
-
-  if (tickers.length === 0) {
-    return { inserted: 0, errors: 0, tickerCount: 0 }
-  }
-
-  const endDate = new Date().toISOString().split('T')[0]
-  const startDate = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
-
-  const result = await fetchMarketPricesWithRetry(env, tickers, startDate, endDate)
-  if (!result) {
-    return { inserted: 0, errors: tickers.length, tickerCount: tickers.length }
-  }
-  const insertResult = await insertMarketPrices(env, result.data.records)
-  return { ...insertResult, tickerCount: tickers.length }
 }
 
 /**

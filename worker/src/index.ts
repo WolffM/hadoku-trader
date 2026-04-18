@@ -41,8 +41,6 @@ export type {
 // Export handlers
 export { createTraderHandler } from './handler'
 export {
-  createScheduledHandler,
-  runFullSync,
   syncMarketPrices,
   backfillMarketPrices,
   syncSignalsFromScraper,

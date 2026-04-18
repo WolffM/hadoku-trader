@@ -17,7 +17,8 @@ import { routeSignalToAgents } from './router'
 import { enrichSignal, type RawSignalRow, generateId } from './filters'
 import { CHATGPT_CONFIG, CLAUDE_CONFIG, GEMINI_CONFIG } from './configs'
 import { calculateScore } from './scoring'
-import { calculatePositionSize } from './sizing'
+import { calculatePositionSize, calculateShares } from './sizing'
+import { SPEND_CAP_PCT } from './tradingConfig'
 
 // =============================================================================
 // Mock D1 Database
@@ -538,6 +539,43 @@ describe('End-to-End Signal Flow', () => {
       const { size, reasoning } = calculatePositionSize(pickyConfig, 0.7, budget, 1, false)
       expect(size).toBe(0)
       expect(reasoning.bound_by).toBe('below_min_threshold')
+    })
+
+    it('calculateShares fractional floors to never overshoot positionSize', () => {
+      // The regression case from production: $31.97 budget at IBP=$268.71
+      // previously rounded 0.11899... up to 0.119, multiplied back it was
+      // $31.9765 — exceeded the sizing target by $0.006 and overshot the
+      // monthly budget. Floor mode now returns 0.118 → 0.118 × $268.71 =
+      // $31.71, strictly <= positionSize.
+      const shares = calculateShares(31.97, 268.71, true)
+      expect(shares).toBe(0.118)
+      expect(shares * 268.71).toBeLessThanOrEqual(31.97)
+    })
+
+    it('calculateShares fractional preserves clean decimals', () => {
+      // A budget that divides cleanly should produce the exact share count
+      expect(calculateShares(100, 100, true)).toBe(1)
+      expect(calculateShares(50, 100, true)).toBe(0.5)
+      expect(calculateShares(125, 250, true)).toBe(0.5)
+    })
+
+    it('calculateShares whole-shares mode continues to floor', () => {
+      expect(calculateShares(100, 30, false)).toBe(3) // 3.333 -> 3
+      expect(calculateShares(100, 100, false)).toBe(1)
+      expect(calculateShares(50, 100, false)).toBe(0)
+    })
+
+    it('SPEND_CAP_PCT retains a safety buffer so budget.remaining never exposes the last 1%', () => {
+      // Mirror the getAgentBudget formula: remaining = max(0, total × SPEND_CAP_PCT − spent)
+      const cap = (total: number, spent: number) => Math.max(0, total * SPEND_CAP_PCT - spent)
+      // Fresh month: cap reserves 1%
+      expect(cap(1000, 0)).toBe(990)
+      // Previous prod state ($1000 budget, $968 spent): cap makes remaining $22, not $32
+      expect(cap(1000, 968)).toBeCloseTo(22, 5)
+      // At the cap line: exactly zero left
+      expect(cap(1000, 990)).toBe(0)
+      // Overshoot from prior session ($1000 budget, $1000.006 spent): remaining floors to 0
+      expect(cap(1000, 1000.006)).toBe(0)
     })
   })
 

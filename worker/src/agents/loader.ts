@@ -7,6 +7,7 @@ import type { TraderEnv } from '../types'
 import type { AgentConfig, AgentRow, AgentBudgetRow as _AgentBudgetRow } from './types'
 import { AGENT_CONFIGS as _AGENT_CONFIGS, TRADING_AGENTS } from './configs'
 import { generateId, getCurrentMonth } from './filters'
+import { SPEND_CAP_PCT } from './tradingConfig'
 
 // =============================================================================
 // Agent Loading
@@ -87,6 +88,13 @@ export async function agentExists(env: TraderEnv, agentId: string): Promise<bool
 /**
  * Get agent budget for current month.
  * Creates budget record if it doesn't exist.
+ *
+ * `remaining` is capped at SPEND_CAP_PCT × total_budget − spent so 1% of
+ * the monthly budget is always retained as a safety buffer. This prevents
+ * overshoot from calculateShares rounding, stale-price drift, and
+ * Fidelity's 030910 after-hours 95%-of-cash rule from pushing us over.
+ * Consumers should trust `remaining` as the real spendable amount —
+ * display `total` / `spent` for raw accounting instead.
  */
 export async function getAgentBudget(
   env: TraderEnv,
@@ -119,7 +127,7 @@ export async function getAgentBudget(
     return {
       total,
       spent: 0,
-      remaining: total
+      remaining: Math.max(0, total * SPEND_CAP_PCT)
     }
   }
 
@@ -127,7 +135,7 @@ export async function getAgentBudget(
   return {
     total: typedBudget.total_budget,
     spent: typedBudget.spent,
-    remaining: typedBudget.total_budget - typedBudget.spent
+    remaining: Math.max(0, typedBudget.total_budget * SPEND_CAP_PCT - typedBudget.spent)
   }
 }
 

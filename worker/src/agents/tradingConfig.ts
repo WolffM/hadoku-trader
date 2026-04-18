@@ -66,6 +66,20 @@ export const MAX_SIGNALS_PER_BATCH = 100
 export const DEFAULT_MONTHLY_BUDGET = 1000
 
 /**
+ * Maximum fraction of monthly_budget that can be committed across all
+ * trades for a given agent+month. The complement (1 - SPEND_CAP_PCT) is
+ * always retained as a safety buffer against:
+ *  - calculateShares rounding overshoot between sizing and fill
+ *  - price drift between our cached current_price and Fidelity's fill
+ *  - Fidelity's own 030910 "orders > 95% of Cash Available to Trade"
+ *    rule for market orders entered outside regular hours
+ * Enforced in getAgentBudget (budget.remaining returns
+ * max(0, total_budget × SPEND_CAP_PCT − spent)) so every consumer of
+ * budget.remaining — sizing, UI, dashboards — sees the capped number.
+ */
+export const SPEND_CAP_PCT = 0.99
+
+/**
  * Budget reset day of month (1-28)
  * On this day, agent budgets reset to their monthly allocation
  */
