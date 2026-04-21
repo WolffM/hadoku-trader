@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/trader",
-  "version": "1.4.7",
+  "version": "1.4.8",
   "description": "Stock and crypto trading dashboard for hadoku",
   "type": "module",
   "repository": {
@@ -23,6 +23,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build && tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
