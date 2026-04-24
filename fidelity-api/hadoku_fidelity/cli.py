@@ -3,7 +3,7 @@ CLI entry point for running the trader service.
 
 Usage:
     hadoku-trader                    # Run on default port 8765
-    hadoku-trader --port 9000        # Run on custom port
+    hadoku-trader --port <PORT>      # Run on custom port
     hadoku-trader --host 0.0.0.0     # Listen on all interfaces
 """
 
