@@ -81,8 +81,36 @@ export interface TradeReasoning {
   position_size_tier: string
 }
 
+/**
+ * Sizing telemetry attached to trade rows by the worker. Mirrors
+ * `SizingReasoning` in `worker/src/agents/sizing.ts`. Captured for every
+ * decision (including budget-skipped shadow trades) so retrospective audits
+ * can see what the position WOULD have been.
+ */
+export interface SizingReasoning {
+  mode: 'score_squared' | 'score_linear' | 'equal_split' | 'smart_budget'
+  score: number | null
+  budget_basis: number
+  budget_remaining_at_eval: number
+  raw_size: number
+  half_size_applied: boolean
+  caps: {
+    max_position_amount: number
+    max_position_pct_limit: number
+    budget_remaining: number
+  }
+  final_size: number
+  bound_by:
+    | 'none'
+    | 'max_position_amount'
+    | 'max_position_pct'
+    | 'budget_remaining'
+    | 'below_min_threshold'
+}
+
 export interface ExecutedTrade {
   id: string
+  /** Backwards-compat: COALESCE(executed_at, created_at). Use `executed_at` to detect actual fills. */
   date: string
   ticker: string
   action: 'buy' | 'sell'
@@ -90,8 +118,18 @@ export interface ExecutedTrade {
   price: number
   total: number
   signal_id: string
-  reasoning: TradeReasoning
-  status: 'executed' | 'pending' | 'skipped'
+  /** Sizing reasoning written for every decision; null only for legacy rows or sell trades without sizing. */
+  reasoning: SizingReasoning | TradeReasoning | null
+  status: 'executed' | 'pending' | 'skipped' | 'failed'
+  // Fields below are populated by the worker for every row but were not
+  // previously surfaced. Optional in the type so older fixtures still compile.
+  agent_id?: string | null
+  decision?: string | null
+  score?: number | null
+  score_breakdown?: Record<string, number> | null
+  error_message?: string | null
+  executed_at?: string | null
+  created_at?: string | null
 }
 
 // =============================================================================

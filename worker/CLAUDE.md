@@ -1,12 +1,14 @@
 # @wolffm/trader-worker — Multi-Agent Trading Engine
 
-Consumed by hadoku-site as `@wolffm/trader-worker`. Three independent agents:
+Consumed by hadoku-site as `@wolffm/trader-worker`. Three agent code paths exist; **only ChatGPT runs in production**:
 
-| Agent                       | Strategy                  | Signals                               | Sizing       |
-| --------------------------- | ------------------------- | ------------------------------------- | ------------ |
-| ChatGPT ("Decay Edge")      | Score-based, soft stops   | All politicians                       | score² × 20% |
-| Claude ("Decay Alpha")      | Score-based, take-profits | All politicians                       | $200 × score |
-| Gemini ("Titan Conviction") | Pass/fail on 5 Titans     | Pelosi, Green, McCaul, Khanna, Larsen | Equal split  |
+| Agent                       | Live? | Strategy                  | Signals                               | Sizing       |
+| --------------------------- | ----- | ------------------------- | ------------------------------------- | ------------ |
+| ChatGPT ("Decay Edge")      | ✅    | Score-based, soft stops   | All politicians                       | score² × 20% |
+| Claude ("Decay Alpha")      | ❌    | Score-based, take-profits | All politicians                       | $200 × score |
+| Gemini ("Titan Conviction") | ❌    | Pass/fail on 5 Titans     | Pelosi, Green, McCaul, Khanna, Larsen | Equal split  |
+
+`/agents/<id>` reports `is_active: true` for all three — that DB flag is stale and does NOT mean the agent is operational. When auditing trade activity, ignore claude and gemini; their $0 spend / 0 positions / empty trade history is expected, not a defect.
 
 ## Signal Processing
 

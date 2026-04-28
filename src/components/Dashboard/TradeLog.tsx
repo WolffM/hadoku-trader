@@ -1,4 +1,4 @@
-import type { ExecutedTrade } from '../../types/api'
+import type { ExecutedTrade, SizingReasoning } from '../../types/api'
 import { formatCurrency, formatDate } from '../../utils/formatters'
 import { STATUS_CLASSES } from '../../constants/labels'
 
@@ -12,8 +12,14 @@ interface TradeRowProps {
   isExpanded: boolean
 }
 
+function isSizingReasoning(r: ExecutedTrade['reasoning']): r is SizingReasoning {
+  return !!r && typeof r === 'object' && 'mode' in r && 'bound_by' in r
+}
+
 function TradeRow({ trade, onExpand, isExpanded }: TradeRowProps) {
   const isBuy = trade.action === 'buy'
+  const sizing = isSizingReasoning(trade.reasoning) ? trade.reasoning : null
+  const breakdown = trade.score_breakdown ?? null
 
   return (
     <>
@@ -33,33 +39,79 @@ function TradeRow({ trade, onExpand, isExpanded }: TradeRowProps) {
         <tr className="trade-row__details">
           <td colSpan={8}>
             <div className="trade-details">
-              <h4 className="trade-details__title">Trade Reasoning</h4>
+              <h4 className="trade-details__title">Decision</h4>
               <div className="trade-details__grid">
                 <div className="trade-details__item">
-                  <span className="trade-details__label">Politician</span>
-                  <span className="trade-details__value">{trade.reasoning.politician}</span>
+                  <span className="trade-details__label">Agent</span>
+                  <span className="trade-details__value">{trade.agent_id ?? '—'}</span>
                 </div>
                 <div className="trade-details__item">
-                  <span className="trade-details__label">Sources</span>
-                  <span className="trade-details__value">{trade.reasoning.source_count}</span>
+                  <span className="trade-details__label">Decision</span>
+                  <span className="trade-details__value">{trade.decision ?? '—'}</span>
                 </div>
                 <div className="trade-details__item">
-                  <span className="trade-details__label">Conviction</span>
+                  <span className="trade-details__label">Score</span>
                   <span className="trade-details__value">
-                    {trade.reasoning.conviction_multiplier.toFixed(2)}x
+                    {typeof trade.score === 'number' ? trade.score.toFixed(3) : '—'}
                   </span>
                 </div>
-                <div className="trade-details__item">
-                  <span className="trade-details__label">Priced-In Factor</span>
-                  <span className="trade-details__value">
-                    {(trade.reasoning.priced_in_factor * 100).toFixed(0)}%
-                  </span>
-                </div>
-                <div className="trade-details__item">
-                  <span className="trade-details__label">Position Tier</span>
-                  <span className="trade-details__value">{trade.reasoning.position_size_tier}</span>
-                </div>
+                {trade.error_message && (
+                  <div className="trade-details__item">
+                    <span className="trade-details__label">Error</span>
+                    <span className="trade-details__value">{trade.error_message}</span>
+                  </div>
+                )}
               </div>
+
+              {sizing && (
+                <>
+                  <h4 className="trade-details__title">Sizing</h4>
+                  <div className="trade-details__grid">
+                    <div className="trade-details__item">
+                      <span className="trade-details__label">Mode</span>
+                      <span className="trade-details__value">{sizing.mode}</span>
+                    </div>
+                    <div className="trade-details__item">
+                      <span className="trade-details__label">Raw size</span>
+                      <span className="trade-details__value">
+                        {formatCurrency(sizing.raw_size)}
+                      </span>
+                    </div>
+                    <div className="trade-details__item">
+                      <span className="trade-details__label">Final size</span>
+                      <span className="trade-details__value">
+                        {formatCurrency(sizing.final_size)}
+                      </span>
+                    </div>
+                    <div className="trade-details__item">
+                      <span className="trade-details__label">Bound by</span>
+                      <span className="trade-details__value">{sizing.bound_by}</span>
+                    </div>
+                    <div className="trade-details__item">
+                      <span className="trade-details__label">Budget remaining</span>
+                      <span className="trade-details__value">
+                        {formatCurrency(sizing.budget_remaining_at_eval)}
+                      </span>
+                    </div>
+                  </div>
+                </>
+              )}
+
+              {breakdown && (
+                <>
+                  <h4 className="trade-details__title">Score breakdown</h4>
+                  <div className="trade-details__grid">
+                    {Object.entries(breakdown).map(([k, v]) => (
+                      <div className="trade-details__item" key={k}>
+                        <span className="trade-details__label">{k}</span>
+                        <span className="trade-details__value">
+                          {typeof v === 'number' ? v.toFixed(3) : String(v)}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           </td>
         </tr>

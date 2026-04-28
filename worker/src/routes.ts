@@ -520,31 +520,54 @@ export async function handleGetPerformance(env: TraderEnv): Promise<Response> {
 // =============================================================================
 
 export async function handleGetTrades(env: TraderEnv): Promise<Response> {
+  // Order by COALESCE(executed_at, created_at) so skip rows (executed_at IS NULL)
+  // surface alongside executed rows in chronological order. Without COALESCE,
+  // SQLite sorts NULLs last under DESC and the LIMIT 100 window evicts every
+  // recent skip — hiding shadow-trade decisions made after a budget cap, which
+  // is exactly when retrospective inspection matters most.
   const trades = await env.TRADER_DB.prepare(
     `
     SELECT * FROM trades
-    ORDER BY executed_at DESC
+    ORDER BY COALESCE(executed_at, created_at) DESC
     LIMIT 100
   `
   ).all()
 
   const formattedTrades = trades.results.map((t: any) => ({
     id: t.id,
-    date: t.executed_at,
+    agent_id: t.agent_id,
+    signal_id: t.signal_id,
     ticker: t.ticker,
     action: t.action,
+    decision: t.decision,
+    score: t.score,
+    score_breakdown: parseJsonOrNull(t.score_breakdown_json),
     quantity: t.quantity,
     price: t.price,
     total: t.total,
-    signal_id: t.signal_id,
-    reasoning: t.reasoning_json ? JSON.parse(t.reasoning_json) : null,
-    status: t.status
+    status: t.status,
+    error_message: t.error_message,
+    reasoning: parseJsonOrNull(t.reasoning_json),
+    executed_at: t.executed_at,
+    created_at: t.created_at,
+    // Backwards-compat: existing dashboard reads `date`. Falls back to
+    // created_at for skip rows (which never executed) so they sort sensibly.
+    date: t.executed_at ?? t.created_at
   }))
 
   return jsonResponse({
     trades: formattedTrades,
     last_updated: new Date().toISOString()
   })
+}
+
+function parseJsonOrNull(raw: unknown): unknown {
+  if (typeof raw !== 'string' || raw.length === 0) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
 }
 
 // =============================================================================
