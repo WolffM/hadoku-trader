@@ -13,7 +13,7 @@ import {
   type MarketPricesBackfillPayload,
   type MarketPriceData,
   type MarketBackfillTriggerRequest,
-  getAdminKey
+  getServiceKey
 } from './types'
 import {
   jsonResponse,
@@ -652,7 +652,7 @@ export async function handleExecuteTrade(request: Request, env: TraderEnv): Prom
     const tunnelResponse = await fetch(`${env.TUNNEL_URL}/execute-trade`, {
       method: 'POST',
       headers: {
-        'X-User-Key': getAdminKey(env),
+        'X-User-Key': getServiceKey(env),
         'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY,
         'Content-Type': 'application/json'
       },
@@ -720,7 +720,7 @@ export async function handleHealth(env: TraderEnv): Promise<Response> {
     const resp = await fetch(`${env.TUNNEL_URL}/health`, {
       method: 'GET',
       headers: {
-        'X-User-Key': getAdminKey(env),
+        'X-User-Key': getServiceKey(env),
         'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY || ''
       },
       signal: AbortSignal.timeout(5000)

@@ -3,7 +3,7 @@
  * Handles trade execution via Fidelity API and position management.
  */
 
-import { type TraderEnv, getAdminKey } from '../types'
+import { type TraderEnv, getServiceKey } from '../types'
 import type {
   AgentConfig,
   EnrichedSignal,
@@ -348,7 +348,7 @@ export async function callFidelityApi(
     const response = await fetch(tunnelUrl, {
       method: 'POST',
       headers: {
-        'X-User-Key': getAdminKey(env),
+        'X-User-Key': getServiceKey(env),
         'X-API-Key': env.FIDELITY_API_KEY || env.TRADER_API_KEY,
         'Content-Type': 'application/json'
       },

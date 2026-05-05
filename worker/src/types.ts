@@ -20,25 +20,41 @@ export interface TraderEnv {
   TRADER_DB: D1Database
 
   // Secrets
-  SCRAPER_API_KEY: string
   TRADER_API_KEY: string
   TUNNEL_URL: string // cloudflared tunnel to local fidelity service
   SCRAPER_URL: string // hadoku-scraper API URL for market data
-  ADMIN_KEYS?: string // JSON array of admin keys for edge-router auth
+
+  /**
+   * Service-tier key for outbound calls to scraper + fidelity-api tunnel
+   * (sent as X-User-Key). Pulled from vault TRADER_SCRAPER_KEY via
+   * `python scripts/administration.py cloudflare-secrets trader-api`.
+   *
+   * Replaces the prior `getAdminKey(env)` helper that used `ADMIN_KEYS[0]`
+   * as an outbound credential — that was a privilege-escalation risk
+   * (worker holding operator-tier credentials) and was removed
+   * 2026-05-05 alongside the broader sibling-scraper-auth migration.
+   */
+  SCRAPER_USER_KEY?: string
+
   FIDELITY_API_KEY?: string // API key for fidelity-api service auth
   ENABLE_LIVE_TRADING?: string // 'true' submits real orders; anything else is a dry run
 }
 
 /**
- * Extract the first admin key from the ADMIN_KEYS JSON array.
- * Used for X-User-Key header when calling through edge-router.
+ * Service-tier key for outbound auth (scraper, fidelity-api tunnel).
+ * Replaces the prior `getAdminKey` which read `ADMIN_KEYS[0]` — services
+ * should never hold operator credentials.
+ */
+export function getServiceKey(env: TraderEnv): string {
+  return env.SCRAPER_USER_KEY || ''
+}
+
+/**
+ * @deprecated Use `getServiceKey` instead. Retained for one release so
+ * any in-flight imports don't fail to build mid-migration; remove after.
  */
 export function getAdminKey(env: TraderEnv): string {
-  try {
-    return JSON.parse(env.ADMIN_KEYS || '[]')[0] || ''
-  } catch {
-    return ''
-  }
+  return getServiceKey(env)
 }
 
 // Legacy alias for backwards compatibility
