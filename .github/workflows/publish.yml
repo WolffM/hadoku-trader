@@ -13,7 +13,7 @@ permissions:
 jobs:
   publish-ui:
     name: Publish @wolffm/trader (UI)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hadoku-builder]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -110,7 +110,7 @@ jobs:
 
   publish-worker:
     name: Publish @wolffm/trader-worker (API)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hadoku-builder]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -211,7 +211,7 @@ jobs:
 
   publish-python:
     name: Publish hadoku-fidelity (Python)
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hadoku-builder]
     steps:
       - uses: actions/checkout@v4
         with:
@@ -289,7 +289,7 @@ jobs:
     needs: [publish-ui, publish-worker]
     # Only notify for npm packages - Python package is a separate PM2 service
     if: needs.publish-ui.outputs.published == 'true' || needs.publish-worker.outputs.published == 'true'
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, hadoku-builder]
     steps:
       - name: Trigger hadoku-site rebuild
         env:
