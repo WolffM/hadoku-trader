@@ -62,6 +62,7 @@ export default [
     ignores: [
       '**/dist/**',
       '**/node_modules/**',
+      '**/.venv/**', // per-repo Python virtualenv (fidelity-api) — bundled JS, not ours
       '**/coverage/**',
       '**/*.test.ts',
       '**/*.test.tsx',

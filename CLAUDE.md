@@ -54,6 +54,14 @@ pnpm build                  # Production build
 cd worker && pnpm test      # Engine tests
 ```
 
+The Python broker (`fidelity-api/` → `hadoku-fidelity`, the `hadoku-trader`
+CLI / FastAPI app) runs from a **per-repo `.venv`**, not the system Python.
+hadoku_site's deploy creates `.venv` and `pip install -e ./fidelity-api/`
+into it; the PM2 wrapper launches `.venv\Scripts\hadoku-trader.exe`. Local
+Python work: `python -m venv .venv` at the repo root, then
+`.venv\Scripts\python.exe -m pip install -e ./fidelity-api/` (`.venv/bin/`
+on Linux). Never install into the system Python.
+
 ## Does NOT contain
 
 - File structure trees (run `ls`)
