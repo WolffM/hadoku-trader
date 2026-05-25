@@ -28,7 +28,7 @@ export function jsonResponse(
 export function verifyApiKey(
   request: Request,
   env: TraderEnv,
-  keyName: 'SCRAPER_API_KEY' | 'TRADER_API_KEY'
+  keyName: 'SCRAPER_INBOUND_KEY' | 'TRADER_API_KEY'
 ): boolean {
   const apiKey =
     request.headers.get('X-API-Key') ||

@@ -28,13 +28,18 @@ export interface TraderEnv {
    * Service-tier key for outbound calls to scraper + fidelity-api tunnel
    * (sent as X-User-Key). Pulled from vault TRADER_SCRAPER_KEY via
    * `python scripts/administration.py cloudflare-secrets trader-api`.
-   *
-   * Replaces the prior `getAdminKey(env)` helper that used `ADMIN_KEYS[0]`
-   * as an outbound credential — that was a privilege-escalation risk
-   * (worker holding operator-tier credentials) and was removed
-   * 2026-05-05 alongside the broader sibling-scraper-auth migration.
    */
   SCRAPER_USER_KEY?: string
+
+  /**
+   * Inbound auth: the scraper's service-tier user-key that trader recognizes
+   * on incoming webhooks (signal posts, backfill batches, market backfills).
+   * Symmetric counterpart to SCRAPER_USER_KEY — scraper sends its key as
+   * X-User-Key, trader checks against this binding. Pulled from vault
+   * TRADER_SCRAPER_INBOUND_KEY. Required for the three /signals/* and
+   * /market/backfill endpoints to authenticate (without it they 401).
+   */
+  SCRAPER_INBOUND_KEY?: string
 
   FIDELITY_API_KEY?: string // API key for fidelity-api service auth
   ENABLE_LIVE_TRADING?: string // 'true' submits real orders; anything else is a dry run

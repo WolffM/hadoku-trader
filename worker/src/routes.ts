@@ -96,7 +96,7 @@ export async function handleGetSignals(env: TraderEnv): Promise<Response> {
 
 export async function handlePostSignal(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+  if (!verifyApiKey(request, env, 'SCRAPER_INBOUND_KEY')) {
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
@@ -139,7 +139,7 @@ export async function handlePostSignal(request: Request, env: TraderEnv): Promis
  */
 export async function handleBackfillBatch(request: Request, env: TraderEnv): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+  if (!verifyApiKey(request, env, 'SCRAPER_INBOUND_KEY')) {
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
@@ -260,7 +260,7 @@ export async function handleMarketPricesBackfill(
   env: TraderEnv
 ): Promise<Response> {
   // Verify API key from scraper
-  if (!verifyApiKey(request, env, 'SCRAPER_API_KEY')) {
+  if (!verifyApiKey(request, env, 'SCRAPER_INBOUND_KEY')) {
     return jsonResponse({ success: false, error: 'Unauthorized' }, 401)
   }
 
