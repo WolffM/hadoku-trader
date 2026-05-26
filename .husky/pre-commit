@@ -26,12 +26,21 @@ if ! pnpm run typecheck; then
   exit 1
 fi
 
-# Bump version on every commit to ensure unique versions for publishing.
-# Applies to all three packages in this repo:
-#   @wolffm/trader         (package.json)
-#   @wolffm/trader-worker  (worker/package.json)
-#   hadoku-fidelity        (fidelity-api/pyproject.toml)
-echo "📦 Bumping versions..."
+# Bump version on commits that touch each package, so publish workflows
+# only fire when something in that package actually changed. Before this
+# gating, every commit bumped all three versions, which kept the Python
+# publish job perpetually retrying against a stale runner env.
+#   @wolffm/trader         (package.json)         — root, excluding worker/ + fidelity-api/
+#   @wolffm/trader-worker  (worker/package.json)  — anything under worker/
+#   hadoku-fidelity        (fidelity-api/pyproject.toml) — anything under fidelity-api/
+echo "📦 Checking which packages have staged changes..."
+
+# Detect which subpackages have staged files. STAGED_FILES is the snapshot
+# captured at the top of the hook, before lint/format may have churned things.
+worker_changed=$(echo "${STAGED_FILES}" | grep -E '^worker/' | head -1 || true)
+fidelity_changed=$(echo "${STAGED_FILES}" | grep -E '^fidelity-api/' | head -1 || true)
+# Root @wolffm/trader picks up everything that isn't in worker/ or fidelity-api/.
+trader_changed=$(echo "${STAGED_FILES}" | grep -v -E '^(worker/|fidelity-api/)' | grep -v '^$' | head -1 || true)
 
 # Bump a semver string — rolls patch over at .20 to keep numbers manageable
 bump_version() {
@@ -46,49 +55,72 @@ bump_version() {
   fi
 }
 
+# Track which files we touched so we only re-stage what we actually bumped.
+bumped_files=""
+
 # 1. @wolffm/trader (root package.json)
-trader_cur=$(node -p "require('./package.json').version")
-trader_new=$(bump_version "$trader_cur")
-node -e "
+if [ -n "${trader_changed}" ]; then
+  trader_cur=$(node -p "require('./package.json').version")
+  trader_new=$(bump_version "$trader_cur")
+  node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 pkg.version = '${trader_new}';
 fs.writeFileSync('package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
-echo "  @wolffm/trader: ${trader_cur} → ${trader_new}"
+  echo "  @wolffm/trader: ${trader_cur} → ${trader_new}"
+  bumped_files="${bumped_files} package.json"
+else
+  echo "  @wolffm/trader: skipped (no root changes)"
+fi
 
 # 2. @wolffm/trader-worker (worker/package.json)
-worker_cur=$(node -p "require('./worker/package.json').version")
-worker_new=$(bump_version "$worker_cur")
-node -e "
+if [ -n "${worker_changed}" ]; then
+  worker_cur=$(node -p "require('./worker/package.json').version")
+  worker_new=$(bump_version "$worker_cur")
+  node -e "
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('worker/package.json', 'utf8'));
 pkg.version = '${worker_new}';
 fs.writeFileSync('worker/package.json', JSON.stringify(pkg, null, 2) + '\n');
 "
-echo "  @wolffm/trader-worker: ${worker_cur} → ${worker_new}"
+  echo "  @wolffm/trader-worker: ${worker_cur} → ${worker_new}"
+  bumped_files="${bumped_files} worker/package.json"
+else
+  echo "  @wolffm/trader-worker: skipped (no worker/ changes)"
+fi
 
 # 3. hadoku-fidelity (fidelity-api/pyproject.toml)
-fidelity_cur=$(python3 -c "
+if [ -n "${fidelity_changed}" ]; then
+  fidelity_cur=$(python3 -c "
 import re
 m = re.search(r'^version = \"(.+?)\"', open('fidelity-api/pyproject.toml').read(), re.M)
 print(m.group(1))
 ")
-fidelity_new=$(bump_version "$fidelity_cur")
-FIDELITY_NEW="$fidelity_new" python3 -c "
+  fidelity_new=$(bump_version "$fidelity_cur")
+  FIDELITY_NEW="$fidelity_new" python3 -c "
 import re, os
 path = 'fidelity-api/pyproject.toml'
 content = open(path).read()
 updated = re.sub(r'^version = \".+?\"', 'version = \"' + os.environ['FIDELITY_NEW'] + '\"', content, flags=re.M)
 open(path, 'w').write(updated)
 "
-echo "  hadoku-fidelity: ${fidelity_cur} → ${fidelity_new}"
+  echo "  hadoku-fidelity: ${fidelity_cur} → ${fidelity_new}"
+  bumped_files="${bumped_files} fidelity-api/pyproject.toml"
+else
+  echo "  hadoku-fidelity: skipped (no fidelity-api/ changes)"
+fi
 
-# Update root lockfile
-pnpm install --lockfile-only
+# Only refresh the lockfile when a JS package version actually changed.
+if [ -n "${trader_changed}" ] || [ -n "${worker_changed}" ]; then
+  pnpm install --lockfile-only
+  bumped_files="${bumped_files} pnpm-lock.yaml"
+fi
 
-# Stage all version file changes
-git add package.json worker/package.json fidelity-api/pyproject.toml pnpm-lock.yaml
+# Stage only the files we actually bumped.
+if [ -n "${bumped_files}" ]; then
+  git add ${bumped_files}
+fi
 
 # Re-stage only the files that were originally staged (after lint/format may have modified them)
 if [ -n "${STAGED_FILES}" ]; then

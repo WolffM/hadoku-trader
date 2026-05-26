@@ -234,7 +234,15 @@ jobs:
 
       - name: Install build tools
         if: steps.python_changed.outputs.changed == 'true'
-        run: pip install build twine toml
+        run: |
+          # Self-hosted runner's Python toolcache is uv-managed (PEP 668),
+          # so bare `pip install` fails with externally-managed-environment.
+          # Use a throwaway venv and prepend its bin to PATH so subsequent
+          # steps' `python` / `pip` / `twine` resolve to it.
+          python -m venv /tmp/python-build-tools
+          /tmp/python-build-tools/bin/pip install --upgrade pip
+          /tmp/python-build-tools/bin/pip install build twine toml
+          echo "/tmp/python-build-tools/bin" >> $GITHUB_PATH
 
       - name: Bump version if needed
         if: steps.python_changed.outputs.changed == 'true'
