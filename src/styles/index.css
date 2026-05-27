@@ -72,7 +72,7 @@
 
 .trader__error {
   padding: 0.75rem 1rem;
-  background-color: var(--color-accent, #fef3c7);
+  background-color: var(--color-warning-bg);
   border: 1px solid var(--color-warning, #f59e0b);
   border-radius: var(--border-radius, 8px);
   color: var(--color-text, #92400e);
@@ -81,7 +81,7 @@
 
 .trader__loading {
   padding: 0.5rem 1rem;
-  background-color: var(--color-surface, #f3f4f6);
+  background-color: var(--color-bg-alt);
   border-radius: var(--border-radius, 8px);
   color: var(--color-text-muted, #6b7280);
   font-size: var(--font-size-sm, 0.875rem);
