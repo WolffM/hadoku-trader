@@ -1,6 +1,6 @@
 {
   "name": "@wolffm/trader",
-  "version": "1.4.18",
+  "version": "1.4.19",
   "description": "Stock and crypto trading dashboard for hadoku",
   "type": "module",
   "repository": {
@@ -30,6 +30,7 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "lint:fix": "eslint . --fix",
+    "lint:css": "stylelint \"src/**/*.css\"",
     "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
     "prepare": "husky || exit 0"
@@ -43,7 +44,6 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.39.1",
-    "recharts": "^3.6.0",
     "@types/react": "^19.2.2",
     "@types/react-dom": "^19.2.2",
     "@typescript-eslint/eslint-plugin": "^8.46.4",
@@ -59,6 +59,9 @@
     "prettier": "^3.6.2",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
+    "recharts": "^3.6.0",
+    "stylelint": "^17.12.0",
+    "stylelint-value-no-unknown-custom-properties": "^6.1.1",
     "typescript": "^5.6.3",
     "vite": "^7.1.12"
   },
