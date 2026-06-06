@@ -1,6 +1,7 @@
 {
   "name": "@wolffm/trader",
   "version": "1.5.1",
+  "packageManager": "pnpm@11.5.0",
   "description": "Stock and crypto trading dashboard for hadoku",
   "type": "module",
   "repository": {
@@ -66,10 +67,5 @@
     "stylelint-value-no-unknown-custom-properties": "^6.1.1",
     "typescript": "^5.6.3",
     "vite": "^7.1.12"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }

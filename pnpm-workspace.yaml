@@ -1,0 +1,8 @@
+packages:
+  - .
+
+minimumReleaseAgeExclude:
+  - '@wolffm/*'
+
+onlyBuiltDependencies:
+  - esbuild

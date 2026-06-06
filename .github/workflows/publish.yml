@@ -19,13 +19,11 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: https://npm.pkg.github.com
           scope: "@wolffm"
           cache: pnpm
@@ -116,13 +114,11 @@ jobs:
         with:
           fetch-depth: 2
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: https://npm.pkg.github.com
           scope: "@wolffm"
           cache: pnpm

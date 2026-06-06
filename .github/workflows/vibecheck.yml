@@ -19,13 +19,11 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 9
+      - uses: pnpm/action-setup@v5
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          node-version: "22"
           registry-url: https://npm.pkg.github.com
           scope: "@wolffm"
           cache: pnpm
@@ -33,7 +31,7 @@ jobs:
       - name: Run vibeCheck
         uses: WolffM/vibecheck@main
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.HADOKU_SITE_TOKEN }}
           cadence: weekly
           severity_threshold: medium
           confidence_threshold: medium
