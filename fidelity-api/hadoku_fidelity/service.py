@@ -47,8 +47,8 @@ class TraderConfig:
         return all([self.username, self.password, self.totp_secret])
 
 
-# Browser launch can fail transiently on Windows (Chrome process dies during
-# startup, especially right after a PM2 restart kills the previous instance).
+# Browser launch can fail transiently (Chrome process dies during startup,
+# especially right after a PM2 restart kills the previous instance).
 # Retry a few times with backoff before giving up.
 _INIT_MAX_RETRIES = 3
 _INIT_BASE_DELAY = 2.0  # seconds

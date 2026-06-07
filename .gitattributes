@@ -1,4 +1,4 @@
-# Force LF line endings for all text files
+# Force LF line endings (Linux-only host)
 * text=auto eol=lf
 
 # Explicitly mark binary files
