@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect } from 'react'
-import { ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
+import { AppHeader, ConnectedThemePicker, LoadingSkeleton } from '@wolffm/task-ui-components'
 import { THEME_ICON_MAP } from '@wolffm/themes'
 import { useTheme } from './hooks/useTheme'
 import type { TraderProps } from './entry'
@@ -150,19 +150,20 @@ export default function App(props: TraderProps = {}) {
       data-dark-theme={isDarkTheme ? 'true' : 'false'}
     >
       <div className="trader">
-        <header className="trader__header">
-          <h1>Congress Trader</h1>
-
-          <ConnectedThemePicker
-            themeFamilies={THEME_FAMILIES}
-            currentTheme={theme}
-            onThemeChange={setTheme}
-            getThemeIcon={(themeName: string) => {
-              const Icon = THEME_ICON_MAP[themeName as keyof typeof THEME_ICON_MAP]
-              return Icon ? <Icon /> : null
-            }}
-          />
-        </header>
+        <AppHeader
+          title="Congress Trader"
+          themePicker={
+            <ConnectedThemePicker
+              themeFamilies={THEME_FAMILIES}
+              currentTheme={theme}
+              onThemeChange={setTheme}
+              getThemeIcon={(themeName: string) => {
+                const Icon = THEME_ICON_MAP[themeName as keyof typeof THEME_ICON_MAP]
+                return Icon ? <Icon /> : null
+              }}
+            />
+          }
+        />
 
         <main className="trader__content">
           {/* Error Banner */}
