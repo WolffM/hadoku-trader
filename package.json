@@ -22,7 +22,7 @@
     "./style.css": "./dist/style.css"
   },
   "dependencies": {
-    "@wolffm/prefs-client": "^1.0.3",
+    "@wolffm/prefs-client": "^1.0.5",
     "zod": "^4.1.12"
   },
   "scripts": {
@@ -51,9 +51,9 @@
     "@typescript-eslint/eslint-plugin": "^8.46.4",
     "@typescript-eslint/parser": "^8.46.4",
     "@vitejs/plugin-react": "^5.1.0",
-    "@wolffm/logger": "^1.2.2",
-    "@wolffm/task-ui-components": "^2.0.1",
-    "@wolffm/themes": "^2.0.16",
+    "@wolffm/logger": "^1.3.1",
+    "@wolffm/task-ui-components": "^2.1.0",
+    "@wolffm/themes": "^3.0.2",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",
